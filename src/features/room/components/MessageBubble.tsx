@@ -26,8 +26,10 @@ export function MessageBubble({ event, showAvatar }: MessageBubbleProps) {
 
   const content = event.content
   const msgtype = content.msgtype as string
-  const body = (content.body as string) || ''
-  const formattedBody = content.formatted_body as string | undefined
+  const rawBody = (content.body as string) || ''
+  const body = event.replyTo ? stripReplyFallback(rawBody) : rawBody
+  const rawFormatted = content.formatted_body as string | undefined
+  const formattedBody = event.replyTo && rawFormatted ? stripHtmlReplyFallback(rawFormatted) : rawFormatted
 
   return (
     <div
@@ -48,6 +50,13 @@ export function MessageBubble({ event, showAvatar }: MessageBubbleProps) {
             <time className={styles.time} dateTime={new Date(event.timestamp).toISOString()}>
               {formatTime(event.timestamp)}
             </time>
+          </div>
+        )}
+
+        {event.replyToEvent && (
+          <div className={styles.replyQuote}>
+            <span className={styles.replyQuoteSender}>{event.replyToEvent.sender}</span>
+            <span className={styles.replyQuoteBody}>{event.replyToEvent.body}</span>
           </div>
         )}
 
@@ -102,7 +111,13 @@ export function MessageBubble({ event, showAvatar }: MessageBubbleProps) {
       </div>
 
       {showActions && (
-        <MessageActions eventId={event.eventId} roomId={event.roomId} sender={event.sender} />
+        <MessageActions
+          eventId={event.eventId}
+          roomId={event.roomId}
+          sender={event.sender}
+          senderName={event.senderName}
+          body={(event.content.body as string) || ''}
+        />
       )}
     </div>
   )
@@ -110,4 +125,16 @@ export function MessageBubble({ event, showAvatar }: MessageBubbleProps) {
 
 function formatTime(ts: number): string {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+function stripReplyFallback(body: string): string {
+  const lines = body.split('\n')
+  let i = 0
+  while (i < lines.length && lines[i].startsWith('> ')) i++
+  if (i > 0 && i < lines.length && lines[i] === '') i++
+  return lines.slice(i).join('\n')
+}
+
+function stripHtmlReplyFallback(html: string): string {
+  return html.replace(/^<mx-reply>[\s\S]*?<\/mx-reply>/, '')
 }

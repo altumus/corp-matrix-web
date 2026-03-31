@@ -1,21 +1,29 @@
 import { useTranslation } from 'react-i18next'
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
 import { redactMessage, sendReaction } from '../services/messageService.js'
+import { useComposerStore } from '../store/composerStore.js'
 import styles from './MessageActions.module.scss'
 
 interface MessageActionsProps {
   eventId: string
   roomId: string
   sender: string
+  senderName: string
+  body: string
 }
 
-export function MessageActions({ eventId, roomId, sender }: MessageActionsProps) {
+export function MessageActions({ eventId, roomId, sender, senderName, body }: MessageActionsProps) {
   const { t } = useTranslation()
   const client = getMatrixClient()
   const isOwnMessage = client?.getUserId() === sender
+  const setReplyTarget = useComposerStore((s) => s.setReplyTarget)
 
   const handleReact = (emoji: string) => {
     sendReaction(roomId, eventId, emoji)
+  }
+
+  const handleReply = () => {
+    setReplyTarget({ eventId, sender: senderName, body })
   }
 
   const handleRemove = () => {
@@ -32,11 +40,8 @@ export function MessageActions({ eventId, roomId, sender }: MessageActionsProps)
       <button className={styles.btn} onClick={() => handleReact('❤️')} title={t('messages.react')}>
         ❤️
       </button>
-      <button className={styles.btn} title={t('messages.reply')}>
+      <button className={styles.btn} onClick={handleReply} title={t('messages.reply')}>
         ↩
-      </button>
-      <button className={styles.btn} title={t('messages.thread')}>
-        💬
       </button>
       {isOwnMessage && (
         <button className={styles.btn} onClick={handleRemove} title={t('messages.remove')}>

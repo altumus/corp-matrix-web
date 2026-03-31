@@ -32,6 +32,33 @@
   color: var(--color-text-tertiary);
 }
 
+.replyQuote {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  margin-bottom: var(--spacing-xs);
+  border-left: 3px solid var(--color-accent);
+  border-radius: var(--radius-xs);
+  background: var(--color-bg-tertiary);
+  cursor: pointer;
+}
+
+.replyQuoteSender {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--color-accent);
+}
+
+.replyQuoteBody {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 400px;
+}
+
 .content {
   word-break: break-word;
 }

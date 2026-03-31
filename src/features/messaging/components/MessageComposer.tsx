@@ -1,8 +1,9 @@
-import { useRef, useState, useCallback, type FormEvent, type KeyboardEvent, type ClipboardEvent } from 'react'
+import { useRef, useState, useCallback, useEffect, type FormEvent, type KeyboardEvent, type ClipboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSendMessage } from '../hooks/useSendMessage.js'
 import { useMediaUpload } from '../../media/hooks/useMediaUpload.js'
 import { ImagePreviewDialog } from '../../media/components/ImagePreviewDialog.js'
+import { useComposerStore } from '../store/composerStore.js'
 import styles from './MessageComposer.module.scss'
 
 interface MessageComposerProps {
@@ -13,16 +14,25 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
   const { t } = useTranslation()
   const { send, onTyping } = useSendMessage(roomId)
   const { upload, uploading } = useMediaUpload(roomId)
+  const replyTarget = useComposerStore((s) => s.replyTarget)
+  const clearReply = useComposerStore((s) => s.clearReply)
   const [text, setText] = useState('')
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  useEffect(() => {
+    if (replyTarget) {
+      textareaRef.current?.focus()
+    }
+  }, [replyTarget])
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
     if (!text.trim()) return
-    send(text)
+    send(text, replyTarget?.eventId)
     setText('')
+    clearReply()
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
     }
@@ -93,6 +103,22 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
   return (
     <>
       <form className={styles.composer} onSubmit={handleSubmit}>
+        {replyTarget && (
+          <div className={styles.replyPreview}>
+            <div className={styles.replyInfo}>
+              <span className={styles.replyLabel}>↩ {replyTarget.sender}</span>
+              <span className={styles.replyBody}>{replyTarget.body}</span>
+            </div>
+            <button
+              type="button"
+              className={styles.replyCancelBtn}
+              onClick={clearReply}
+              title={t('common.cancel')}
+            >
+              ✕
+            </button>
+          </div>
+        )}
         <div className={styles.inputArea}>
           <button
             type="button"

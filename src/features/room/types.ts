@@ -20,6 +20,10 @@ export interface TimelineEvent {
   isEdited: boolean
   isRedacted: boolean
   replyTo?: string
+  replyToEvent?: {
+    sender: string
+    body: string
+  }
   threadRootId?: string
   reactions: Map<string, Set<string>>
 }

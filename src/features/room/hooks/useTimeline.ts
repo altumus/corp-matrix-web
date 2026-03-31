@@ -37,6 +37,19 @@ function mapEvent(event: MatrixEvent, room: Room): TimelineEvent {
   const isEdited = !!content['m.new_content']
   const relatesTo = content['m.relates_to'] as Record<string, unknown> | undefined
 
+  const replyToId = (relatesTo?.['m.in_reply_to'] as Record<string, unknown>)?.event_id as string | undefined
+  let replyToEvent: { sender: string; body: string } | undefined
+  if (replyToId) {
+    const replyEvent = room.findEventById(replyToId)
+    if (replyEvent) {
+      const replySender = room.getMember(replyEvent.getSender()!)
+      replyToEvent = {
+        sender: replySender?.name || replyEvent.getSender()!,
+        body: (replyEvent.getContent().body as string) || '',
+      }
+    }
+  }
+
   return {
     eventId: event.getId()!,
     roomId: room.roomId,
@@ -48,7 +61,8 @@ function mapEvent(event: MatrixEvent, room: Room): TimelineEvent {
     content,
     isEdited,
     isRedacted: event.isRedacted(),
-    replyTo: (relatesTo?.['m.in_reply_to'] as Record<string, unknown>)?.event_id as string | undefined,
+    replyTo: replyToId,
+    replyToEvent,
     threadRootId: relatesTo?.rel_type === 'm.thread'
       ? relatesTo.event_id as string
       : undefined,
