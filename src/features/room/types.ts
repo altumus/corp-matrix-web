@@ -10,6 +10,7 @@ export interface RoomSummary {
 
 export interface TimelineEvent {
   eventId: string
+  roomId: string
   type: string
   sender: string
   senderName: string

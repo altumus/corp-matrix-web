@@ -1,5 +1,7 @@
 import { useParams } from 'react-router'
 import { useRoom } from '../hooks/useRoom.js'
+import { useMediaUpload } from '../../media/hooks/useMediaUpload.js'
+import { MediaUploader } from '../../media/components/MediaUploader.js'
 import { RoomHeader } from './RoomHeader.js'
 import { Timeline } from './Timeline.js'
 import { MessageComposer } from '../../messaging/components/MessageComposer.js'
@@ -9,6 +11,7 @@ import styles from './RoomView.module.scss'
 export default function RoomView() {
   const { roomId } = useParams<{ roomId: string }>()
   const { room, loading } = useRoom(roomId)
+  const { uploadFiles } = useMediaUpload(roomId ?? '')
 
   if (loading) {
     return (
@@ -23,10 +26,12 @@ export default function RoomView() {
   }
 
   return (
-    <div className={styles.container}>
-      <RoomHeader room={room} />
-      <Timeline roomId={room.roomId} />
-      <MessageComposer roomId={room.roomId} />
-    </div>
+    <MediaUploader onFiles={uploadFiles}>
+      <div className={styles.container}>
+        <RoomHeader room={room} />
+        <Timeline roomId={room.roomId} />
+        <MessageComposer roomId={room.roomId} />
+      </div>
+    </MediaUploader>
   )
 }

@@ -57,6 +57,11 @@ async function resolvePostAuthStatusInner(): Promise<AuthStatus> {
     const crypto = client?.getCrypto()
     if (!crypto) return 'authenticated'
 
+    await crypto.checkKeyBackupAndEnable()
+
+    const activeVersion = await crypto.getActiveSessionBackupVersion()
+    if (activeVersion) return 'authenticated'
+
     const backupInfo = await crypto.getKeyBackupInfo()
     if (backupInfo?.version) return 'needs_key_restore'
   } catch {

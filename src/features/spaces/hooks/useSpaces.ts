@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from 'react'
-import { getMatrixClient, mxcToHttp } from '../../../shared/lib/matrixClient.js'
+import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
 import { ClientEvent } from 'matrix-js-sdk'
 import { useSpacesStore, type SpaceEntry } from '../store/spacesStore.js'
 
@@ -26,7 +26,7 @@ export function useSpaces() {
       return {
         roomId: room.roomId,
         name: room.name || room.roomId,
-        avatarUrl: mxcToHttp(room.getAvatarUrl(client.baseUrl, 32, 32, 'crop') ?? null, 32, 32),
+        avatarUrl: room.getMxcAvatarUrl() ?? null,
         childRoomIds,
       }
     })

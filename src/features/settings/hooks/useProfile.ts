@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { getMatrixClient, mxcToHttp } from '../../../shared/lib/matrixClient.js'
+import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
 
 interface ProfileData {
   displayName: string
@@ -22,7 +22,7 @@ export function useProfile() {
       const info = await client.getProfileInfo(userId)
       setProfile({
         displayName: info.displayname || userId,
-        avatarUrl: mxcToHttp(info.avatar_url, 80, 80),
+        avatarUrl: info.avatar_url ?? null,
         userId,
       })
     } finally {
@@ -48,7 +48,7 @@ export function useProfile() {
     const response = await client.uploadContent(file)
     await client.setAvatarUrl(response.content_uri)
     setProfile((prev) =>
-      prev ? { ...prev, avatarUrl: mxcToHttp(response.content_uri, 80, 80) } : null,
+      prev ? { ...prev, avatarUrl: response.content_uri } : null,
     )
   }, [])
 

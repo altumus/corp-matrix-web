@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { getMatrixClient, mxcToHttp } from '../../../shared/lib/matrixClient.js'
+import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
 
 export interface UserResult {
   userId: string
@@ -24,7 +24,7 @@ export function useUserSearch() {
       const mapped: UserResult[] = (response.results || []).map((u) => ({
         userId: u.user_id,
         displayName: u.display_name || u.user_id,
-        avatarUrl: mxcToHttp(u.avatar_url ?? null, 40, 40),
+        avatarUrl: u.avatar_url ?? null,
       }))
       setUsers(mapped)
     } catch {

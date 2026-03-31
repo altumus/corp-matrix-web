@@ -131,8 +131,11 @@ export function mxcToHttp(
   height?: number,
 ): string | null {
   if (!mxcUrl || !clientInstance) return null
+  let url: string | null
   if (width && height) {
-    return clientInstance.mxcUrlToHttp(mxcUrl, width, height, 'crop') ?? null
+    url = clientInstance.mxcUrlToHttp(mxcUrl, width, height, 'crop') ?? null
+  } else {
+    url = clientInstance.mxcUrlToHttp(mxcUrl) ?? null
   }
-  return clientInstance.mxcUrlToHttp(mxcUrl) ?? null
+  return url || null
 }

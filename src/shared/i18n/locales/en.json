@@ -58,6 +58,8 @@
     "edited": "(edited)",
     "removed": "Message deleted",
     "attachFile": "Attach file",
+    "sendImage": "Send image",
+    "uploading": "Uploading...",
     "voiceMessage": "Voice message",
     "emoji": "Emoji"
   },

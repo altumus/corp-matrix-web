@@ -39,12 +39,11 @@ function mapEvent(event: MatrixEvent, room: Room): TimelineEvent {
 
   return {
     eventId: event.getId()!,
+    roomId: room.roomId,
     type: event.getType() === 'm.room.encrypted' ? 'm.room.message' : event.getType(),
     sender: event.getSender()!,
     senderName: sender?.name || event.getSender()!,
-    senderAvatar: sender?.getAvatarUrl(
-      getMatrixClient()!.baseUrl, 32, 32, 'crop', false, false,
-    ) ?? null,
+    senderAvatar: sender?.getMxcAvatarUrl() ?? null,
     timestamp: event.getTs(),
     content,
     isEdited,

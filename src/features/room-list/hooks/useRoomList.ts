@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from 'react'
-import { getMatrixClient, mxcToHttp } from '../../../shared/lib/matrixClient.js'
+import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
 import { ClientEvent } from 'matrix-js-sdk'
 import { NotificationCountType } from 'matrix-js-sdk/lib/models/room.js'
 import type { Room } from 'matrix-js-sdk'
@@ -30,7 +30,7 @@ function roomToEntry(room: Room): RoomListEntry {
   return {
     roomId: room.roomId,
     name: room.name || room.roomId,
-    avatarUrl: mxcToHttp(room.getAvatarUrl(client.baseUrl, 40, 40, 'crop') ?? null, 40, 40),
+    avatarUrl: room.getMxcAvatarUrl() ?? null,
     lastMessage: lastMsg.body,
     lastMessageSender: lastMsg.sender,
     lastMessageTs: lastMsg.ts || room.getLastActiveTimestamp(),

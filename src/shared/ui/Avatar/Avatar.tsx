@@ -1,3 +1,4 @@
+import { useAuthenticatedMedia } from '../../hooks/useAuthenticatedMedia.js'
 import styles from './Avatar.module.scss'
 
 type AvatarSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl'
@@ -34,12 +35,15 @@ function stringToColor(str: string): string {
 }
 
 export function Avatar({ src, name, size = 'md', online, className = '' }: AvatarProps) {
+  const mxcUrl = src?.startsWith('mxc://') ? src : null
+  const authSrc = useAuthenticatedMedia(mxcUrl)
+  const imgSrc = mxcUrl ? authSrc : src
   const cls = [styles.avatar, styles[size], className].filter(Boolean).join(' ')
 
   return (
     <div className={cls}>
-      {src ? (
-        <img src={src} alt={name} className={styles.image} />
+      {imgSrc ? (
+        <img src={imgSrc} alt={name} className={styles.image} />
       ) : (
         <span
           className={styles.initials}

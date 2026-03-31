@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { TimelineEvent } from '../types.js'
-import { Avatar } from '../../../shared/ui/index.js'
+import { Avatar, AuthImage } from '../../../shared/ui/index.js'
 import { MessageActions } from '../../messaging/components/MessageActions.js'
 import styles from './MessageBubble.module.scss'
 
@@ -53,11 +53,18 @@ export function MessageBubble({ event, showAvatar }: MessageBubbleProps) {
 
         <div className={styles.content}>
           {msgtype === 'm.image' && (
-            <img
-              src={content.url as string}
+            <AuthImage
+              mxcUrl={content.url as string}
               alt={body}
               className={styles.imageMessage}
               loading="lazy"
+            />
+          )}
+          {msgtype === 'm.video' && (
+            <AuthImage
+              mxcUrl={content.url as string}
+              alt={body}
+              className={styles.imageMessage}
             />
           )}
           {msgtype === 'm.file' && (
@@ -95,7 +102,7 @@ export function MessageBubble({ event, showAvatar }: MessageBubbleProps) {
       </div>
 
       {showActions && (
-        <MessageActions eventId={event.eventId} roomId="" sender={event.sender} />
+        <MessageActions eventId={event.eventId} roomId={event.roomId} sender={event.sender} />
       )}
     </div>
   )

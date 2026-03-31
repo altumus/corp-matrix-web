@@ -15,7 +15,7 @@ export function useRoom(roomId: string | undefined) {
     return {
       roomId: matrixRoom.roomId,
       name: matrixRoom.name || roomId,
-      avatarUrl: matrixRoom.getAvatarUrl(client.baseUrl, 40, 40, 'crop') ?? null,
+      avatarUrl: matrixRoom.getMxcAvatarUrl() ?? null,
       topic: matrixRoom.currentState.getStateEvents('m.room.topic', '')?.getContent()?.topic as string | undefined,
       isDirect: !!matrixRoom.getDMInviter(),
       isEncrypted: matrixRoom.hasEncryptionStateEvent(),
