@@ -23,20 +23,39 @@ function getLastMessage(room: Room): { body: string; sender: string; ts: number 
   return { body: '', sender: '', ts: room.getLastActiveTimestamp() }
 }
 
+function isDmRoom(room: Room): boolean {
+  const members = room.getJoinedMembers()
+  if (members.length === 2) return true
+  if (members.length <= 2 && room.getDMInviter()) return true
+  return false
+}
+
+function getDmPartnerAvatar(room: Room, myUserId: string): string | null {
+  const members = room.getJoinedMembers()
+  const other = members.find((m) => m.userId !== myUserId)
+  return other?.getMxcAvatarUrl() ?? null
+}
+
 function roomToEntry(room: Room): RoomListEntry {
   const lastMsg = getLastMessage(room)
   const client = getMatrixClient()!
 
+  const isDirect = isDmRoom(room)
+  let avatarUrl = room.getMxcAvatarUrl() ?? null
+  if (!avatarUrl && isDirect) {
+    avatarUrl = getDmPartnerAvatar(room, client.getUserId()!) ?? null
+  }
+
   return {
     roomId: room.roomId,
     name: room.name || room.roomId,
-    avatarUrl: room.getMxcAvatarUrl() ?? null,
+    avatarUrl,
     lastMessage: lastMsg.body,
     lastMessageSender: lastMsg.sender,
     lastMessageTs: lastMsg.ts || room.getLastActiveTimestamp(),
     unreadCount: room.getUnreadNotificationCount() || 0,
     highlightCount: room.getRoomUnreadNotificationCount(NotificationCountType.Highlight) || 0,
-    isDirect: !!room.getDMInviter(),
+    isDirect,
     isInvite: room.getMyMembership() === 'invite',
     isEncrypted: room.hasEncryptionStateEvent(),
   }
