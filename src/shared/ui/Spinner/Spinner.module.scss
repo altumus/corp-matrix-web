@@ -1,0 +1,33 @@
+.spinner {
+  animation: rotate 1s linear infinite;
+  color: var(--color-accent);
+}
+
+.track {
+  opacity: 0.15;
+}
+
+.arc {
+  animation: dash 1.2s ease-in-out infinite;
+}
+
+@keyframes rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes dash {
+  0% {
+    stroke-dasharray: 1 200;
+    stroke-dashoffset: 0;
+  }
+  50% {
+    stroke-dasharray: 60 200;
+    stroke-dashoffset: -25;
+  }
+  100% {
+    stroke-dasharray: 60 200;
+    stroke-dashoffset: -125;
+  }
+}

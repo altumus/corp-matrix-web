@@ -1,0 +1,32 @@
+import { create } from 'zustand'
+import type { RoomListEntry } from '../types.js'
+
+interface RoomListState {
+  rooms: RoomListEntry[]
+  searchQuery: string
+  selectedRoomId: string | null
+
+  setRooms: (rooms: RoomListEntry[]) => void
+  setSearchQuery: (query: string) => void
+  setSelectedRoom: (roomId: string | null) => void
+  updateRoom: (roomId: string, partial: Partial<RoomListEntry>) => void
+}
+
+export const useRoomListStore = create<RoomListState>((set) => ({
+  rooms: [],
+  searchQuery: '',
+  selectedRoomId: null,
+
+  setRooms: (rooms) => set({ rooms }),
+
+  setSearchQuery: (query) => set({ searchQuery: query }),
+
+  setSelectedRoom: (roomId) => set({ selectedRoomId: roomId }),
+
+  updateRoom: (roomId, partial) =>
+    set((state) => ({
+      rooms: state.rooms.map((r) =>
+        r.roomId === roomId ? { ...r, ...partial } : r,
+      ),
+    })),
+}))

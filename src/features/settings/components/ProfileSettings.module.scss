@@ -1,0 +1,31 @@
+.section {
+  max-width: 480px;
+}
+
+.heading {
+  font-size: var(--font-size-xl);
+  margin: 0 0 var(--spacing-xl);
+}
+
+.avatarSection {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xl);
+  margin-bottom: var(--spacing-xl);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.userId {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+  margin: 0;
+}
+
+.hidden {
+  display: none;
+}

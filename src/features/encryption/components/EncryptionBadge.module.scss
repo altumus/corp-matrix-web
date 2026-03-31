@@ -1,0 +1,13 @@
+.badge {
+  display: inline-flex;
+  font-size: var(--font-size-xs);
+  cursor: help;
+}
+
+.verified {
+  color: var(--color-success);
+}
+
+.unverified {
+  color: var(--color-warning);
+}

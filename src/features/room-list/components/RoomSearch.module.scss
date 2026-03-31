@@ -1,0 +1,25 @@
+.search {
+  padding: var(--spacing-sm) var(--spacing-lg);
+}
+
+.input {
+  width: 100%;
+  height: 36px;
+  padding: 0 var(--spacing-md);
+  background: var(--color-bg-tertiary);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  outline: none;
+  transition: all var(--transition-fast);
+
+  &::placeholder {
+    color: var(--color-text-tertiary);
+  }
+
+  &:focus {
+    border-color: var(--color-accent);
+    background: var(--color-bg-primary);
+  }
+}

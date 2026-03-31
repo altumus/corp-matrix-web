@@ -1,0 +1,129 @@
+{
+  "app": {
+    "name": "Corp Matrix"
+  },
+  "auth": {
+    "login": "Sign In",
+    "register": "Sign Up",
+    "logout": "Sign Out",
+    "username": "Username",
+    "password": "Password",
+    "confirmPassword": "Confirm Password",
+    "homeserver": "Homeserver",
+    "homeserverPlaceholder": "matrix.example.com",
+    "loginTitle": "Sign in to your account",
+    "registerTitle": "Create an account",
+    "noAccount": "Don't have an account?",
+    "hasAccount": "Already have an account?",
+    "loggingIn": "Signing in...",
+    "registering": "Signing up...",
+    "errors": {
+      "invalidCredentials": "Invalid username or password",
+      "serverUnavailable": "Server is unavailable",
+      "networkError": "Network error",
+      "usernameRequired": "Username is required",
+      "passwordRequired": "Password is required",
+      "passwordMismatch": "Passwords do not match",
+      "registrationDisabled": "Registration is disabled on this server",
+      "unknownError": "An unknown error occurred"
+    }
+  },
+  "rooms": {
+    "title": "Chats",
+    "search": "Search chats...",
+    "empty": "No chats",
+    "create": "New chat",
+    "createRoom": "Create room",
+    "createDM": "Direct message",
+    "roomName": "Room name",
+    "roomTopic": "Topic",
+    "inviteUsers": "Invite users",
+    "invitations": "Invitations",
+    "accept": "Accept",
+    "decline": "Decline",
+    "noMessages": "No messages",
+    "typing": "is typing...",
+    "typingMultiple": "are typing...",
+    "yesterday": "Yesterday",
+    "unreadMessages": "Unread messages"
+  },
+  "messages": {
+    "placeholder": "Type a message...",
+    "send": "Send",
+    "edit": "Edit",
+    "remove": "Delete",
+    "reply": "Reply",
+    "react": "React",
+    "thread": "Thread",
+    "edited": "(edited)",
+    "removed": "Message deleted",
+    "attachFile": "Attach file",
+    "voiceMessage": "Voice message",
+    "emoji": "Emoji"
+  },
+  "settings": {
+    "title": "Settings",
+    "profile": "Profile",
+    "appearance": "Appearance",
+    "devices": "Devices",
+    "language": "Language",
+    "theme": "Theme",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "System",
+    "displayName": "Display name",
+    "avatar": "Avatar",
+    "changeAvatar": "Change avatar",
+    "save": "Save",
+    "saved": "Saved"
+  },
+  "encryption": {
+    "verified": "Verified",
+    "unverified": "Unverified",
+    "verifyDevice": "Verify device",
+    "keyBackup": "Key backup",
+    "setupKeyBackup": "Set up key backup",
+    "hasRecoveryKey": "Messages are encrypted. Have a recovery key?",
+    "enterKey": "Enter key",
+    "enterRecoveryKey": "Enter your recovery key",
+    "restore": "Restore",
+    "noBackupFound": "No key backup found on the server",
+    "wrongRecoveryKey": "Wrong recovery key. Please make sure you entered the correct key.",
+    "invalidKeyFormat": "Invalid key format. The key should start with EsTc and contain groups of 4 characters.",
+    "restoreFailed": "Failed to restore keys",
+    "keysRestored": "Keys restored successfully",
+    "restoreTitle": "Restore encryption keys",
+    "restoreDescription": "A key backup was found on the server. Enter your recovery key to decrypt message history.",
+    "recoveryKeyLabel": "Recovery key",
+    "skip": "Skip"
+  },
+  "search": {
+    "title": "Search",
+    "placeholder": "Search messages...",
+    "users": "Users",
+    "messages": "Messages",
+    "noResults": "No results found"
+  },
+  "spaces": {
+    "title": "Spaces",
+    "create": "Create space",
+    "home": "Home"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "enable": "Enable notifications",
+    "mute": "Mute",
+    "mentionsOnly": "Mentions only",
+    "allMessages": "All messages"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "retry": "Retry",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "close": "Close",
+    "save": "Save",
+    "back": "Back"
+  }
+}

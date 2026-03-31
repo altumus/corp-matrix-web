@@ -1,0 +1,15 @@
+.item {
+  padding: var(--spacing-xxs) var(--spacing-lg);
+
+  &:hover {
+    background: var(--color-bg-hover);
+  }
+}
+
+.withAvatar {
+  padding-top: var(--spacing-sm);
+}
+
+.continuation {
+  padding-top: var(--spacing-xxs);
+}

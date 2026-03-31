@@ -1,0 +1,18 @@
+.receipts {
+  display: flex;
+  align-items: center;
+  gap: -4px;
+  margin-top: var(--spacing-xxs);
+  padding-left: 40px;
+
+  > * {
+    margin-left: -4px;
+    border: 1px solid var(--color-bg-primary);
+  }
+}
+
+.more {
+  font-size: 10px;
+  color: var(--color-text-tertiary);
+  margin-left: var(--spacing-xs);
+}

@@ -1,0 +1,23 @@
+@use '../../../shared/styles/mixins' as *;
+
+.container {
+  flex: 1;
+  overflow: hidden;
+
+  @include scrollbar;
+}
+
+.loading,
+.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  color: var(--color-text-tertiary);
+}
+
+.paginationLoader {
+  display: flex;
+  justify-content: center;
+  padding: var(--spacing-lg);
+}

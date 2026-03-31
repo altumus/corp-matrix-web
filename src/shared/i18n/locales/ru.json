@@ -1,0 +1,129 @@
+{
+  "app": {
+    "name": "Corp Matrix"
+  },
+  "auth": {
+    "login": "Войти",
+    "register": "Регистрация",
+    "logout": "Выйти",
+    "username": "Имя пользователя",
+    "password": "Пароль",
+    "confirmPassword": "Подтвердите пароль",
+    "homeserver": "Сервер",
+    "homeserverPlaceholder": "matrix.example.com",
+    "loginTitle": "Вход в аккаунт",
+    "registerTitle": "Создание аккаунта",
+    "noAccount": "Нет аккаунта?",
+    "hasAccount": "Уже есть аккаунт?",
+    "loggingIn": "Вход...",
+    "registering": "Регистрация...",
+    "errors": {
+      "invalidCredentials": "Неверное имя пользователя или пароль",
+      "serverUnavailable": "Сервер недоступен",
+      "networkError": "Ошибка сети",
+      "usernameRequired": "Введите имя пользователя",
+      "passwordRequired": "Введите пароль",
+      "passwordMismatch": "Пароли не совпадают",
+      "registrationDisabled": "Регистрация отключена на этом сервере",
+      "unknownError": "Произошла неизвестная ошибка"
+    }
+  },
+  "rooms": {
+    "title": "Чаты",
+    "search": "Поиск чатов...",
+    "empty": "Нет чатов",
+    "create": "Создать чат",
+    "createRoom": "Создать комнату",
+    "createDM": "Личное сообщение",
+    "roomName": "Название комнаты",
+    "roomTopic": "Тема",
+    "inviteUsers": "Пригласить пользователей",
+    "invitations": "Приглашения",
+    "accept": "Принять",
+    "decline": "Отклонить",
+    "noMessages": "Нет сообщений",
+    "typing": "печатает...",
+    "typingMultiple": "печатают...",
+    "yesterday": "Вчера",
+    "unreadMessages": "Непрочитанные сообщения"
+  },
+  "messages": {
+    "placeholder": "Введите сообщение...",
+    "send": "Отправить",
+    "edit": "Редактировать",
+    "remove": "Удалить",
+    "reply": "Ответить",
+    "react": "Реакция",
+    "thread": "Тред",
+    "edited": "(изменено)",
+    "removed": "Сообщение удалено",
+    "attachFile": "Прикрепить файл",
+    "voiceMessage": "Голосовое сообщение",
+    "emoji": "Эмодзи"
+  },
+  "settings": {
+    "title": "Настройки",
+    "profile": "Профиль",
+    "appearance": "Внешний вид",
+    "devices": "Устройства",
+    "language": "Язык",
+    "theme": "Тема",
+    "themeLight": "Светлая",
+    "themeDark": "Тёмная",
+    "themeSystem": "Системная",
+    "displayName": "Отображаемое имя",
+    "avatar": "Аватар",
+    "changeAvatar": "Изменить аватар",
+    "save": "Сохранить",
+    "saved": "Сохранено"
+  },
+  "encryption": {
+    "verified": "Проверено",
+    "unverified": "Не проверено",
+    "verifyDevice": "Проверить устройство",
+    "keyBackup": "Резервное копирование ключей",
+    "setupKeyBackup": "Настроить бэкап ключей",
+    "hasRecoveryKey": "Сообщения зашифрованы. Есть ключ восстановления?",
+    "enterKey": "Ввести ключ",
+    "enterRecoveryKey": "Введите ключ восстановления",
+    "restore": "Восстановить",
+    "noBackupFound": "Резервная копия ключей не найдена на сервере",
+    "wrongRecoveryKey": "Неверный ключ восстановления. Убедитесь, что вы ввели правильный ключ.",
+    "invalidKeyFormat": "Неверный формат ключа. Ключ должен начинаться с EsTc и содержать группы из 4 символов.",
+    "restoreFailed": "Не удалось восстановить ключи",
+    "keysRestored": "Ключи успешно восстановлены",
+    "restoreTitle": "Восстановление ключей шифрования",
+    "restoreDescription": "На сервере найдена резервная копия ключей. Введите ключ восстановления, чтобы расшифровать историю сообщений.",
+    "recoveryKeyLabel": "Ключ восстановления",
+    "skip": "Пропустить"
+  },
+  "search": {
+    "title": "Поиск",
+    "placeholder": "Поиск сообщений...",
+    "users": "Пользователи",
+    "messages": "Сообщения",
+    "noResults": "Ничего не найдено"
+  },
+  "spaces": {
+    "title": "Пространства",
+    "create": "Создать пространство",
+    "home": "Главная"
+  },
+  "notifications": {
+    "title": "Уведомления",
+    "enable": "Включить уведомления",
+    "mute": "Без звука",
+    "mentionsOnly": "Только упоминания",
+    "allMessages": "Все сообщения"
+  },
+  "common": {
+    "loading": "Загрузка...",
+    "error": "Ошибка",
+    "retry": "Повторить",
+    "cancel": "Отмена",
+    "confirm": "Подтвердить",
+    "close": "Закрыть",
+    "save": "Сохранить",
+    "back": "Назад"
+  }
+}
