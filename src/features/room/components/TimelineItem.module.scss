@@ -13,3 +13,17 @@
 .continuation {
   padding-top: var(--spacing-xxs);
 }
+
+.highlighted {
+  background: var(--color-accent-light);
+  animation: highlightFade 2s ease-out forwards;
+}
+
+@keyframes highlightFade {
+  0% {
+    background: var(--color-accent-light);
+  }
+  100% {
+    background: transparent;
+  }
+}

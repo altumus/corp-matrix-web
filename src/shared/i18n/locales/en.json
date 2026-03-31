@@ -61,7 +61,9 @@
     "sendImage": "Send image",
     "uploading": "Uploading...",
     "voiceMessage": "Voice message",
-    "emoji": "Emoji"
+    "emoji": "Emoji",
+    "replyWithQuote": "Reply with quote",
+    "copyText": "Copy text"
   },
   "settings": {
     "title": "Settings",

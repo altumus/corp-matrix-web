@@ -61,7 +61,9 @@
     "sendImage": "Отправить изображение",
     "uploading": "Загрузка...",
     "voiceMessage": "Голосовое сообщение",
-    "emoji": "Эмодзи"
+    "emoji": "Эмодзи",
+    "replyWithQuote": "Ответить с цитатой",
+    "copyText": "Копировать текст"
   },
   "settings": {
     "title": "Настройки",

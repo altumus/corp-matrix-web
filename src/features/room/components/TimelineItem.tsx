@@ -7,15 +7,22 @@ import styles from './TimelineItem.module.scss'
 interface TimelineItemProps {
   event: TimelineEvent
   showAvatar: boolean
+  isHighlighted?: boolean
 }
 
-export function TimelineItem({ event, showAvatar }: TimelineItemProps) {
+export function TimelineItem({ event, showAvatar, isHighlighted }: TimelineItemProps) {
   if (event.type === 'm.room.member' || event.type === 'm.room.create') {
     return <SystemMessage event={event} />
   }
 
+  const cls = [
+    styles.item,
+    showAvatar ? styles.withAvatar : styles.continuation,
+    isHighlighted ? styles.highlighted : '',
+  ].filter(Boolean).join(' ')
+
   return (
-    <div className={`${styles.item} ${showAvatar ? styles.withAvatar : styles.continuation}`}>
+    <div className={cls}>
       <MessageBubble event={event} showAvatar={showAvatar} />
       <ReadReceipts eventId={event.eventId} />
     </div>

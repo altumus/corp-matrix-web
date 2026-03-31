@@ -94,6 +94,18 @@
   text-overflow: ellipsis;
 }
 
+.replyQuote {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  font-style: italic;
+  border-left: 2px solid var(--color-text-tertiary);
+  padding-left: var(--spacing-xs);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 .replyCancelBtn {
   display: flex;
   align-items: center;

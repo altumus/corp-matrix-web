@@ -30,7 +30,7 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
     if (!text.trim()) return
-    send(text, replyTarget?.eventId)
+    send(text, replyTarget?.eventId, replyTarget?.quotedText, replyTarget?.quotedText ? replyTarget.sender : undefined)
     setText('')
     clearReply()
     if (textareaRef.current) {
@@ -107,7 +107,11 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
           <div className={styles.replyPreview}>
             <div className={styles.replyInfo}>
               <span className={styles.replyLabel}>↩ {replyTarget.sender}</span>
-              <span className={styles.replyBody}>{replyTarget.body}</span>
+              {replyTarget.quotedText ? (
+                <span className={styles.replyQuote}>{replyTarget.quotedText}</span>
+              ) : (
+                <span className={styles.replyBody}>{replyTarget.body}</span>
+              )}
             </div>
             <button
               type="button"

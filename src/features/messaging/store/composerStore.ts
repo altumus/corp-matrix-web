@@ -4,6 +4,7 @@ interface ReplyTarget {
   eventId: string
   sender: string
   body: string
+  quotedText?: string
 }
 
 interface ComposerStore {

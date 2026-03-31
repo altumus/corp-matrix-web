@@ -12,12 +12,21 @@ export function useRoom(roomId: string | undefined) {
     const matrixRoom = client.getRoom(roomId)
     if (!matrixRoom) return null
 
+    let avatarUrl = matrixRoom.getMxcAvatarUrl() ?? null
+    const members = matrixRoom.getJoinedMembers()
+    const isDirect = members.length === 2
+    if (!avatarUrl && isDirect) {
+      const myUserId = client.getUserId()!
+      const other = members.find((m) => m.userId !== myUserId)
+      avatarUrl = other?.getMxcAvatarUrl() ?? null
+    }
+
     return {
       roomId: matrixRoom.roomId,
       name: matrixRoom.name || roomId,
-      avatarUrl: matrixRoom.getMxcAvatarUrl() ?? null,
+      avatarUrl,
       topic: matrixRoom.currentState.getStateEvents('m.room.topic', '')?.getContent()?.topic as string | undefined,
-      isDirect: !!matrixRoom.getDMInviter(),
+      isDirect,
       isEncrypted: matrixRoom.hasEncryptionStateEvent(),
       memberCount: matrixRoom.getJoinedMemberCount(),
     }

@@ -1,7 +1,10 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import type { TimelineEvent } from '../types.js'
 import { Avatar, AuthImage } from '../../../shared/ui/index.js'
 import { MessageActions } from '../../messaging/components/MessageActions.js'
+import { MessageContextMenu } from '../../messaging/components/MessageContextMenu.js'
+import { useComposerStore } from '../../messaging/store/composerStore.js'
+import { useTimelineScroll } from '../context/TimelineScrollContext.js'
 import styles from './MessageBubble.module.scss'
 
 interface MessageBubbleProps {
@@ -11,6 +14,35 @@ interface MessageBubbleProps {
 
 export function MessageBubble({ event, showAvatar }: MessageBubbleProps) {
   const [showActions, setShowActions] = useState(false)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; selectedText: string } | null>(null)
+  const setReplyTarget = useComposerStore((s) => s.setReplyTarget)
+  const scrollToEvent = useTimelineScroll()
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    const selection = window.getSelection()
+    const selectedText = selection?.toString().trim() || ''
+    if (!selectedText) return
+
+    e.preventDefault()
+    setContextMenu({ x: e.clientX, y: e.clientY, selectedText })
+  }, [])
+
+  const handleReplyWithQuote = useCallback(() => {
+    if (!contextMenu) return
+    setReplyTarget({
+      eventId: event.eventId,
+      sender: event.senderName,
+      body: (event.content.body as string) || '',
+      quotedText: contextMenu.selectedText,
+    })
+    setContextMenu(null)
+  }, [contextMenu, event, setReplyTarget])
+
+  const handleCopy = useCallback(() => {
+    if (!contextMenu) return
+    navigator.clipboard.writeText(contextMenu.selectedText)
+    setContextMenu(null)
+  }, [contextMenu])
 
   if (event.isRedacted) {
     return (
@@ -36,6 +68,7 @@ export function MessageBubble({ event, showAvatar }: MessageBubbleProps) {
       className={styles.message}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
+      onContextMenu={handleContextMenu}
     >
       {showAvatar ? (
         <Avatar src={event.senderAvatar} name={event.senderName} size="sm" />
@@ -53,8 +86,14 @@ export function MessageBubble({ event, showAvatar }: MessageBubbleProps) {
           </div>
         )}
 
-        {event.replyToEvent && (
-          <div className={styles.replyQuote}>
+        {event.replyToEvent && event.replyTo && (
+          <div
+            className={styles.replyQuote}
+            onClick={() => scrollToEvent(event.replyTo!)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter') scrollToEvent(event.replyTo!) }}
+          >
             <span className={styles.replyQuoteSender}>{event.replyToEvent.sender}</span>
             <span className={styles.replyQuoteBody}>{event.replyToEvent.body}</span>
           </div>
@@ -117,6 +156,16 @@ export function MessageBubble({ event, showAvatar }: MessageBubbleProps) {
           sender={event.sender}
           senderName={event.senderName}
           body={(event.content.body as string) || ''}
+        />
+      )}
+
+      {contextMenu && (
+        <MessageContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onReplyWithQuote={handleReplyWithQuote}
+          onCopy={handleCopy}
+          onClose={() => setContextMenu(null)}
         />
       )}
     </div>
