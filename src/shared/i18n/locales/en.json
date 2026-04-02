@@ -58,7 +58,13 @@
     "removeLowPriority": "Remove low priority",
     "addToSpace": "Add to space",
     "leave": "Leave",
-    "leaveConfirm": "Are you sure you want to leave this chat?"
+    "leaveConfirm": "Are you sure you want to leave this chat?",
+    "inviteUser": "Invite user",
+    "archive": "Archive",
+    "unarchive": "Unarchive",
+    "online": "online",
+    "offline": "offline",
+    "lastSeen": "last seen {{time}}"
   },
   "messages": {
     "placeholder": "Type a message...",
@@ -97,7 +103,8 @@
     "avatar": "Avatar",
     "changeAvatar": "Change avatar",
     "save": "Save",
-    "saved": "Saved"
+    "saved": "Saved",
+    "encryption": "Encryption"
   },
   "encryption": {
     "verified": "Verified",

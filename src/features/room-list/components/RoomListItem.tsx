@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { Bookmark, BellOff, Bell, Circle, Pin, ArrowDown, Home, LogOut } from 'lucide-react'
+import { Bookmark, BellOff, Bell, Circle, Pin, ArrowDown, Home, Archive, LogOut } from 'lucide-react'
 import type { RoomListEntry } from '../types.js'
 import { useRoomListStore } from '../store/roomListStore.js'
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
@@ -10,6 +10,8 @@ import {
   MessageContextMenu,
   type ContextMenuAction,
 } from '../../messaging/components/MessageContextMenu.js'
+import { EncryptionBadge } from '../../encryption/components/EncryptionBadge.js'
+import { usePresence, getDmPartnerId } from '../../../shared/hooks/usePresence.js'
 import { AddToSpaceDialog } from './AddToSpaceDialog.jsx'
 import styles from './RoomListItem.module.scss'
 
@@ -80,6 +82,8 @@ export function RoomListItem({ room }: RoomListItemProps) {
 
   const client = getMatrixClient()
   const myUserId = client?.getUserId() ?? null
+  const dmPartnerId = room.isDirect && !room.isSavedMessages ? getDmPartnerId(room.roomId) : null
+  const presence = usePresence(dmPartnerId)
 
   const handleClick = () => {
     setSelectedRoom(room.roomId)
@@ -171,6 +175,20 @@ export function RoomListItem({ room }: RoomListItemProps) {
         },
       },
       {
+        id: 'archive',
+        icon: <Archive size={16} />,
+        label: hasTag(room.roomId, 'm.archive') ? t('rooms.unarchive') : t('rooms.archive'),
+        onClick: () => {
+          const c = getMatrixClient()
+          if (!c) return
+          if (hasTag(room.roomId, 'm.archive')) {
+            c.deleteRoomTag(room.roomId, 'm.archive').catch(() => {})
+          } else {
+            c.setRoomTag(room.roomId, 'm.archive', { order: 0 }).catch(() => {})
+          }
+        },
+      },
+      {
         id: 'leave',
         icon: <LogOut size={16} />,
         label: t('rooms.leave'),
@@ -200,11 +218,17 @@ export function RoomListItem({ room }: RoomListItemProps) {
         {room.isSavedMessages ? (
           <SavedMessagesIcon />
         ) : (
-          <Avatar src={room.avatarUrl} name={room.name} size="md" />
+          <Avatar
+            src={room.avatarUrl}
+            name={room.name}
+            size="md"
+            online={presence ? presence.online : undefined}
+          />
         )}
         <div className={styles.content}>
           <div className={styles.top}>
             <span className={styles.name}>{displayName}</span>
+            {room.isEncrypted && <span className={styles.statusIcon}><EncryptionBadge verified /></span>}
             {muted && <span className={styles.statusIcon}><BellOff size={12} /></span>}
             {room.isPinned && <span className={styles.statusIcon}><Pin size={12} /></span>}
             {room.lastMessageTs > 0 && (

@@ -1,24 +1,46 @@
+import { useEffect, useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useDevices } from '../hooks/useDevices.js'
+import { ShieldCheck, ShieldAlert } from 'lucide-react'
+import { getDeviceList } from '../../encryption/services/cryptoService.js'
+import { VerifyDeviceDialog } from '../../encryption/components/VerifyDeviceDialog.js'
+import type { DeviceInfo } from '../../encryption/types.js'
+import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
 import { Button, Spinner } from '../../../shared/ui/index.js'
 import { toast } from '../../../shared/ui/Toast/toastService.js'
 import styles from './DevicesSettings.module.scss'
 
 export function DevicesSettings() {
   const { t } = useTranslation()
-  const { devices, loading, removeDevice } = useDevices()
+  const [devices, setDevices] = useState<DeviceInfo[]>([])
+  const [loading, setLoading] = useState(true)
+  const [verifyDevice, setVerifyDevice] = useState<DeviceInfo | null>(null)
 
-  if (loading) return <Spinner />
+  const refresh = useCallback(async () => {
+    const list = await getDeviceList()
+    setDevices(list)
+    setLoading(false)
+  }, [])
+
+  useEffect(() => {
+    refresh()
+  }, [refresh])
 
   const handleRemove = async (deviceId: string) => {
     if (!confirm('Удалить это устройство?')) return
     try {
-      await removeDevice(deviceId)
+      const client = getMatrixClient()
+      if (!client) return
+      await client.deleteDevice(deviceId)
+      setDevices((prev) => prev.filter((d) => d.deviceId !== deviceId))
       toast('Устройство удалено', 'success')
     } catch (err) {
       toast(err instanceof Error ? err.message : t('common.error'), 'error')
     }
   }
+
+  const userId = getMatrixClient()?.getUserId() || ''
+
+  if (loading) return <Spinner />
 
   return (
     <div className={styles.section}>
@@ -28,26 +50,52 @@ export function DevicesSettings() {
           <div key={device.deviceId} className={styles.device}>
             <div className={styles.info}>
               <span className={styles.name}>
+                {device.trustLevel === 'verified'
+                  ? <ShieldCheck size={14} className={styles.verified} />
+                  : <ShieldAlert size={14} className={styles.unverified} />
+                }
                 {device.displayName || device.deviceId}
-                {device.isCurrent && <span className={styles.current}>(текущее)</span>}
+                {device.isCurrentDevice && <span className={styles.current}>(текущее)</span>}
               </span>
               <span className={styles.meta}>
                 {device.lastSeenIp && `IP: ${device.lastSeenIp}`}
                 {device.lastSeenTs && ` • ${new Date(device.lastSeenTs).toLocaleString()}`}
               </span>
             </div>
-            {!device.isCurrent && (
-              <Button
-                size="sm"
-                variant="danger"
-                onClick={() => handleRemove(device.deviceId)}
-              >
-                {t('messages.remove')}
-              </Button>
-            )}
+            <div className={styles.actions}>
+              {!device.isCurrentDevice && device.trustLevel !== 'verified' && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setVerifyDevice(device)}
+                >
+                  {t('encryption.verifyDevice')}
+                </Button>
+              )}
+              {!device.isCurrentDevice && (
+                <Button
+                  size="sm"
+                  variant="danger"
+                  onClick={() => handleRemove(device.deviceId)}
+                >
+                  {t('messages.remove')}
+                </Button>
+              )}
+            </div>
           </div>
         ))}
       </div>
+
+      {verifyDevice && (
+        <VerifyDeviceDialog
+          device={verifyDevice}
+          userId={userId}
+          onClose={() => {
+            setVerifyDevice(null)
+            refresh()
+          }}
+        />
+      )}
     </div>
   )
 }

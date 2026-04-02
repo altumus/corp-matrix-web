@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
+import { Preset } from 'matrix-js-sdk/lib/@types/partials.js'
 import { useCombinedSearch } from '../hooks/useCombinedSearch.js'
 import { useRoomListStore } from '../store/roomListStore.js'
+import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
 import { Avatar, Spinner } from '../../../shared/ui/index.js'
 import styles from './RoomSearch.module.scss'
 
@@ -121,7 +123,18 @@ export function RoomSearch() {
                 <button
                   key={user.userId}
                   className={styles.resultItem}
-                  onClick={() => {
+                  onClick={async () => {
+                    const client = getMatrixClient()
+                    if (!client) return
+                    try {
+                      const { room_id } = await client.createRoom({
+                        is_direct: true,
+                        invite: [user.userId],
+                        preset: Preset.TrustedPrivateChat,
+                      })
+                      setSelectedRoom(room_id)
+                      navigate(`/rooms/${encodeURIComponent(room_id)}`)
+                    } catch { /* ignore */ }
                     setQuery('')
                     setOpen(false)
                   }}

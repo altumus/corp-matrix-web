@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { ProfileSettings } from './ProfileSettings.js'
 import { AppearanceSettings } from './AppearanceSettings.js'
 import { DevicesSettings } from './DevicesSettings.js'
+import { EncryptionSettings } from './EncryptionSettings.js'
 import { LanguageSettings } from './LanguageSettings.js'
 import styles from './SettingsPage.module.scss'
 
@@ -32,6 +33,12 @@ export default function SettingsPage() {
           {t('settings.devices')}
         </NavLink>
         <NavLink
+          to="/settings/encryption"
+          className={({ isActive }) => `${styles.link} ${isActive ? styles.active : ''}`}
+        >
+          {t('settings.encryption')}
+        </NavLink>
+        <NavLink
           to="/settings/language"
           className={({ isActive }) => `${styles.link} ${isActive ? styles.active : ''}`}
         >
@@ -44,6 +51,7 @@ export default function SettingsPage() {
           <Route path="profile" element={<ProfileSettings />} />
           <Route path="appearance" element={<AppearanceSettings />} />
           <Route path="devices" element={<DevicesSettings />} />
+          <Route path="encryption" element={<EncryptionSettings />} />
           <Route path="language" element={<LanguageSettings />} />
         </Routes>
       </div>

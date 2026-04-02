@@ -1,9 +1,12 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Archive } from 'lucide-react'
 import { useSpaces } from '../hooks/useSpaces.js'
 import { Avatar } from '../../../shared/ui/index.js'
 import { CreateSpaceDialog } from './CreateSpaceDialog.js'
 import styles from './SpacesSidebar.module.scss'
+
+const ARCHIVE_ID = '__archive__'
 
 export function SpacesSidebar() {
   const { t } = useTranslation()
@@ -41,7 +44,19 @@ export function SpacesSidebar() {
         +
       </button>
 
+      <div className={styles.spacer} />
+
+      <button
+        className={`${styles.item} ${activeSpaceId === ARCHIVE_ID ? styles.active : ''}`}
+        onClick={() => setActiveSpace(activeSpaceId === ARCHIVE_ID ? null : ARCHIVE_ID)}
+        title={t('rooms.archive')}
+      >
+        <Archive size={20} className={styles.homeIcon} />
+      </button>
+
       {showCreate && <CreateSpaceDialog onClose={() => setShowCreate(false)} />}
     </div>
   )
 }
+
+export { ARCHIVE_ID }

@@ -13,4 +13,5 @@ export interface RoomListEntry {
   isEncrypted: boolean
   isSavedMessages: boolean
   isPinned: boolean
+  isArchived: boolean
 }

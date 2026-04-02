@@ -77,6 +77,7 @@ function roomToEntry(room: Room): RoomListEntry {
     isEncrypted: room.hasEncryptionStateEvent(),
     isSavedMessages: savedMessages,
     isPinned: !!(room.tags?.['m.favourite']),
+    isArchived: !!(room.tags?.['m.archive']),
   }
 }
 
@@ -130,11 +131,16 @@ export function useRoomList() {
 
   let filteredRooms = rooms
 
-  if (activeSpaceId) {
-    const space = spaces.find((s) => s.roomId === activeSpaceId)
-    if (space) {
-      const childIds = new Set(space.childRoomIds)
-      filteredRooms = filteredRooms.filter((r) => childIds.has(r.roomId))
+  if (activeSpaceId === '__archive__') {
+    filteredRooms = filteredRooms.filter((r) => r.isArchived)
+  } else {
+    filteredRooms = filteredRooms.filter((r) => !r.isArchived)
+    if (activeSpaceId) {
+      const space = spaces.find((s) => s.roomId === activeSpaceId)
+      if (space) {
+        const childIds = new Set(space.childRoomIds)
+        filteredRooms = filteredRooms.filter((r) => childIds.has(r.roomId))
+      }
     }
   }
 

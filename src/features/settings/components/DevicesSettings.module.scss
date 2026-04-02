@@ -44,3 +44,21 @@
   font-size: var(--font-size-xs);
   color: var(--color-text-tertiary);
 }
+
+.actions {
+  display: flex;
+  gap: var(--spacing-xs);
+  flex-shrink: 0;
+}
+
+.verified {
+  color: var(--color-success);
+  margin-right: var(--spacing-xs);
+  vertical-align: -2px;
+}
+
+.unverified {
+  color: var(--color-warning);
+  margin-right: var(--spacing-xs);
+  vertical-align: -2px;
+}

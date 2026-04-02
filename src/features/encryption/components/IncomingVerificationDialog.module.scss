@@ -1,0 +1,75 @@
+.content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-lg);
+  text-align: center;
+}
+
+.icon {
+  color: var(--color-accent);
+}
+
+.text {
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-normal);
+  max-width: 320px;
+}
+
+.textSuccess {
+  font-size: var(--font-size-md);
+  color: var(--color-success);
+  font-weight: var(--font-weight-medium);
+}
+
+.info {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+
+  span {
+    background: var(--color-bg-tertiary);
+    padding: var(--spacing-xxs) var(--spacing-sm);
+    border-radius: var(--radius-sm);
+  }
+}
+
+.actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  width: 100%;
+  justify-content: center;
+}
+
+.emojiTitle {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.emojiGrid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-sm) 0;
+}
+
+.emojiItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-xxs);
+  width: 72px;
+}
+
+.emoji {
+  font-size: 36px;
+  line-height: 1;
+}
+
+.emojiName {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  text-transform: capitalize;
+}
