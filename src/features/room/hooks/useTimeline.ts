@@ -71,30 +71,49 @@ function mapEvent(event: MatrixEvent, room: Room): TimelineEvent {
   }
 }
 
+function isEditEvent(e: MatrixEvent): boolean {
+  const rel = e.getContent()?.['m.relates_to'] as Record<string, unknown> | undefined
+  return rel?.rel_type === 'm.replace'
+}
+
+function collectEvents(room: Room): TimelineEvent[] {
+  const messageTypes = ['m.room.message', 'm.room.encrypted', 'm.sticker']
+  const mapped: TimelineEvent[] = []
+  const seen = new Set<string>()
+
+  const allTimelines = room.getUnfilteredTimelineSet().getTimelines()
+  for (const tl of allTimelines) {
+    for (const e of tl.getEvents()) {
+      if (!messageTypes.includes(e.getType())) continue
+      if (isEditEvent(e)) continue
+      const id = e.getId()!
+      if (seen.has(id)) continue
+      seen.add(id)
+      try {
+        mapped.push(mapEvent(e, room))
+      } catch {
+        // skip
+      }
+    }
+  }
+
+  mapped.sort((a, b) => a.timestamp - b.timestamp)
+  return mapped
+}
+
 export function useTimeline(roomId: string) {
   const [events, setEvents] = useState<TimelineEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [paginating, setPaginating] = useState(false)
-  const [canPaginateBack, setCanPaginateBack] = useState(true)
   const roomRef = useRef<Room | null>(null)
+  const paginatingRef = useRef(false)
+  const activeRoomIdRef = useRef(roomId)
 
   const refreshEvents = useCallback(() => {
     const room = roomRef.current
     if (!room) return
-
-    const timeline = room.getLiveTimeline()
-    const matrixEvents = timeline.getEvents()
-    const messageTypes = ['m.room.message', 'm.room.encrypted', 'm.sticker']
-    const mapped: TimelineEvent[] = []
-    for (const e of matrixEvents) {
-      if (!messageTypes.includes(e.getType())) continue
-      try {
-        mapped.push(mapEvent(e, room))
-      } catch {
-        // skip events that fail to map
-      }
-    }
-    setEvents(mapped)
+    if (room.roomId !== activeRoomIdRef.current) return
+    setEvents(collectEvents(room))
   }, [])
 
   const sendReadReceipt = useCallback(() => {
@@ -113,6 +132,9 @@ export function useTimeline(roomId: string) {
   }, [])
 
   useEffect(() => {
+    activeRoomIdRef.current = roomId
+    paginatingRef.current = false
+
     const client = getMatrixClient()
     if (!client) return
 
@@ -120,8 +142,9 @@ export function useTimeline(roomId: string) {
     if (!room) return
 
     roomRef.current = room
-    refreshEvents()
+    setEvents(collectEvents(room))
     setLoading(false)
+    setPaginating(false)
     sendReadReceipt()
 
     const timeline = room.getLiveTimeline()
@@ -129,16 +152,25 @@ export function useTimeline(roomId: string) {
     const hasMessages = timeline.getEvents().some((e) => messageTypes.includes(e.getType()))
     if (!hasMessages && timeline.getPaginationToken(Direction.Backward)) {
       client.paginateEventTimeline(timeline, { backwards: true, limit: 50 }).then(() => {
-        refreshEvents()
+        if (activeRoomIdRef.current === roomId) {
+          setEvents(collectEvents(room))
+        }
       }).catch(() => {})
     }
 
     const onTimelineEvent = () => {
+      if (activeRoomIdRef.current !== roomId) return
       refreshEvents()
       sendReadReceipt()
     }
-    const onRedaction = () => refreshEvents()
-    const onDecrypted = () => refreshEvents()
+    const onRedaction = () => {
+      if (activeRoomIdRef.current !== roomId) return
+      refreshEvents()
+    }
+    const onDecrypted = () => {
+      if (activeRoomIdRef.current !== roomId) return
+      refreshEvents()
+    }
 
     client.on(RoomEvent.Timeline, onTimelineEvent)
     client.on(RoomEvent.Redaction, onRedaction)
@@ -152,22 +184,29 @@ export function useTimeline(roomId: string) {
   }, [roomId, refreshEvents, sendReadReceipt])
 
   const paginateBack = useCallback(async () => {
+    if (paginatingRef.current) return
     const client = getMatrixClient()
     const room = roomRef.current
-    if (!client || !room || paginating) return
+    if (!client || !room) return
 
+    const timeline = room.getLiveTimeline()
+    const token = timeline.getPaginationToken(Direction.Backward)
+    if (!token) return
+
+    paginatingRef.current = true
     setPaginating(true)
     try {
-      const result = await client.paginateEventTimeline(
-        room.getLiveTimeline(),
-        { backwards: true, limit: 30 },
-      )
-      setCanPaginateBack(result)
-      refreshEvents()
+      await client.paginateEventTimeline(timeline, { backwards: true, limit: 30 })
+      if (activeRoomIdRef.current === room.roomId) {
+        setEvents(collectEvents(room))
+      }
+    } catch {
+      // pagination failed
     } finally {
+      paginatingRef.current = false
       setPaginating(false)
     }
-  }, [paginating, refreshEvents])
+  }, [])
 
-  return { events, loading, paginating, canPaginateBack, paginateBack }
+  return { events, loading, paginating, paginateBack }
 }

@@ -17,31 +17,40 @@ interface TimelineProps {
 const START_INDEX = 100_000
 
 export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps) {
-  const { events, loading, paginating, canPaginateBack, paginateBack } = useTimeline(roomId)
+  const { events, loading, paginating, paginateBack } = useTimeline(roomId)
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   const [highlightedEventId, setHighlightedEventId] = useState<string | null>(null)
   const [firstItemIndex, setFirstItemIndex] = useState(START_INDEX)
-  const prevFirstEventIdRef = useRef<string | null>(null)
+  const prevEventsLengthRef = useRef(0)
   const focusHandledRef = useRef<string | null>(null)
+  const paginateBackRef = useRef(paginateBack)
+  const atTopRef = useRef(false)
+
+  useEffect(() => {
+    paginateBackRef.current = paginateBack
+  }, [paginateBack])
 
   useEffect(() => {
     focusHandledRef.current = null
+    prevEventsLengthRef.current = 0
+    atTopRef.current = false
+    requestAnimationFrame(() => setFirstItemIndex(START_INDEX))
   }, [roomId])
 
   useEffect(() => {
-    if (events.length === 0) {
-      prevFirstEventIdRef.current = null
-      return
+    const prevLen = prevEventsLengthRef.current
+    const curLen = events.length
+
+    if (prevLen > 0 && curLen > prevLen) {
+      const added = curLen - prevLen
+      setFirstItemIndex((prev) => prev - added)
     }
-    const prevFirstId = prevFirstEventIdRef.current
-    const currentFirstId = events[0]?.eventId
-    if (prevFirstId && currentFirstId !== prevFirstId) {
-      const oldIndex = events.findIndex((e) => e.eventId === prevFirstId)
-      if (oldIndex > 0) {
-        setFirstItemIndex((prev) => prev - oldIndex)
-      }
+
+    prevEventsLengthRef.current = curLen
+
+    if (atTopRef.current && curLen > 0) {
+      paginateBackRef.current()
     }
-    prevFirstEventIdRef.current = currentFirstId
   }, [events])
 
   useEffect(() => {
@@ -82,10 +91,15 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
   }, [events])
 
   const handleStartReached = useCallback(() => {
-    if (canPaginateBack && !paginating) {
-      paginateBack()
+    paginateBackRef.current()
+  }, [])
+
+  const handleAtTopStateChange = useCallback((atTop: boolean) => {
+    atTopRef.current = atTop
+    if (atTop) {
+      paginateBackRef.current()
     }
-  }, [canPaginateBack, paginating, paginateBack])
+  }, [])
 
   if (loading) {
     return (
@@ -103,12 +117,15 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
     <TimelineScrollContext.Provider value={scrollToEvent}>
       <div className={styles.container}>
         <Virtuoso
+          key={roomId}
           ref={virtuosoRef}
           data={events}
           firstItemIndex={firstItemIndex}
           initialTopMostItemIndex={events.length - 1}
           followOutput="smooth"
           startReached={handleStartReached}
+          atTopStateChange={handleAtTopStateChange}
+          increaseViewportBy={{ top: 400, bottom: 0 }}
           itemContent={(index, event) => {
             const arrayIndex = index - firstItemIndex
             const prev = arrayIndex > 0 ? events[arrayIndex - 1] : null

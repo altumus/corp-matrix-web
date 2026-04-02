@@ -319,19 +319,49 @@ export function MessageBubble({ event, showAvatar, isHighlighted }: MessageBubbl
 
 				<div className={styles.content}>
 					{msgtype === 'm.image' && (
-						<AuthImage
-							mxcUrl={content.url as string}
-							alt={body}
-							className={styles.imageMessage}
-							loading='lazy'
-						/>
+						(() => {
+							const info = content.info as { w?: number; h?: number } | undefined;
+							const w = info?.w || 300;
+							const h = info?.h || 200;
+							const maxW = 400;
+							const maxH = 300;
+							const scale = Math.min(1, maxW / w, maxH / h);
+							const displayW = Math.round(w * scale);
+							const displayH = Math.round(h * scale);
+							return (
+								<AuthImage
+									mxcUrl={content.url as string}
+									alt={body}
+									className={styles.imageMessage}
+									loading='lazy'
+									width={displayW}
+									height={displayH}
+									style={{ width: displayW, height: displayH }}
+								/>
+							);
+						})()
 					)}
 					{msgtype === 'm.video' && (
-						<AuthImage
-							mxcUrl={content.url as string}
-							alt={body}
-							className={styles.imageMessage}
-						/>
+						(() => {
+							const info = content.info as { w?: number; h?: number } | undefined;
+							const w = info?.w || 300;
+							const h = info?.h || 200;
+							const maxW = 400;
+							const maxH = 300;
+							const scale = Math.min(1, maxW / w, maxH / h);
+							const displayW = Math.round(w * scale);
+							const displayH = Math.round(h * scale);
+							return (
+								<AuthImage
+									mxcUrl={content.url as string}
+									alt={body}
+									className={styles.imageMessage}
+									width={displayW}
+									height={displayH}
+									style={{ width: displayW, height: displayH }}
+								/>
+							);
+						})()
 					)}
 					{msgtype === 'm.file' && (
 						<div className={styles.fileMessage}>

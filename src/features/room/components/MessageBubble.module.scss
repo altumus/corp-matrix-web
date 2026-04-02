@@ -269,6 +269,8 @@
   max-height: 300px;
   border-radius: var(--radius-md);
   cursor: pointer;
+  object-fit: cover;
+  background: var(--color-bg-tertiary);
 }
 
 .fileMessage,
