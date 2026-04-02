@@ -55,7 +55,7 @@ export function useSendMessage(roomId: string) {
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const send = useCallback(
-    async (body: string, replyToEventId?: string, quotedText?: string, quotedSender?: string) => {
+    async (body: string, replyToEventId?: string, quotedText?: string, quotedSender?: string, threadRootId?: string) => {
       if (!body.trim()) return
 
       let finalBody = body.trim()
@@ -79,7 +79,7 @@ export function useSendMessage(roomId: string) {
         formattedBody = `<blockquote>${senderHtml}${esc(quotedText)}</blockquote>${bodyHtml}`
       }
 
-      await sendTextMessage({ roomId, body: finalBody, formattedBody, replyToEventId })
+      await sendTextMessage({ roomId, body: finalBody, formattedBody, replyToEventId, threadRootId })
       await sendTypingIndicator(roomId, false)
     },
     [roomId],

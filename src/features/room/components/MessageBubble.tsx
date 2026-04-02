@@ -11,6 +11,7 @@ import {
 	Smile,
 	Trash2,
 	CheckSquare,
+	MessageSquare,
 } from 'lucide-react';
 import type { TimelineEvent } from '../types.js';
 import { Avatar, AuthImage } from '../../../shared/ui/index.js';
@@ -31,6 +32,8 @@ import {
 } from '../../messaging/services/messageService.js';
 import { editMessage } from '../../messaging/services/messageService.js';
 import { useSelectionStore } from '../../messaging/store/selectionStore.js';
+import { useRightPanel } from './RoomView.js';
+import { ReactionDetailsDialog } from './ReactionDetailsDialog.js';
 import { Lightbox, type MediaType } from '../../media/components/Lightbox.js';
 import { ReadReceipts } from './ReadReceipts.js';
 import { PollMessage } from './PollMessage.js';
@@ -55,6 +58,8 @@ export function MessageBubble({
 	} | null>(null);
 	const [showReactionPicker, setShowReactionPicker] = useState(false);
 	const [showForwardDialog, setShowForwardDialog] = useState(false);
+	const [showReactionDetails, setShowReactionDetails] = useState(false);
+	const [optimisticReactions, setOptimisticReactions] = useState<Map<string, Set<string>> | null>(null);
 	const [lightbox, setLightbox] = useState<{
 		mxcUrl: string;
 		filename: string;
@@ -63,6 +68,7 @@ export function MessageBubble({
 	const bubbleRef = useRef<HTMLDivElement>(null);
 	const setReplyTarget = useComposerStore((s) => s.setReplyTarget);
 	const setSelectedRoom = useRoomListStore((s) => s.setSelectedRoom);
+	const { openThread } = useRightPanel();
 	const selecting = useSelectionStore((s) => s.selecting);
 	const selectedIds = useSelectionStore((s) => s.selectedIds);
 	const toggleSelection = useSelectionStore((s) => s.toggle);
@@ -219,6 +225,15 @@ export function MessageBubble({
 				},
 			},
 			{
+				id: 'thread',
+				icon: <MessageSquare size={16} />,
+				label: t('messages.thread'),
+				onClick: () => {
+					setContextMenu(null);
+					openThread(event.eventId);
+				},
+			},
+			{
 				id: 'select',
 				icon: <CheckSquare size={16} />,
 				label: t('messages.select'),
@@ -251,7 +266,7 @@ export function MessageBubble({
 		];
 
 		return actions;
-	}, [contextMenu?.selectedText, event, isOwnMessage, setReplyTarget, startSelecting, t]);
+	}, [contextMenu?.selectedText, event, isOwnMessage, setReplyTarget, startSelecting, openThread, t]);
 
 	const receipts = useMemo<ReceiptEntry[]>(() => {
 		if (!contextMenu) return [];
@@ -331,6 +346,25 @@ export function MessageBubble({
 		if (selecting) {
 			toggleSelection(event.eventId);
 		}
+	};
+
+	const displayReactions = optimisticReactions ?? event.reactions;
+
+	const handleReactionClick = (key: string) => {
+		const current = new Map(displayReactions);
+		const senders = new Set(current.get(key) || []);
+		if (myUserId && senders.has(myUserId)) {
+			senders.delete(myUserId);
+			if (senders.size === 0) current.delete(key);
+			else current.set(key, senders);
+		} else if (myUserId) {
+			senders.add(myUserId);
+			current.set(key, senders);
+		}
+		setOptimisticReactions(current);
+		sendReaction(event.roomId, event.eventId, key).finally(() => {
+			setOptimisticReactions(null);
+		});
 	};
 
 	return (
@@ -479,15 +513,20 @@ export function MessageBubble({
 					{timeEl}
 				</span>
 
-				{event.reactions.size > 0 && (
+				{displayReactions.size > 0 && (
 					<div className={styles.reactions}>
-						{[...event.reactions.entries()].map(([key, senders]) => {
+						{[...displayReactions.entries()].map(([key, senders]) => {
 							const myReaction = myUserId ? senders.has(myUserId) : false;
 							return (
 								<button
 									key={key}
 									className={`${styles.reaction} ${myReaction ? styles.reactionMine : ''}`}
-									onClick={() => sendReaction(event.roomId, event.eventId, key)}
+									onClick={() => handleReactionClick(key)}
+									onContextMenu={(e) => {
+										e.preventDefault();
+										e.stopPropagation();
+										setShowReactionDetails(true);
+									}}
 									title={[...senders].join(', ')}
 								>
 									{key} <span>{senders.size}</span>
@@ -495,6 +534,15 @@ export function MessageBubble({
 							);
 						})}
 					</div>
+				)}
+				{(event.threadReplyCount ?? 0) > 0 && (
+					<button
+						className={styles.threadBadge}
+						onClick={() => openThread(event.eventId)}
+					>
+						<MessageSquare size={14} />
+						<span>{t('messages.threadReplies', { count: event.threadReplyCount })}</span>
+					</button>
 				)}
 			</div>
 
@@ -519,6 +567,14 @@ export function MessageBubble({
 					fromRoomId={event.roomId}
 					eventId={event.eventId}
 					onClose={() => setShowForwardDialog(false)}
+				/>
+			)}
+
+			{showReactionDetails && (
+				<ReactionDetailsDialog
+					roomId={event.roomId}
+					reactions={event.reactions}
+					onClose={() => setShowReactionDetails(false)}
 				/>
 			)}
 

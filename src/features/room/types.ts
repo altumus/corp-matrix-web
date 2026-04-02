@@ -25,5 +25,6 @@ export interface TimelineEvent {
     body: string
   }
   threadRootId?: string
+  threadReplyCount?: number
   reactions: Map<string, Set<string>>
 }

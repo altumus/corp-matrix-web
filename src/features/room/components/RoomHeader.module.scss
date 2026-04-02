@@ -13,6 +13,15 @@
 .info {
   flex: 1;
   min-width: 0;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-xxs) var(--spacing-xs);
+  transition: background var(--transition-fast);
+
+  &:hover {
+    background: var(--color-bg-hover);
+  }
 }
 
 .name {

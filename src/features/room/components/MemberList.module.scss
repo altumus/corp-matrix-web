@@ -1,0 +1,58 @@
+.list {
+  display: flex;
+  flex-direction: column;
+}
+
+.count {
+  padding: var(--spacing-sm) var(--spacing-lg);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.member {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-lg);
+  transition: background var(--transition-fast);
+
+  &:hover {
+    background: var(--color-bg-hover);
+  }
+}
+
+.info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.name {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.userId {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.role {
+  font-size: 11px;
+  font-weight: var(--font-weight-medium);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-accent-light);
+  color: var(--color-accent);
+  flex-shrink: 0;
+}

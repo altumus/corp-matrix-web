@@ -103,14 +103,56 @@ export async function sendReaction(
 	const client = getMatrixClient();
 	if (!client) throw new Error('Client not initialized');
 
-  const reactionContent: ReactionEventContent = {
-    'm.relates_to': {
-      rel_type: RelationType.Annotation,
-      event_id: eventId,
-      key,
-    },
-  }
-  await client.sendEvent(roomId, EventType.Reaction, reactionContent);
+	const myUserId = client.getUserId()!;
+	const room = client.getRoom(roomId);
+
+	if (room) {
+		try {
+			const timelineSet = room.getUnfilteredTimelineSet();
+			const relations = timelineSet.relations.getChildEventsForEvent(
+				eventId,
+				RelationType.Annotation,
+				EventType.Reaction,
+			);
+			if (relations) {
+				for (const relEvent of relations.getRelations()) {
+					if (relEvent.getSender() !== myUserId) continue;
+					const relKey = relEvent.getContent()?.['m.relates_to']?.key;
+					if (relKey === key) {
+						await client.redactEvent(roomId, relEvent.getId()!);
+						return;
+					}
+				}
+			}
+		} catch {
+			// fallback
+		}
+
+		try {
+			const tlEvents = room.getLiveTimeline().getEvents();
+			for (const ev of tlEvents) {
+				if (ev.getType() !== EventType.Reaction) continue;
+				if (ev.getSender() !== myUserId) continue;
+				if (ev.isRedacted()) continue;
+				const rel = ev.getContent()?.['m.relates_to'];
+				if (rel?.event_id === eventId && rel?.key === key) {
+					await client.redactEvent(roomId, ev.getId()!);
+					return;
+				}
+			}
+		} catch {
+			// timeline access failed
+		}
+	}
+
+	const reactionContent: ReactionEventContent = {
+		'm.relates_to': {
+			rel_type: RelationType.Annotation,
+			event_id: eventId,
+			key,
+		},
+	};
+	await client.sendEvent(roomId, EventType.Reaction, reactionContent);
 }
 
 export async function forwardMessage(

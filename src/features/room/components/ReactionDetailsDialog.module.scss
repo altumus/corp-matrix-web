@@ -1,0 +1,47 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.emojiHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.emoji {
+  font-size: 24px;
+}
+
+.count {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+
+.users {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  padding-left: var(--spacing-sm);
+}
+
+.user {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.userName {
+  font-size: var(--font-size-md);
+  color: var(--color-text-primary);
+}

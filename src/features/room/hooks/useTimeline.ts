@@ -82,9 +82,29 @@ const TIMELINE_EVENT_TYPES = [
   'm.room.member', 'm.room.create', 'm.room.name', 'm.room.topic', 'm.room.avatar',
 ]
 
+function isThreadReply(e: MatrixEvent): boolean {
+  const rel = e.getContent()?.['m.relates_to'] as Record<string, unknown> | undefined
+  return rel?.rel_type === 'm.thread'
+}
+
+function countThreadReplies(room: Room): Map<string, number> {
+  const counts = new Map<string, number>()
+  const allTimelines = room.getUnfilteredTimelineSet().getTimelines()
+  for (const tl of allTimelines) {
+    for (const e of tl.getEvents()) {
+      const rel = e.getContent()?.['m.relates_to'] as Record<string, unknown> | undefined
+      if (rel?.rel_type === 'm.thread' && typeof rel?.event_id === 'string') {
+        counts.set(rel.event_id, (counts.get(rel.event_id) || 0) + 1)
+      }
+    }
+  }
+  return counts
+}
+
 function collectEvents(room: Room): TimelineEvent[] {
   const mapped: TimelineEvent[] = []
   const seen = new Set<string>()
+  const threadCounts = countThreadReplies(room)
 
   const allTimelines = room.getUnfilteredTimelineSet().getTimelines()
   for (const tl of allTimelines) {
@@ -92,11 +112,17 @@ function collectEvents(room: Room): TimelineEvent[] {
       if (!TIMELINE_EVENT_TYPES.includes(e.getType())) continue
       if (isEditEvent(e)) continue
       if (e.isRedacted()) continue
+      if (isThreadReply(e)) continue
       const id = e.getId()!
       if (seen.has(id)) continue
       seen.add(id)
       try {
-        mapped.push(mapEvent(e, room))
+        const ev = mapEvent(e, room)
+        const tc = threadCounts.get(id)
+        if (tc) {
+          ev.threadReplyCount = tc
+        }
+        mapped.push(ev)
       } catch {
         // skip
       }

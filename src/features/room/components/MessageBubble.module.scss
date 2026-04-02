@@ -349,6 +349,25 @@
   }
 }
 
+.threadBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  margin-top: var(--spacing-xs);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  color: var(--color-accent);
+  background: var(--color-accent-light);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+
+  &:hover {
+    background: var(--color-accent);
+    color: var(--color-text-on-accent);
+  }
+}
+
 .receiptsWrap {
   flex-shrink: 0;
   align-self: flex-end;

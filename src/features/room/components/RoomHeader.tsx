@@ -6,6 +6,7 @@ import { Avatar } from '../../../shared/ui/index.js'
 import { EncryptionBadge } from '../../encryption/components/EncryptionBadge.js'
 import { usePresence, getDmPartnerId } from '../../../shared/hooks/usePresence.js'
 import { InviteToRoomDialog } from './InviteToRoomDialog.js'
+import { useRightPanel } from './RoomView.js'
 import styles from './RoomHeader.module.scss'
 
 interface RoomHeaderProps {
@@ -15,6 +16,7 @@ interface RoomHeaderProps {
 export function RoomHeader({ room }: RoomHeaderProps) {
   const { t } = useTranslation()
   const [showInvite, setShowInvite] = useState(false)
+  const { openDetails } = useRightPanel()
   const dmPartnerId = room.isDirect ? getDmPartnerId(room.roomId) : null
   const presence = usePresence(dmPartnerId)
 
@@ -43,7 +45,7 @@ export function RoomHeader({ room }: RoomHeaderProps) {
         size="sm"
         online={presence ? presence.online : undefined}
       />
-      <div className={styles.info}>
+      <button className={styles.info} onClick={openDetails}>
         <h2 className={styles.name}>
           {room.name}
           {room.isEncrypted && <EncryptionBadge verified />}
@@ -55,7 +57,7 @@ export function RoomHeader({ room }: RoomHeaderProps) {
         ) : (
           <p className={styles.topic}>{room.memberCount} уч.</p>
         )}
-      </div>
+      </button>
       <button
         className={styles.inviteBtn}
         onClick={() => setShowInvite(true)}
