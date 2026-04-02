@@ -1,75 +1,135 @@
-# React + TypeScript + Vite
+# Corp Matrix
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A secure corporate messenger built on the [Matrix](https://matrix.org) protocol. Provides end-to-end encrypted messaging with a modern, responsive UI that works across desktop and mobile browsers.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- End-to-end encrypted messaging (Rust crypto via WASM)
+- Direct messages and group rooms
+- Spaces for organizing rooms
+- Message threads, reactions, editing, forwarding
+- File sharing (images, videos, documents)
+- Voice messages
+- Polls
+- User search and message search
+- Device verification (SAS emoji)
+- Key backup and recovery
+- Push notifications (Web Notifications API)
+- Dark and light themes
+- Internationalization (English, Russian)
+- PWA — installable on desktop and mobile
 
-## React Compiler
+## Tech Stack
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+- **React 19** with React Compiler
+- **TypeScript**
+- **Vite** (bundler)
+- **matrix-js-sdk** + **matrix-sdk-crypto-wasm** (Rust E2EE)
+- **Zustand** (state management)
+- **SCSS Modules** (styling)
+- **react-virtuoso** (virtualized lists)
+- **Lucide** (icons)
 
-Note: This will impact Vite dev & build performances.
+## Getting Started
 
-## Expanding the ESLint configuration
+### Prerequisites
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- Node.js 20+
+- npm 10+
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### Installation
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+git clone https://github.com/altumus/corp-matrix-web.git
+cd corp-matrix-web
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### Development
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run dev
 ```
+
+Open [http://localhost:5173](http://localhost:5173) in your browser.
+
+### Build
+
+```bash
+npm run build
+```
+
+The production build will be output to the `dist/` directory.
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `VITE_MATRIX_HOMESERVER_URL` | Default homeserver URL | *(empty — user enters manually)* |
+
+Create a `.env` file in the project root:
+
+```
+VITE_MATRIX_HOMESERVER_URL=https://matrix.example.com
+```
+
+## Deployment
+
+### Netlify
+
+The project includes a `public/_redirects` file for SPA routing on Netlify. Simply connect the repository to Netlify and it will build and deploy automatically.
+
+### Any Static Hosting
+
+1. Run `npm run build`
+2. Deploy the `dist/` directory
+3. Configure the server to redirect all routes to `index.html` (SPA fallback)
+
+## PWA (Progressive Web App)
+
+Corp Matrix is a PWA — it can be installed as a standalone app on any platform.
+
+### Desktop (Chrome / Edge)
+
+1. Open the app in Chrome or Edge
+2. Click the install icon in the address bar (or Menu → "Install Corp Matrix")
+3. The app will open in its own window with a taskbar icon
+
+### Android
+
+1. Open the app in Chrome
+2. Tap "Add to Home Screen" from the browser menu
+3. The app will appear on the home screen and launch in fullscreen
+
+### iOS (Safari)
+
+1. Open the app in Safari
+2. Tap the Share button → "Add to Home Screen"
+3. The app will appear on the home screen
+
+## Project Structure
+
+```
+src/
+├── app/              # App shell, router, layouts
+├── features/
+│   ├── auth/         # Login, registration, session management
+│   ├── encryption/   # E2EE, key backup, device verification
+│   ├── media/        # File uploads, image preview, lightbox
+│   ├── messaging/    # Composer, message service, mentions
+│   ├── notifications/# Web push notifications
+│   ├── room/         # Room view, timeline, messages
+│   ├── room-list/    # Room list, search
+│   ├── settings/     # User settings, devices, encryption
+│   └── spaces/       # Spaces sidebar
+├── shared/
+│   ├── hooks/        # Shared hooks
+│   ├── i18n/         # Internationalization (en, ru)
+│   ├── lib/          # Matrix client wrapper
+│   └── ui/           # Reusable UI components
+└── workers/          # Web workers
+```
+
+## License
+
+MIT
