@@ -93,7 +93,10 @@ export function useRoomList() {
     const entries = matrixRooms
       .filter((r) => {
         const membership = r.getMyMembership()
-        return membership === 'join' || membership === 'invite'
+        if (membership !== 'join' && membership !== 'invite') return false
+        const createEvent = r.currentState.getStateEvents('m.room.create', '')
+        if (createEvent?.getContent()?.type === 'm.space') return false
+        return true
       })
       .map(roomToEntry)
       .sort((a, b) => {
