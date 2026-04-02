@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import i18n from '../../../shared/i18n/index.js'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 
@@ -23,13 +24,25 @@ function applyTheme(theme: ThemeMode) {
   localStorage.setItem('theme', theme)
 }
 
+function getInitialLanguage(): string {
+  return localStorage.getItem('language') || 'en'
+}
+
+function applyLanguage(lang: string) {
+  i18n.changeLanguage(lang)
+  localStorage.setItem('language', lang)
+}
+
 export const useSettingsStore = create<SettingsState>((set) => {
   const initialTheme = getInitialTheme()
   applyTheme(initialTheme)
 
+  const initialLanguage = getInitialLanguage()
+  applyLanguage(initialLanguage)
+
   return {
     theme: initialTheme,
-    language: localStorage.getItem('language') || 'ru',
+    language: initialLanguage,
 
     setTheme: (theme) => {
       applyTheme(theme)
@@ -37,7 +50,7 @@ export const useSettingsStore = create<SettingsState>((set) => {
     },
 
     setLanguage: (lang) => {
-      localStorage.setItem('language', lang)
+      applyLanguage(lang)
       set({ language: lang })
     },
   }
