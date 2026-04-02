@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState } from 'react'
+import { useRef, useCallback, useState, useEffect } from 'react'
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso'
 import { useTimeline } from '../hooks/useTimeline.js'
 import { TimelineItem } from './TimelineItem.js'
@@ -12,10 +12,30 @@ interface TimelineProps {
   roomId: string
 }
 
+const START_INDEX = 100_000
+
 export function Timeline({ roomId }: TimelineProps) {
   const { events, loading, paginating, canPaginateBack, paginateBack } = useTimeline(roomId)
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   const [highlightedEventId, setHighlightedEventId] = useState<string | null>(null)
+  const [firstItemIndex, setFirstItemIndex] = useState(START_INDEX)
+  const prevFirstEventIdRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (events.length === 0) {
+      prevFirstEventIdRef.current = null
+      return
+    }
+    const prevFirstId = prevFirstEventIdRef.current
+    const currentFirstId = events[0]?.eventId
+    if (prevFirstId && currentFirstId !== prevFirstId) {
+      const oldIndex = events.findIndex((e) => e.eventId === prevFirstId)
+      if (oldIndex > 0) {
+        setFirstItemIndex((prev) => prev - oldIndex)
+      }
+    }
+    prevFirstEventIdRef.current = currentFirstId
+  }, [events])
 
   const scrollToEvent = useCallback((eventId: string) => {
     const index = events.findIndex((e) => e.eventId === eventId)
@@ -49,11 +69,13 @@ export function Timeline({ roomId }: TimelineProps) {
         <Virtuoso
           ref={virtuosoRef}
           data={events}
+          firstItemIndex={firstItemIndex}
           initialTopMostItemIndex={events.length - 1}
           followOutput="smooth"
           startReached={handleStartReached}
           itemContent={(index, event) => {
-            const prev = index > 0 ? events[index - 1] : null
+            const arrayIndex = index - firstItemIndex
+            const prev = arrayIndex > 0 ? events[arrayIndex - 1] : null
             const showDate = !prev || !isSameDay(prev.timestamp, event.timestamp)
             const showAvatar = !prev || prev.sender !== event.sender || showDate
 

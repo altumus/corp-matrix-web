@@ -1,10 +1,11 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type { TimelineEvent } from '../types.js'
 import { Avatar, AuthImage } from '../../../shared/ui/index.js'
 import { MessageActions } from '../../messaging/components/MessageActions.js'
 import { MessageContextMenu } from '../../messaging/components/MessageContextMenu.js'
 import { useComposerStore } from '../../messaging/store/composerStore.js'
 import { useTimelineScroll } from '../context/TimelineScrollContext.js'
+import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
 import styles from './MessageBubble.module.scss'
 
 interface MessageBubbleProps {
@@ -44,6 +45,18 @@ export function MessageBubble({ event, showAvatar }: MessageBubbleProps) {
     setContextMenu(null)
   }, [contextMenu])
 
+  const isMentioned = useMemo(() => {
+    if (event.isRedacted) return false
+    const client = getMatrixClient()
+    if (!client) return false
+    const myUserId = client.getUserId()
+    if (!myUserId || event.sender === myUserId) return false
+    const html = ((event.content.formatted_body as string) || '').replace(/<mx-reply>[\s\S]*?<\/mx-reply>/, '')
+    if (html.includes(`matrix.to/#/${encodeURIComponent(myUserId)}`)) return true
+    if (html.includes(`matrix.to/#/${myUserId}`)) return true
+    return false
+  }, [event.content.formatted_body, event.sender, event.isRedacted])
+
   if (event.isRedacted) {
     return (
       <div className={styles.message}>
@@ -63,9 +76,11 @@ export function MessageBubble({ event, showAvatar }: MessageBubbleProps) {
   const rawFormatted = content.formatted_body as string | undefined
   const formattedBody = event.replyTo && rawFormatted ? stripHtmlReplyFallback(rawFormatted) : rawFormatted
 
+  const messageCls = [styles.message, isMentioned ? styles.mentioned : ''].filter(Boolean).join(' ')
+
   return (
     <div
-      className={styles.message}
+      className={messageCls}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
       onContextMenu={handleContextMenu}

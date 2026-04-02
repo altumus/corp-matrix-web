@@ -4,6 +4,13 @@
   position: relative;
 }
 
+.mentioned {
+  background: var(--color-accent-light);
+  border-left: 3px solid var(--color-accent);
+  padding-left: calc(var(--spacing-sm) - 3px);
+  border-radius: var(--radius-xs);
+}
+
 .avatarPlaceholder {
   width: 32px;
   flex-shrink: 0;
@@ -69,6 +76,18 @@
 
   a {
     color: var(--color-accent);
+
+    &[href^="https://matrix.to"] {
+      background: var(--color-accent-light);
+      padding: 1px 4px;
+      border-radius: var(--radius-xs);
+      font-weight: 500;
+      text-decoration: none;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
   }
 
   code {
