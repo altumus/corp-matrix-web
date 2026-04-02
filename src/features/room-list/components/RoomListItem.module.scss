@@ -43,6 +43,12 @@
   @include text-ellipsis;
 }
 
+.statusIcon {
+  font-size: 11px;
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+
 .time {
   font-size: var(--font-size-xs);
   color: var(--color-text-secondary);

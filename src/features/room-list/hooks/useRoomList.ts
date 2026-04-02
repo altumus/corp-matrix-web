@@ -76,6 +76,7 @@ function roomToEntry(room: Room): RoomListEntry {
     isInvite: room.getMyMembership() === 'invite',
     isEncrypted: room.hasEncryptionStateEvent(),
     isSavedMessages: savedMessages,
+    isPinned: !!(room.tags?.['m.favourite']),
   }
 }
 
@@ -98,6 +99,8 @@ export function useRoomList() {
       .sort((a, b) => {
         if (a.isSavedMessages && !b.isSavedMessages) return -1
         if (!a.isSavedMessages && b.isSavedMessages) return 1
+        if (a.isPinned && !b.isPinned) return -1
+        if (!a.isPinned && b.isPinned) return 1
         return b.lastMessageTs - a.lastMessageTs
       })
 

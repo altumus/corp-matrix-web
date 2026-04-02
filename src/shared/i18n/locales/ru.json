@@ -47,7 +47,18 @@
     "yesterday": "Вчера",
     "unreadMessages": "Непрочитанные сообщения",
     "savedMessages": "Избранное",
-    "you": "Вы"
+    "you": "Вы",
+    "muteNotifications": "Отключить уведомления",
+    "unmuteNotifications": "Включить уведомления",
+    "markUnread": "Отметить как непрочитанное",
+    "markRead": "Отметить как прочитанное",
+    "pin": "Закрепить",
+    "unpin": "Открепить",
+    "lowPriority": "Низкий приоритет",
+    "removeLowPriority": "Убрать низкий приоритет",
+    "addToSpace": "Добавить в пространство",
+    "leave": "Покинуть",
+    "leaveConfirm": "Вы уверены, что хотите покинуть этот чат?"
   },
   "messages": {
     "placeholder": "Введите сообщение...",

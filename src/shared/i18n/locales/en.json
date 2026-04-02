@@ -47,7 +47,18 @@
     "yesterday": "Yesterday",
     "unreadMessages": "Unread messages",
     "savedMessages": "Saved Messages",
-    "you": "You"
+    "you": "You",
+    "muteNotifications": "Mute notifications",
+    "unmuteNotifications": "Unmute notifications",
+    "markUnread": "Mark as unread",
+    "markRead": "Mark as read",
+    "pin": "Pin",
+    "unpin": "Unpin",
+    "lowPriority": "Low priority",
+    "removeLowPriority": "Remove low priority",
+    "addToSpace": "Add to space",
+    "leave": "Leave",
+    "leaveConfirm": "Are you sure you want to leave this chat?"
   },
   "messages": {
     "placeholder": "Type a message...",
