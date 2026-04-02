@@ -1,5 +1,6 @@
-import { useState, createContext, useContext } from 'react'
-import { useParams, useSearchParams } from 'react-router'
+import { useState, useEffect, useRef } from 'react'
+import { useParams, useSearchParams, useNavigate } from 'react-router'
+import { useRoomListStore } from '../../room-list/store/roomListStore.js'
 import { useRoom } from '../hooks/useRoom.js'
 import { useMediaUpload } from '../../media/hooks/useMediaUpload.js'
 import { MediaUploader } from '../../media/components/MediaUploader.js'
@@ -9,35 +10,37 @@ import { MessageComposer } from '../../messaging/components/MessageComposer.js'
 import { RoomDetailsPanel } from './RoomDetailsPanel.js'
 import { ThreadPanel } from './ThreadPanel.js'
 import { Spinner } from '../../../shared/ui/index.js'
+import { RightPanelCtx, type RightPanel } from '../context/RightPanelContext.js'
 import styles from './RoomView.module.scss'
 
-type RightPanel = { type: 'details' } | { type: 'thread'; threadRootId: string } | null
-
-interface RightPanelContext {
-  panel: RightPanel
-  openDetails: () => void
-  openThread: (threadRootId: string) => void
-  closePanel: () => void
-}
-
-const RightPanelCtx = createContext<RightPanelContext>({
-  panel: null,
-  openDetails: () => {},
-  openThread: () => {},
-  closePanel: () => {},
-})
-
-export function useRightPanel() {
-  return useContext(RightPanelCtx)
-}
+const SESSION_KEY = 'app_navigated'
 
 export default function RoomView() {
   const { roomId } = useParams<{ roomId: string }>()
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
+  const redirected = useRef(false)
+
+  useEffect(() => {
+    if (redirected.current) return
+    if (!sessionStorage.getItem(SESSION_KEY)) {
+      sessionStorage.setItem(SESSION_KEY, '1')
+      redirected.current = true
+      navigate('/rooms', { replace: true })
+    }
+  }, [navigate])
+
   const { room, loading } = useRoom(roomId)
   const { uploadFiles } = useMediaUpload(roomId ?? '')
   const focusEventId = searchParams.get('eventId') || undefined
   const [rightPanel, setRightPanel] = useState<RightPanel>(null)
+  const setSelectedRoom = useRoomListStore((s) => s.setSelectedRoom)
+
+  useEffect(() => {
+    if (roomId) {
+      setSelectedRoom(roomId)
+    }
+  }, [roomId, setSelectedRoom])
 
   const clearFocusEvent = () => {
     if (searchParams.has('eventId')) {
@@ -45,10 +48,10 @@ export default function RoomView() {
     }
   }
 
-  const ctx: RightPanelContext = {
+  const ctx = {
     panel: rightPanel,
     openDetails: () => setRightPanel({ type: 'details' }),
-    openThread: (threadRootId) => setRightPanel({ type: 'thread', threadRootId }),
+    openThread: (threadRootId: string) => setRightPanel({ type: 'thread', threadRootId }),
     closePanel: () => setRightPanel(null),
   }
 

@@ -100,6 +100,7 @@
 		"placeholder": "Type a message...",
 		"send": "Send",
 		"edit": "Edit",
+		"editing": "Editing",
 		"remove": "Delete",
 		"reply": "Reply",
 		"react": "React",

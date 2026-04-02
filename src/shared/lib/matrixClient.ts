@@ -77,6 +77,8 @@ export function createMatrixClient(opts: {
       },
     } as never,
   })
+  // @ts-expect-error pendingEventOrdering exists on MatrixClient but not in ICreateClientOpts
+  clientInstance.pendingEventOrdering = 'detached'
   return clientInstance
 }
 

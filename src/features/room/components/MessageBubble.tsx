@@ -30,9 +30,8 @@ import {
 	redactMessage,
 	sendReaction,
 } from '../../messaging/services/messageService.js';
-import { editMessage } from '../../messaging/services/messageService.js';
 import { useSelectionStore } from '../../messaging/store/selectionStore.js';
-import { useRightPanel } from './RoomView.js';
+import { useRightPanel } from '../context/RightPanelContext.js';
 import { ReactionDetailsDialog } from './ReactionDetailsDialog.js';
 import { Lightbox, type MediaType } from '../../media/components/Lightbox.js';
 import { ReadReceipts } from './ReadReceipts.js';
@@ -191,10 +190,11 @@ export function MessageBubble({
 				label: t('messages.edit'),
 				hidden: !isOwnMessage,
 				onClick: () => {
-					const newBody = prompt(t('messages.edit'), bodyText);
-					if (newBody && newBody !== bodyText) {
-						editMessage(event.roomId, event.eventId, newBody);
-					}
+					setContextMenu(null);
+					useComposerStore.getState().setEditTarget({
+						eventId: event.eventId,
+						body: bodyText,
+					});
 				},
 			},
 			{

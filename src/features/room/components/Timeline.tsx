@@ -73,22 +73,20 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
     focusHandledRef.current = null
   }, [roomId])
 
-  useEffect(() => {
-    if (!focusEventId || listItems.length === 0) return
-    if (focusHandledRef.current === focusEventId) return
+  const focusIndex = useMemo(() => {
+    if (!focusEventId || listItems.length === 0) return -1
+    return listItems.findIndex((item) => item.key === focusEventId)
+  }, [focusEventId, listItems])
 
-    const index = listItems.findIndex((item) => item.key === focusEventId)
-    if (index === -1) return
+  useEffect(() => {
+    if (!focusEventId || focusIndex === -1) return
+    if (focusHandledRef.current === focusEventId) return
 
     focusHandledRef.current = focusEventId
 
-    const scrollTimer = setTimeout(() => {
-      virtuosoRef.current?.scrollToIndex({ index, align: 'center', behavior: 'smooth' })
-    }, 100)
-
     const highlightTimer = setTimeout(() => {
       setHighlightedEventId(focusEventId)
-    }, 400)
+    }, 200)
 
     const clearTimer = setTimeout(() => {
       setHighlightedEventId(null)
@@ -96,11 +94,10 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
     }, 2500)
 
     return () => {
-      clearTimeout(scrollTimer)
       clearTimeout(highlightTimer)
       clearTimeout(clearTimer)
     }
-  }, [focusEventId, listItems, onFocusHandled])
+  }, [focusEventId, focusIndex, onFocusHandled])
 
   const scrollToEvent = useCallback((eventId: string) => {
     const index = listItems.findIndex((item) => item.key === eventId)
@@ -136,7 +133,7 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
           data={listItems}
           computeItemKey={(_, item) => item.key}
           firstItemIndex={firstItemIndex}
-          initialTopMostItemIndex={listItems.length - 1}
+          initialTopMostItemIndex={focusIndex >= 0 ? focusIndex : listItems.length - 1}
           alignToBottom
           followOutput="smooth"
           startReached={handleStartReached}

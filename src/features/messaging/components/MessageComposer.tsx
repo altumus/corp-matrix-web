@@ -1,6 +1,6 @@
 import { useRef, useState, useCallback, useEffect, type FormEvent, type KeyboardEvent, type ClipboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Forward, Trash2, Copy, Pin, X, Plus } from 'lucide-react'
+import { Forward, Trash2, Copy, Pin, X, Plus, Pencil } from 'lucide-react'
 import { useSendMessage } from '../hooks/useSendMessage.js'
 import { useMediaUpload } from '../../media/hooks/useMediaUpload.js'
 import { useMentions, type MentionCandidate } from '../hooks/useMentions.js'
@@ -12,7 +12,7 @@ import { ForwardDialog } from './ForwardDialog.js'
 import { useComposerStore } from '../store/composerStore.js'
 import { useSelectionStore } from '../store/selectionStore.js'
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
-import { redactMessage } from '../services/messageService.js'
+import { redactMessage, editMessage } from '../services/messageService.js'
 import styles from './MessageComposer.module.scss'
 
 interface MessageComposerProps {
@@ -33,6 +33,8 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
   const { candidates, active: mentionActive, open: openMention, close: closeMention } = useMentions(roomId)
   const replyTarget = useComposerStore((s) => s.replyTarget)
   const clearReply = useComposerStore((s) => s.clearReply)
+  const editTarget = useComposerStore((s) => s.editTarget)
+  const clearEdit = useComposerStore((s) => s.clearEdit)
   const [text, setText] = useState('')
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [mentionIndex, setMentionIndex] = useState(0)
@@ -45,6 +47,21 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
       textareaRef.current?.focus()
     }
   }, [replyTarget])
+
+  useEffect(() => {
+    if (editTarget) {
+      requestAnimationFrame(() => {
+        setText(editTarget.body)
+        const textarea = textareaRef.current
+        if (textarea) {
+          textarea.focus()
+          textarea.style.height = 'auto'
+          textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`
+          textarea.setSelectionRange(editTarget.body.length, editTarget.body.length)
+        }
+      })
+    }
+  }, [editTarget])
 
   const insertMention = useCallback((candidate: MentionCandidate) => {
     const textarea = textareaRef.current
@@ -89,9 +106,19 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
     if (!text.trim()) return
-    send(text, replyTarget?.eventId, replyTarget?.quotedText, replyTarget?.quotedText ? replyTarget.sender : undefined)
-    setText('')
-    clearReply()
+
+    if (editTarget) {
+      if (text.trim() !== editTarget.body) {
+        editMessage(roomId, editTarget.eventId, text.trim())
+      }
+      setText('')
+      clearEdit()
+    } else {
+      send(text, replyTarget?.eventId, replyTarget?.quotedText, replyTarget?.quotedText ? replyTarget.sender : undefined)
+      setText('')
+      clearReply()
+    }
+
     closeMention()
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
@@ -120,6 +147,13 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
         closeMention()
         return
       }
+    }
+
+    if (e.key === 'Escape' && editTarget) {
+      e.preventDefault()
+      clearEdit()
+      setText('')
+      return
     }
 
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -285,7 +319,24 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
   return (
     <>
       <form className={styles.composer} onSubmit={handleSubmit}>
-        {replyTarget && (
+        {editTarget && (
+          <div className={styles.replyPreview}>
+            <div className={styles.replyInfo}>
+              <span className={styles.replyLabel}><Pencil size={12} /> {t('messages.editing')}</span>
+              <span className={styles.replyBody}>{editTarget.body}</span>
+            </div>
+            <button
+              type="button"
+              className={styles.replyCancelBtn}
+              onClick={() => { clearEdit(); setText('') }}
+              title={t('common.cancel')}
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {replyTarget && !editTarget && (
           <div className={styles.replyPreview}>
             <div className={styles.replyInfo}>
               <span className={styles.replyLabel}>↩ {replyTarget.sender}</span>

@@ -30,12 +30,15 @@ function mapEvent(event: MatrixEvent, room: Room): TimelineEvent {
   }
 
   const isEncrypted = event.isEncrypted()
-  const effectiveContent = isEncrypted && event.getType() === 'm.room.encrypted'
-    ? { msgtype: 'm.text', body: '🔒 Зашифрованное сообщение' }
-    : event.getContent()
-
-  const content = effectiveContent
-  const isEdited = !!content['m.new_content']
+  let content: Record<string, unknown>
+  if (isEncrypted && event.getType() === 'm.room.encrypted') {
+    content = { msgtype: 'm.text', body: '🔒 Зашифрованное сообщение' }
+  } else {
+    const replacing = event.replacingEvent()
+    const newContent = replacing?.getContent()?.['m.new_content'] as Record<string, unknown> | undefined
+    content = newContent ?? event.getContent()
+  }
+  const isEdited = !!event.replacingEvent() || !!content['m.new_content']
   const relatesTo = content['m.relates_to'] as Record<string, unknown> | undefined
 
   const replyToId = (relatesTo?.['m.in_reply_to'] as Record<string, unknown>)?.event_id as string | undefined
@@ -214,12 +217,9 @@ export function useTimeline(roomId: string) {
       }).catch(() => {})
     }
 
-    const onTimelineEvent = (event: MatrixEvent) => {
+    const onTimelineEvent = () => {
       if (activeRoomIdRef.current !== roomId) return
-      const evType = event.getType()
-      if (evType === EventType.Reaction || evType === 'm.room.message') {
-        prevEventIdsRef.current = ''
-      }
+      prevEventIdsRef.current = ''
       refreshEvents()
       sendReadReceipt()
     }

@@ -6,7 +6,7 @@ import { Avatar } from '../../../shared/ui/index.js'
 import { EncryptionBadge } from '../../encryption/components/EncryptionBadge.js'
 import { usePresence, getDmPartnerId } from '../../../shared/hooks/usePresence.js'
 import { InviteToRoomDialog } from './InviteToRoomDialog.js'
-import { useRightPanel } from './RoomView.js'
+import { useRightPanel } from '../context/RightPanelContext.js'
 import styles from './RoomHeader.module.scss'
 
 interface RoomHeaderProps {
