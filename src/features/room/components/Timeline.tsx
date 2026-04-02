@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState, useEffect } from 'react'
+import { useRef, useCallback, useState, useEffect, useMemo } from 'react'
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso'
 import { useTimeline } from '../hooks/useTimeline.js'
 import { TimelineItem } from './TimelineItem.js'
@@ -7,6 +7,7 @@ import { TypingIndicator } from './TypingIndicator.js'
 import { Spinner } from '../../../shared/ui/index.js'
 import { TimelineScrollContext } from '../context/TimelineScrollContext.js'
 import { PinnedMessageBar } from './PinnedMessageBar.js'
+import type { TimelineEvent } from '../types.js'
 import styles from './Timeline.module.scss'
 
 interface TimelineProps {
@@ -15,32 +16,54 @@ interface TimelineProps {
   onFocusHandled?: () => void
 }
 
+interface ListItem {
+  type: 'date' | 'event'
+  key: string
+  event?: TimelineEvent
+  timestamp?: number
+  showAvatar?: boolean
+}
+
+function buildListItems(events: TimelineEvent[]): ListItem[] {
+  const items: ListItem[] = []
+  for (let i = 0; i < events.length; i++) {
+    const event = events[i]
+    const prev = i > 0 ? events[i - 1] : null
+    const showDate = !prev || !isSameDay(prev.timestamp, event.timestamp)
+    const showAvatar = !prev || prev.sender !== event.sender || showDate
+
+    if (showDate) {
+      items.push({ type: 'date', key: `date-${event.timestamp}`, timestamp: event.timestamp })
+    }
+    items.push({ type: 'event', key: event.eventId, event, showAvatar })
+  }
+  return items
+}
+
 const START_INDEX = 100_000
 
 export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps) {
-  const { events, loading, paginateBack } = useTimeline(roomId)
+  const { events, loading, paginateBack, prependCount } = useTimeline(roomId)
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   const [highlightedEventId, setHighlightedEventId] = useState<string | null>(null)
   const focusHandledRef = useRef<string | null>(null)
   const paginateBackRef = useRef(paginateBack)
 
-  const [indexState, setIndexState] = useState({
-    trackedRoomId: roomId,
-    baseCount: 0,
-  })
+  const listItems = useMemo(() => buildListItems(events), [events])
 
-  if (indexState.trackedRoomId !== roomId) {
-    setIndexState({ trackedRoomId: roomId, baseCount: 0 })
-  }
+  const dateItemsInPrepend = useMemo(() => {
+    if (prependCount === 0 || events.length === 0) return 0
+    let count = 0
+    for (let i = 0; i < Math.min(prependCount, events.length); i++) {
+      const prev = i > 0 ? events[i - 1] : null
+      if (!prev || !isSameDay(prev.timestamp, events[i].timestamp)) {
+        count++
+      }
+    }
+    return count
+  }, [prependCount, events])
 
-  let baseCount = indexState.baseCount
-  if (baseCount === 0 && events.length > 0) {
-    baseCount = events.length
-    setIndexState({ trackedRoomId: roomId, baseCount })
-  }
-
-  const grown = events.length > baseCount ? events.length - baseCount : 0
-  const firstItemIndex = START_INDEX - grown
+  const firstItemIndex = START_INDEX - prependCount - dateItemsInPrepend
 
   useEffect(() => {
     paginateBackRef.current = paginateBack
@@ -50,12 +73,11 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
     focusHandledRef.current = null
   }, [roomId])
 
-
   useEffect(() => {
-    if (!focusEventId || events.length === 0) return
+    if (!focusEventId || listItems.length === 0) return
     if (focusHandledRef.current === focusEventId) return
 
-    const index = events.findIndex((e) => e.eventId === focusEventId)
+    const index = listItems.findIndex((item) => item.key === focusEventId)
     if (index === -1) return
 
     focusHandledRef.current = focusEventId
@@ -78,20 +100,19 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
       clearTimeout(highlightTimer)
       clearTimeout(clearTimer)
     }
-  }, [focusEventId, events, onFocusHandled])
+  }, [focusEventId, listItems, onFocusHandled])
 
   const scrollToEvent = useCallback((eventId: string) => {
-    const index = events.findIndex((e) => e.eventId === eventId)
+    const index = listItems.findIndex((item) => item.key === eventId)
     if (index === -1) return
     virtuosoRef.current?.scrollToIndex({ index, align: 'center', behavior: 'smooth' })
     setHighlightedEventId(eventId)
     setTimeout(() => setHighlightedEventId(null), 2000)
-  }, [events])
+  }, [listItems])
 
   const handleStartReached = useCallback(() => {
     paginateBackRef.current()
   }, [])
-
 
   if (loading) {
     return (
@@ -112,31 +133,24 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
         <Virtuoso
           key={roomId}
           ref={virtuosoRef}
-          data={events}
-          computeItemKey={(index) => {
-            const arrayIndex = index - firstItemIndex
-            return events[arrayIndex]?.eventId ?? `idx-${index}`
-          }}
+          data={listItems}
+          computeItemKey={(_, item) => item.key}
           firstItemIndex={firstItemIndex}
-          initialTopMostItemIndex={events.length - 1}
+          initialTopMostItemIndex={listItems.length - 1}
+          alignToBottom
           followOutput="smooth"
           startReached={handleStartReached}
-          increaseViewportBy={{ top: 800, bottom: 0 }}
-          itemContent={(index, event) => {
-            const arrayIndex = index - firstItemIndex
-            const prev = arrayIndex > 0 ? events[arrayIndex - 1] : null
-            const showDate = !prev || !isSameDay(prev.timestamp, event.timestamp)
-            const showAvatar = !prev || prev.sender !== event.sender || showDate
-
+          increaseViewportBy={{ top: 1500, bottom: 0 }}
+          itemContent={(_, item) => {
+            if (item.type === 'date') {
+              return <DateSeparator timestamp={item.timestamp!} />
+            }
             return (
-              <>
-                {showDate && <DateSeparator timestamp={event.timestamp} />}
-                <TimelineItem
-                  event={event}
-                  showAvatar={showAvatar}
-                  isHighlighted={highlightedEventId === event.eventId}
-                />
-              </>
+              <TimelineItem
+                event={item.event!}
+                showAvatar={item.showAvatar!}
+                isHighlighted={highlightedEventId === item.event!.eventId}
+              />
             )
           }}
           components={{

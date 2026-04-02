@@ -137,15 +137,37 @@ export function useTimeline(roomId: string) {
   const [events, setEvents] = useState<TimelineEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [paginating, setPaginating] = useState(false)
+  const [prependCount, setPrependCount] = useState(0)
   const roomRef = useRef<Room | null>(null)
   const paginatingRef = useRef(false)
   const activeRoomIdRef = useRef(roomId)
+  const prevEventIdsRef = useRef('')
+  const prevFirstIdRef = useRef<string | null>(null)
 
   const refreshEvents = useCallback(() => {
     const room = roomRef.current
     if (!room) return
     if (room.roomId !== activeRoomIdRef.current) return
-    setEvents(collectEvents(room))
+    const newEvents = collectEvents(room)
+    const newIds = newEvents.map((e) => e.eventId).join(',')
+    if (newIds === prevEventIdsRef.current) return
+    prevEventIdsRef.current = newIds
+
+    if (newEvents.length > 0 && prevFirstIdRef.current !== null) {
+      const newFirstId = newEvents[0].eventId
+      if (newFirstId !== prevFirstIdRef.current) {
+        const oldIdx = newEvents.findIndex((e) => e.eventId === prevFirstIdRef.current)
+        if (oldIdx > 0) {
+          setPrependCount((prev) => prev + oldIdx)
+        }
+      }
+    }
+
+    if (newEvents.length > 0) {
+      prevFirstIdRef.current = newEvents[0].eventId
+    }
+
+    setEvents(newEvents)
   }, [])
 
   const sendReadReceipt = useCallback(() => {
@@ -165,6 +187,9 @@ export function useTimeline(roomId: string) {
 
   useEffect(() => {
     activeRoomIdRef.current = roomId
+    prevFirstIdRef.current = null
+    prevEventIdsRef.current = ''
+    setPrependCount(0)
     paginatingRef.current = false
 
     const client = getMatrixClient()
@@ -227,7 +252,7 @@ export function useTimeline(roomId: string) {
     paginatingRef.current = true
     setPaginating(true)
     try {
-      await client.paginateEventTimeline(timeline, { backwards: true, limit: 50 })
+      await client.paginateEventTimeline(timeline, { backwards: true, limit: 100 })
       if (activeRoomIdRef.current === room.roomId) {
         setEvents(collectEvents(room))
       }
@@ -239,5 +264,5 @@ export function useTimeline(roomId: string) {
     }
   }, [])
 
-  return { events, loading, paginating, paginateBack }
+  return { events, loading, paginating, paginateBack, prependCount }
 }
