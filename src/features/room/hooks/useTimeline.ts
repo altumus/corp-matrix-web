@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
 import { RoomEvent, RelationType, EventType, MatrixEventEvent } from 'matrix-js-sdk'
+import { Direction } from 'matrix-js-sdk/lib/models/event-timeline.js'
 import type { MatrixEvent, Room } from 'matrix-js-sdk'
 import type { TimelineEvent } from '../types.js'
 
@@ -83,9 +84,16 @@ export function useTimeline(roomId: string) {
 
     const timeline = room.getLiveTimeline()
     const matrixEvents = timeline.getEvents()
-    const mapped = matrixEvents
-      .filter((e) => ['m.room.message', 'm.room.encrypted', 'm.sticker'].includes(e.getType()))
-      .map((e) => mapEvent(e, room))
+    const messageTypes = ['m.room.message', 'm.room.encrypted', 'm.sticker']
+    const mapped: TimelineEvent[] = []
+    for (const e of matrixEvents) {
+      if (!messageTypes.includes(e.getType())) continue
+      try {
+        mapped.push(mapEvent(e, room))
+      } catch {
+        // skip events that fail to map
+      }
+    }
     setEvents(mapped)
   }, [])
 
@@ -100,9 +108,17 @@ export function useTimeline(roomId: string) {
     refreshEvents()
     setLoading(false)
 
+    const timeline = room.getLiveTimeline()
+    const messageTypes = ['m.room.message', 'm.room.encrypted', 'm.sticker']
+    const hasMessages = timeline.getEvents().some((e) => messageTypes.includes(e.getType()))
+    if (!hasMessages && timeline.getPaginationToken(Direction.Backward)) {
+      client.paginateEventTimeline(timeline, { backwards: true, limit: 50 }).then(() => {
+        refreshEvents()
+      }).catch(() => {})
+    }
+
     const onTimelineEvent = () => refreshEvents()
     const onRedaction = () => refreshEvents()
-
     const onDecrypted = () => refreshEvents()
 
     client.on(RoomEvent.Timeline, onTimelineEvent)
