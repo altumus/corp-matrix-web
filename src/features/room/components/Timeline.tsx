@@ -6,6 +6,7 @@ import { DateSeparator } from './DateSeparator.js'
 import { TypingIndicator } from './TypingIndicator.js'
 import { Spinner } from '../../../shared/ui/index.js'
 import { TimelineScrollContext } from '../context/TimelineScrollContext.js'
+import { PinnedMessageBar } from './PinnedMessageBar.js'
 import styles from './Timeline.module.scss'
 
 interface TimelineProps {
@@ -17,15 +18,29 @@ interface TimelineProps {
 const START_INDEX = 100_000
 
 export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps) {
-  const { events, loading, paginating, paginateBack } = useTimeline(roomId)
+  const { events, loading, paginateBack } = useTimeline(roomId)
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   const [highlightedEventId, setHighlightedEventId] = useState<string | null>(null)
-  const [firstItemIndex, setFirstItemIndex] = useState(START_INDEX)
-  const prevFirstEventIdRef = useRef<string | null>(null)
-  const prevEventsLengthRef = useRef(0)
   const focusHandledRef = useRef<string | null>(null)
   const paginateBackRef = useRef(paginateBack)
-  const atTopRef = useRef(false)
+
+  const [indexState, setIndexState] = useState({
+    trackedRoomId: roomId,
+    baseCount: 0,
+  })
+
+  if (indexState.trackedRoomId !== roomId) {
+    setIndexState({ trackedRoomId: roomId, baseCount: 0 })
+  }
+
+  let baseCount = indexState.baseCount
+  if (baseCount === 0 && events.length > 0) {
+    baseCount = events.length
+    setIndexState({ trackedRoomId: roomId, baseCount })
+  }
+
+  const grown = events.length > baseCount ? events.length - baseCount : 0
+  const firstItemIndex = START_INDEX - grown
 
   useEffect(() => {
     paginateBackRef.current = paginateBack
@@ -33,35 +48,8 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
 
   useEffect(() => {
     focusHandledRef.current = null
-    prevFirstEventIdRef.current = null
-    prevEventsLengthRef.current = 0
-    atTopRef.current = false
-    requestAnimationFrame(() => setFirstItemIndex(START_INDEX))
   }, [roomId])
 
-  useEffect(() => {
-    if (events.length === 0) {
-      prevFirstEventIdRef.current = null
-      prevEventsLengthRef.current = 0
-      return
-    }
-
-    const curFirstId = events[0].eventId
-    const prevFirstId = prevFirstEventIdRef.current
-    const prevLen = prevEventsLengthRef.current
-
-    if (prevFirstId && curFirstId !== prevFirstId && events.length > prevLen) {
-      const added = events.length - prevLen
-      setFirstItemIndex((prev) => prev - added)
-    }
-
-    prevFirstEventIdRef.current = curFirstId
-    prevEventsLengthRef.current = events.length
-
-    if (atTopRef.current) {
-      paginateBackRef.current()
-    }
-  }, [events])
 
   useEffect(() => {
     if (!focusEventId || events.length === 0) return
@@ -104,12 +92,6 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
     paginateBackRef.current()
   }, [])
 
-  const handleAtTopStateChange = useCallback((atTop: boolean) => {
-    atTopRef.current = atTop
-    if (atTop) {
-      paginateBackRef.current()
-    }
-  }, [])
 
   if (loading) {
     return (
@@ -125,6 +107,7 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
 
   return (
     <TimelineScrollContext.Provider value={scrollToEvent}>
+      <PinnedMessageBar roomId={roomId} />
       <div className={styles.container}>
         <Virtuoso
           key={roomId}
@@ -138,9 +121,7 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
           initialTopMostItemIndex={events.length - 1}
           followOutput="smooth"
           startReached={handleStartReached}
-          atTopStateChange={handleAtTopStateChange}
-          increaseViewportBy={{ top: 400, bottom: 0 }}
-          defaultItemHeight={52}
+          increaseViewportBy={{ top: 800, bottom: 0 }}
           itemContent={(index, event) => {
             const arrayIndex = index - firstItemIndex
             const prev = arrayIndex > 0 ? events[arrayIndex - 1] : null
@@ -159,12 +140,6 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
             )
           }}
           components={{
-            Header: () =>
-              paginating ? (
-                <div className={styles.paginationLoader}>
-                  <Spinner size={20} />
-                </div>
-              ) : null,
             Footer: () => <TypingIndicator roomId={roomId} />,
           }}
         />

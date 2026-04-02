@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BarChart3, Check } from 'lucide-react'
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { Modal, Avatar } from '../../../shared/ui/index.js'
 import styles from './PollMessage.module.scss'
 
 interface PollAnswer {
@@ -83,6 +84,7 @@ export function PollMessage({ eventId, roomId, content }: PollMessageProps) {
   const { t } = useTranslation()
   const [myVotes, setMyVotes] = useState<string[]>([])
   const [allVotes, setAllVotes] = useState<VoteInfo[]>([])
+  const [showStats, setShowStats] = useState(false)
 
   const poll = extractPoll(content)
 
@@ -102,21 +104,30 @@ export function PollMessage({ eventId, roomId, content }: PollMessageProps) {
   }, [poll])
 
   useEffect(() => {
-    const votes = collectVotes(roomId, eventId)
-    setAllVotes(votes)
+    requestAnimationFrame(() => {
+      const votes = collectVotes(roomId, eventId)
+      setAllVotes(votes)
 
-    const client = getMatrixClient()
-    const myUserId = client?.getUserId()
-    if (myUserId) {
-      const mine = votes.filter((v) => v.userId === myUserId).map((v) => v.answerId)
-      setMyVotes(mine)
-    }
+      const client = getMatrixClient()
+      const myUserId = client?.getUserId()
+      if (myUserId) {
+        const mine = votes.filter((v) => v.userId === myUserId).map((v) => v.answerId)
+        setMyVotes(mine)
+      }
+    })
   }, [roomId, eventId])
 
   const totalVotes = useMemo(() => {
     const voters = new Set(allVotes.map((v) => v.userId))
     return voters.size
   }, [allVotes])
+
+  const totalMembers = useMemo(() => {
+    const client = getMatrixClient()
+    if (!client) return 0
+    const room = client.getRoom(roomId)
+    return room?.getJoinedMemberCount() || 0
+  }, [roomId])
 
   const votesPerAnswer = useMemo(() => {
     const map = new Map<string, VoteInfo[]>()
@@ -182,7 +193,7 @@ export function PollMessage({ eventId, roomId, content }: PollMessageProps) {
         {answers.map((answer) => {
           const isVoted = myVotes.includes(answer.id)
           const voters = votesPerAnswer.get(answer.id) || []
-          const pct = totalVotes > 0 ? Math.round((voters.length / totalVotes) * 100) : 0
+          const pct = totalMembers > 0 ? Math.round((voters.length / totalMembers) * 100) : 0
 
           return (
             <div key={answer.id} className={styles.answerWrap}>
@@ -204,20 +215,58 @@ export function PollMessage({ eventId, roomId, content }: PollMessageProps) {
                   </div>
                 )}
               </button>
-              {voters.length > 0 && (
-                <div className={styles.voters}>
-                  {voters.map((v) => v.name).join(', ')}
-                </div>
-              )}
             </div>
           )
         })}
       </div>
       {hasVotes && (
-        <span className={styles.totalVotes}>{totalVotes} голос(ов)</span>
+        <button className={styles.totalVotes} onClick={() => setShowStats(true)}>
+          {totalVotes} из {totalMembers} проголосовали
+        </button>
       )}
       {!hasVotes && (
         <span className={styles.hint}>{t('messages.vote')}</span>
+      )}
+
+      {showStats && (
+        <Modal open onClose={() => setShowStats(false)} title={question}>
+          <div className={styles.statsModal}>
+            {answers.map((answer) => {
+              const voters = votesPerAnswer.get(answer.id) || []
+              const pct = totalMembers > 0 ? Math.round((voters.length / totalMembers) * 100) : 0
+
+              return (
+                <div key={answer.id} className={styles.statSection}>
+                  <div className={styles.statHeader}>
+                    <span className={styles.statText}>{answer.text}</span>
+                    <span className={styles.statPct}>{pct}% ({voters.length})</span>
+                  </div>
+                  <div className={styles.progressBar}>
+                    <div
+                      className={styles.progressFill}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  {voters.length > 0 ? (
+                    <div className={styles.statVoters}>
+                      {voters.map((v) => (
+                        <div key={v.userId} className={styles.statVoter}>
+                          <Avatar src={null} name={v.name} size="xs" />
+                          <span>{v.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className={styles.statEmpty}>Нет голосов</span>
+                  )}
+                </div>
+              )
+            })}
+            <div className={styles.statTotal}>
+              Проголосовали: {totalVotes} из {totalMembers}
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   )

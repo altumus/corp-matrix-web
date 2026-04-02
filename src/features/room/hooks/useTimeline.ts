@@ -76,15 +76,20 @@ function isEditEvent(e: MatrixEvent): boolean {
   return rel?.rel_type === 'm.replace'
 }
 
+const TIMELINE_EVENT_TYPES = [
+  'm.room.message', 'm.room.encrypted', 'm.sticker',
+  'org.matrix.msc3381.poll.start', 'm.poll.start',
+  'm.room.member', 'm.room.create', 'm.room.name', 'm.room.topic', 'm.room.avatar',
+]
+
 function collectEvents(room: Room): TimelineEvent[] {
-  const messageTypes = ['m.room.message', 'm.room.encrypted', 'm.sticker', 'org.matrix.msc3381.poll.start', 'm.poll.start']
   const mapped: TimelineEvent[] = []
   const seen = new Set<string>()
 
   const allTimelines = room.getUnfilteredTimelineSet().getTimelines()
   for (const tl of allTimelines) {
     for (const e of tl.getEvents()) {
-      if (!messageTypes.includes(e.getType())) continue
+      if (!TIMELINE_EVENT_TYPES.includes(e.getType())) continue
       if (isEditEvent(e)) continue
       if (e.isRedacted()) continue
       const id = e.getId()!
@@ -149,10 +154,9 @@ export function useTimeline(roomId: string) {
     sendReadReceipt()
 
     const timeline = room.getLiveTimeline()
-    const messageTypes = ['m.room.message', 'm.room.encrypted', 'm.sticker', 'org.matrix.msc3381.poll.start', 'm.poll.start']
-    const hasMessages = timeline.getEvents().some((e) => messageTypes.includes(e.getType()))
+    const hasMessages = timeline.getEvents().some((e) => TIMELINE_EVENT_TYPES.includes(e.getType()))
     if (!hasMessages && timeline.getPaginationToken(Direction.Backward)) {
-      client.paginateEventTimeline(timeline, { backwards: true, limit: 50 }).then(() => {
+      client.paginateEventTimeline(timeline, { backwards: true, limit: 100 }).then(() => {
         if (activeRoomIdRef.current === roomId) {
           setEvents(collectEvents(room))
         }
@@ -197,7 +201,7 @@ export function useTimeline(roomId: string) {
     paginatingRef.current = true
     setPaginating(true)
     try {
-      await client.paginateEventTimeline(timeline, { backwards: true, limit: 30 })
+      await client.paginateEventTimeline(timeline, { backwards: true, limit: 50 })
       if (activeRoomIdRef.current === room.roomId) {
         setEvents(collectEvents(room))
       }
