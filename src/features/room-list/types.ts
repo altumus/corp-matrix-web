@@ -4,6 +4,7 @@ export interface RoomListEntry {
   avatarUrl: string | null
   lastMessage: string
   lastMessageSender: string
+  lastMessageSenderId: string
   lastMessageTs: number
   unreadCount: number
   highlightCount: number

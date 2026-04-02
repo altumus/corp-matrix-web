@@ -97,6 +97,21 @@ export function useTimeline(roomId: string) {
     setEvents(mapped)
   }, [])
 
+  const sendReadReceipt = useCallback(() => {
+    const client = getMatrixClient()
+    const room = roomRef.current
+    if (!client || !room) return
+
+    const timeline = room.getLiveTimeline().getEvents()
+    for (let i = timeline.length - 1; i >= 0; i--) {
+      const ev = timeline[i]
+      if (ev.getType() === 'm.room.message' || ev.getType() === 'm.room.encrypted') {
+        client.sendReadReceipt(ev).catch(() => {})
+        break
+      }
+    }
+  }, [])
+
   useEffect(() => {
     const client = getMatrixClient()
     if (!client) return
@@ -107,6 +122,7 @@ export function useTimeline(roomId: string) {
     roomRef.current = room
     refreshEvents()
     setLoading(false)
+    sendReadReceipt()
 
     const timeline = room.getLiveTimeline()
     const messageTypes = ['m.room.message', 'm.room.encrypted', 'm.sticker']
@@ -117,7 +133,10 @@ export function useTimeline(roomId: string) {
       }).catch(() => {})
     }
 
-    const onTimelineEvent = () => refreshEvents()
+    const onTimelineEvent = () => {
+      refreshEvents()
+      sendReadReceipt()
+    }
     const onRedaction = () => refreshEvents()
     const onDecrypted = () => refreshEvents()
 
@@ -130,7 +149,7 @@ export function useTimeline(roomId: string) {
       client.removeListener(RoomEvent.Redaction, onRedaction)
       client.removeListener(MatrixEventEvent.Decrypted, onDecrypted)
     }
-  }, [roomId, refreshEvents])
+  }, [roomId, refreshEvents, sendReadReceipt])
 
   const paginateBack = useCallback(async () => {
     const client = getMatrixClient()

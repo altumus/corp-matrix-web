@@ -7,21 +7,23 @@ import { useRoomListStore } from '../store/roomListStore.js'
 import { useSpacesStore } from '../../spaces/store/spacesStore.js'
 import type { RoomListEntry } from '../types.js'
 
-function getLastMessage(room: Room): { body: string; sender: string; ts: number } {
+function getLastMessage(room: Room): { body: string; sender: string; senderId: string; ts: number } {
   const timeline = room.getLiveTimeline().getEvents()
   for (let i = timeline.length - 1; i >= 0; i--) {
     const event = timeline[i]
     if (event.getType() === 'm.room.message') {
       const content = event.getContent()
-      const sender = room.getMember(event.getSender()!)?.name || event.getSender()!
+      const senderId = event.getSender()!
+      const sender = room.getMember(senderId)?.name || senderId
       return {
         body: (content.body as string) || '',
         sender,
+        senderId,
         ts: event.getTs(),
       }
     }
   }
-  return { body: '', sender: '', ts: room.getLastActiveTimestamp() }
+  return { body: '', sender: '', senderId: '', ts: room.getLastActiveTimestamp() }
 }
 
 function isDmRoom(room: Room): boolean {
@@ -66,6 +68,7 @@ function roomToEntry(room: Room): RoomListEntry {
     avatarUrl,
     lastMessage: lastMsg.body,
     lastMessageSender: savedMessages ? '' : lastMsg.sender,
+    lastMessageSenderId: lastMsg.senderId,
     lastMessageTs: lastMsg.ts || room.getLastActiveTimestamp(),
     unreadCount: room.getUnreadNotificationCount() || 0,
     highlightCount: room.getRoomUnreadNotificationCount(NotificationCountType.Highlight) || 0,

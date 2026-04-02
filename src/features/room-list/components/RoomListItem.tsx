@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import type { RoomListEntry } from '../types.js'
 import { useRoomListStore } from '../store/roomListStore.js'
+import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
 import { Avatar, Badge } from '../../../shared/ui/index.js'
 import styles from './RoomListItem.module.scss'
 
@@ -19,6 +20,33 @@ function SavedMessagesIcon() {
   )
 }
 
+function getMessagePreview(room: RoomListEntry, myUserId: string | null, youLabel: string): string {
+  if (!room.lastMessage) return ''
+
+  const isMyMessage = myUserId && room.lastMessageSenderId === myUserId
+
+  if (room.isSavedMessages) {
+    return room.lastMessage
+  }
+
+  if (room.isDirect) {
+    if (isMyMessage) {
+      return `${youLabel}: ${room.lastMessage}`
+    }
+    return room.lastMessage
+  }
+
+  if (isMyMessage) {
+    return `${youLabel}: ${room.lastMessage}`
+  }
+
+  if (room.lastMessageSender) {
+    return `${room.lastMessageSender}: ${room.lastMessage}`
+  }
+
+  return room.lastMessage
+}
+
 export function RoomListItem({ room }: RoomListItemProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -26,12 +54,16 @@ export function RoomListItem({ room }: RoomListItemProps) {
   const setSelectedRoom = useRoomListStore((s) => s.setSelectedRoom)
   const isSelected = selectedRoomId === room.roomId
 
+  const client = getMatrixClient()
+  const myUserId = client?.getUserId() ?? null
+
   const handleClick = () => {
     setSelectedRoom(room.roomId)
     navigate(`/rooms/${encodeURIComponent(room.roomId)}`)
   }
 
   const displayName = room.isSavedMessages ? t('rooms.savedMessages') : room.name
+  const messagePreview = getMessagePreview(room, myUserId, t('rooms.you'))
 
   return (
     <button
@@ -52,10 +84,7 @@ export function RoomListItem({ room }: RoomListItemProps) {
           )}
         </div>
         <div className={styles.bottom}>
-          <span className={styles.message}>
-            {room.lastMessageSender && `${room.lastMessageSender}: `}
-            {room.lastMessage}
-          </span>
+          <span className={styles.message}>{messagePreview}</span>
           {room.unreadCount > 0 && (
             <Badge count={room.unreadCount} highlight={room.highlightCount > 0} />
           )}
