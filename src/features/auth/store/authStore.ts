@@ -9,13 +9,6 @@ import {
   logoutSession,
 } from '../services/authService.js'
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
-  return Promise.race([
-    promise,
-    new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
-  ])
-}
-
 function waitForInitialSync(timeoutMs = 10_000): Promise<void> {
   return new Promise((resolve) => {
     const client = getMatrixClient()
@@ -45,13 +38,8 @@ function waitForInitialSync(timeoutMs = 10_000): Promise<void> {
 }
 
 async function resolvePostAuthStatus(): Promise<AuthStatus> {
-  const result = await withTimeout(resolvePostAuthStatusInner(), 12_000)
-  return result ?? 'authenticated'
-}
-
-async function resolvePostAuthStatusInner(): Promise<AuthStatus> {
   try {
-    await waitForInitialSync()
+    await waitForInitialSync(30_000)
 
     const client = getMatrixClient()
     const crypto = client?.getCrypto()
@@ -65,7 +53,7 @@ async function resolvePostAuthStatusInner(): Promise<AuthStatus> {
     const backupInfo = await crypto.getKeyBackupInfo()
     if (backupInfo?.version) return 'needs_key_restore'
   } catch {
-    // crypto not available or check failed — proceed normally
+    // crypto not available — proceed
   }
   return 'authenticated'
 }

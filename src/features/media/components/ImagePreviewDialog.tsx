@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useCallback, type MouseEvent } from 'react'
+import { useEffect, useRef, useCallback, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '../../../shared/ui/index.js'
 import styles from './ImagePreviewDialog.module.scss'
@@ -11,11 +11,15 @@ interface ImagePreviewDialogProps {
 
 export function ImagePreviewDialog({ file, onConfirm, onCancel }: ImagePreviewDialogProps) {
   const { t } = useTranslation()
-  const previewUrl = useMemo(() => URL.createObjectURL(file), [file])
+  const imgRef = useRef<HTMLImageElement>(null)
 
   useEffect(() => {
-    return () => URL.revokeObjectURL(previewUrl)
-  }, [previewUrl])
+    const url = URL.createObjectURL(file)
+    if (imgRef.current) {
+      imgRef.current.src = url
+    }
+    return () => URL.revokeObjectURL(url)
+  }, [file])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -35,7 +39,7 @@ export function ImagePreviewDialog({ file, onConfirm, onCancel }: ImagePreviewDi
       <div className={styles.dialog} role="dialog" aria-modal="true">
         <h2 className={styles.title}>{t('messages.sendImage')}</h2>
         <div className={styles.preview}>
-          <img src={previewUrl} alt={file.name} className={styles.image} />
+          <img ref={imgRef} alt={file.name} className={styles.image} />
         </div>
         <span className={styles.fileName}>{file.name} ({formatSize(file.size)})</span>
         <div className={styles.actions}>

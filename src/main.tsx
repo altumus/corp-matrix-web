@@ -4,6 +4,11 @@ import './shared/styles/variables.scss'
 import './shared/styles/reset.scss'
 import App from './app/App.js'
 
+const savedTheme = localStorage.getItem('theme') || 'system'
+if (savedTheme !== 'system') {
+  document.documentElement.setAttribute('data-theme', savedTheme)
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />

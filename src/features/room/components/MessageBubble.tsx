@@ -31,6 +31,7 @@ import {
 } from '../../messaging/services/messageService.js';
 import { editMessage } from '../../messaging/services/messageService.js';
 import { useSelectionStore } from '../../messaging/store/selectionStore.js';
+import { Lightbox, type MediaType } from '../../media/components/Lightbox.js';
 import { ReadReceipts } from './ReadReceipts.js';
 import { PollMessage } from './PollMessage.js';
 import styles from './MessageBubble.module.scss';
@@ -54,6 +55,11 @@ export function MessageBubble({
 	} | null>(null);
 	const [showReactionPicker, setShowReactionPicker] = useState(false);
 	const [showForwardDialog, setShowForwardDialog] = useState(false);
+	const [lightbox, setLightbox] = useState<{
+		mxcUrl: string;
+		filename: string;
+		mediaType: MediaType;
+	} | null>(null);
 	const bubbleRef = useRef<HTMLDivElement>(null);
 	const setReplyTarget = useComposerStore((s) => s.setReplyTarget);
 	const setSelectedRoom = useRoomListStore((s) => s.setSelectedRoom);
@@ -385,15 +391,17 @@ export function MessageBubble({
 							const displayW = Math.round(w * scale);
 							const displayH = Math.round(h * scale);
 							return (
-								<AuthImage
-									mxcUrl={content.url as string}
-									alt={body}
-									className={styles.imageMessage}
-									loading='lazy'
-									width={displayW}
-									height={displayH}
-									style={{ width: displayW, height: displayH }}
-								/>
+								<div onClick={() => setLightbox({ mxcUrl: content.url as string, filename: body || 'image', mediaType: 'image' })}>
+									<AuthImage
+										mxcUrl={content.url as string}
+										alt={body}
+										className={styles.imageMessage}
+										loading='lazy'
+										width={displayW}
+										height={displayH}
+										style={{ width: displayW, height: displayH }}
+									/>
+								</div>
 							);
 						})()}
 					{msgtype === 'm.video' &&
@@ -409,23 +417,31 @@ export function MessageBubble({
 							const displayW = Math.round(w * scale);
 							const displayH = Math.round(h * scale);
 							return (
-								<AuthImage
-									mxcUrl={content.url as string}
-									alt={body}
-									className={styles.imageMessage}
-									width={displayW}
-									height={displayH}
-									style={{ width: displayW, height: displayH }}
-								/>
+								<div onClick={() => setLightbox({ mxcUrl: content.url as string, filename: body || 'video', mediaType: 'video' })}>
+									<AuthImage
+										mxcUrl={content.url as string}
+										alt={body}
+										className={styles.imageMessage}
+										width={displayW}
+										height={displayH}
+										style={{ width: displayW, height: displayH }}
+									/>
+								</div>
 							);
 						})()}
 					{msgtype === 'm.file' && (
-						<div className={styles.fileMessage}>
+						<div
+							className={styles.fileMessage}
+							onClick={() => setLightbox({ mxcUrl: content.url as string, filename: body || 'file', mediaType: 'file' })}
+						>
 							📎 <span>{body}</span>
 						</div>
 					)}
 					{msgtype === 'm.audio' && (
-						<div className={styles.audioMessage}>
+						<div
+							className={styles.audioMessage}
+							onClick={() => setLightbox({ mxcUrl: content.url as string, filename: body || 'audio', mediaType: 'audio' })}
+						>
 							🎤 <span>Голосовое сообщение</span>
 						</div>
 					)}
@@ -513,6 +529,14 @@ export function MessageBubble({
 						sendReaction(event.roomId, event.eventId, emoji);
 					}}
 					onClose={() => setShowReactionPicker(false)}
+				/>
+			)}
+		{lightbox && (
+				<Lightbox
+					mxcUrl={lightbox.mxcUrl}
+					filename={lightbox.filename}
+					mediaType={lightbox.mediaType}
+					onClose={() => setLightbox(null)}
 				/>
 			)}
 		</div>

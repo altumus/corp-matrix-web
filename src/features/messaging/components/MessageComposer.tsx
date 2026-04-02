@@ -144,6 +144,7 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
     for (const item of Array.from(items)) {
       if (item.kind === 'file' && item.type.startsWith('image/')) {
         e.preventDefault()
+        e.stopPropagation()
         const file = item.getAsFile()
         if (file) {
           const named = new File([file], `paste-${Date.now()}.${file.type.split('/')[1] || 'png'}`, { type: file.type })
