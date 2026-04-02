@@ -24,7 +24,7 @@ export function showDesktopNotification(title: string, body: string, roomId?: st
 
   const notification = new Notification(title, {
     body,
-    icon: '/favicon.svg',
+    icon: '/corp-logo.png',
     tag: roomId,
   })
 

@@ -12,7 +12,7 @@ export default defineConfig({
     babel({ presets: [reactCompilerPreset()] }),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'corp-logo.png'],
+      includeAssets: ['corp-logo.png'],
       manifest: {
         name: 'Corp Matrix',
         short_name: 'Corp Matrix',

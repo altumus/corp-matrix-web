@@ -1,7 +1,7 @@
 const CACHE_NAME = 'corp-matrix-v1'
 const STATIC_ASSETS = [
   '/',
-  '/favicon.svg',
+  '/corp-logo.png',
 ]
 
 self.addEventListener('install', (event) => {
@@ -49,8 +49,8 @@ self.addEventListener('push', (event) => {
   const title = data.title || 'Corp Matrix'
   const options = {
     body: data.body || '',
-    icon: '/favicon.svg',
-    badge: '/favicon.svg',
+    icon: '/corp-logo.png',
+    badge: '/corp-logo.png',
     data: { roomId: data.roomId },
   }
   event.waitUntil(self.registration.showNotification(title, options))
