@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Avatar } from '../../../shared/ui/index.js'
 import styles from './MessageContextMenu.module.scss'
 
 export interface ContextMenuAction {
   id: string
   label: string
-  icon: string
+  icon: ReactNode
   danger?: boolean
   hidden?: boolean
   onClick: () => void

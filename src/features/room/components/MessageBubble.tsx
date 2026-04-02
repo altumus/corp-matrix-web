@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
+import { Reply, Quote, Pencil, Copy, Link, Forward, Smile, Trash2 } from 'lucide-react';
 import type { TimelineEvent } from '../types.js';
 import { Avatar, AuthImage } from '../../../shared/ui/index.js';
 import {
@@ -125,7 +126,7 @@ export function MessageBubble({ event, showAvatar, isHighlighted }: MessageBubbl
 		const actions: ContextMenuAction[] = [
 			{
 				id: 'reply',
-				icon: '↩',
+				icon: <Reply size={16} />,
 				label: t('messages.reply'),
 				onClick: () => {
 					setReplyTarget({
@@ -137,7 +138,7 @@ export function MessageBubble({ event, showAvatar, isHighlighted }: MessageBubbl
 			},
 			{
 				id: 'reply-quote',
-				icon: '❝',
+				icon: <Quote size={16} />,
 				label: t('messages.replyWithQuote'),
 				hidden: !selectedText,
 				onClick: () => {
@@ -151,7 +152,7 @@ export function MessageBubble({ event, showAvatar, isHighlighted }: MessageBubbl
 			},
 			{
 				id: 'edit',
-				icon: '✎',
+				icon: <Pencil size={16} />,
 				label: t('messages.edit'),
 				hidden: !isOwnMessage,
 				onClick: () => {
@@ -163,7 +164,7 @@ export function MessageBubble({ event, showAvatar, isHighlighted }: MessageBubbl
 			},
 			{
 				id: 'copy',
-				icon: '⧉',
+				icon: <Copy size={16} />,
 				label: t('messages.copyText'),
 				onClick: () => {
 					const textToCopy = selectedText || bodyText;
@@ -172,7 +173,7 @@ export function MessageBubble({ event, showAvatar, isHighlighted }: MessageBubbl
 			},
 			{
 				id: 'copy-link',
-				icon: '🔗',
+				icon: <Link size={16} />,
 				label: t('messages.copyLink'),
 				onClick: () => {
 					const link = `https://matrix.to/#/${encodeURIComponent(event.roomId)}/${encodeURIComponent(event.eventId)}`;
@@ -181,7 +182,7 @@ export function MessageBubble({ event, showAvatar, isHighlighted }: MessageBubbl
 			},
 			{
 				id: 'forward',
-				icon: '➤',
+				icon: <Forward size={16} />,
 				label: t('messages.forward'),
 				onClick: () => {
 					setContextMenu(null);
@@ -190,7 +191,7 @@ export function MessageBubble({ event, showAvatar, isHighlighted }: MessageBubbl
 			},
 			{
 				id: 'react',
-				icon: '😀',
+				icon: <Smile size={16} />,
 				label: t('messages.react'),
 				onClick: () => {
 					setContextMenu(null);
@@ -199,7 +200,7 @@ export function MessageBubble({ event, showAvatar, isHighlighted }: MessageBubbl
 			},
 			{
 				id: 'remove',
-				icon: '🗑',
+				icon: <Trash2 size={16} />,
 				label: t('messages.remove'),
 				danger: true,
 				hidden: !isOwnMessage,

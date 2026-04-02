@@ -21,7 +21,8 @@
 }
 
 .savedBtn,
-.createBtn {
+.createBtn,
+.settingsBtn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -35,27 +36,6 @@
   &:hover {
     background: var(--color-bg-hover);
     color: var(--color-text-primary);
-  }
-
-  &:active {
-    transform: scale(0.98);
-  }
-}
-
-.menuTrigger {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-full);
-  font-size: 18px;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  transition: background var(--transition-fast);
-
-  &:hover {
-    background: var(--color-bg-hover);
   }
 
   &:active {

@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
+import { Bookmark, BellOff, Bell, Circle, Pin, ArrowDown, Home, LogOut } from 'lucide-react'
 import type { RoomListEntry } from '../types.js'
 import { useRoomListStore } from '../store/roomListStore.js'
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
@@ -19,9 +20,7 @@ interface RoomListItemProps {
 function SavedMessagesIcon() {
   return (
     <div className={styles.savedAvatar}>
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M5 2C4.44772 2 4 2.44772 4 3V21C4 21.3746 4.21215 21.7178 4.54772 21.8944C4.88329 22.0711 5.28719 22.0527 5.60555 21.8472L12 17.8685L18.3944 21.8472C18.7128 22.0527 19.1167 22.0711 19.4523 21.8944C19.7879 21.7178 20 21.3746 20 21V3C20 2.44772 19.5523 2 19 2H5Z" fill="currentColor"/>
-      </svg>
+      <Bookmark size={20} />
     </div>
   )
 }
@@ -101,13 +100,13 @@ export function RoomListItem({ room }: RoomListItemProps) {
     const actions: ContextMenuAction[] = [
       {
         id: 'header',
-        icon: '',
+        icon: null,
         label: room.isSavedMessages ? t('rooms.savedMessages') : room.name,
         onClick: () => {},
       },
       {
         id: 'mute',
-        icon: muted ? '🔔' : '🔕',
+        icon: muted ? <Bell size={16} /> : <BellOff size={16} />,
         label: muted ? t('rooms.unmuteNotifications') : t('rooms.muteNotifications'),
         onClick: () => {
           const c = getMatrixClient()
@@ -125,7 +124,7 @@ export function RoomListItem({ room }: RoomListItemProps) {
       },
       {
         id: 'mark-unread',
-        icon: markedUnread ? '◎' : '◉',
+        icon: <Circle size={16} />,
         label: markedUnread ? t('rooms.markRead') : t('rooms.markUnread'),
         onClick: () => {
           const c = getMatrixClient()
@@ -136,7 +135,7 @@ export function RoomListItem({ room }: RoomListItemProps) {
       },
       {
         id: 'pin',
-        icon: isPinned ? '📌' : '📌',
+        icon: <Pin size={16} />,
         label: isPinned ? t('rooms.unpin') : t('rooms.pin'),
         onClick: () => {
           const c = getMatrixClient()
@@ -150,7 +149,7 @@ export function RoomListItem({ room }: RoomListItemProps) {
       },
       {
         id: 'low-priority',
-        icon: isLowPriority ? '⏫' : '⏬',
+        icon: <ArrowDown size={16} />,
         label: isLowPriority ? t('rooms.removeLowPriority') : t('rooms.lowPriority'),
         onClick: () => {
           const c = getMatrixClient()
@@ -165,7 +164,7 @@ export function RoomListItem({ room }: RoomListItemProps) {
       },
       {
         id: 'add-to-space',
-        icon: '🏠',
+        icon: <Home size={16} />,
         label: t('rooms.addToSpace'),
         onClick: () => {
           setShowSpaceDialog(true)
@@ -173,7 +172,7 @@ export function RoomListItem({ room }: RoomListItemProps) {
       },
       {
         id: 'leave',
-        icon: '🚪',
+        icon: <LogOut size={16} />,
         label: t('rooms.leave'),
         danger: true,
         onClick: () => {
@@ -206,8 +205,8 @@ export function RoomListItem({ room }: RoomListItemProps) {
         <div className={styles.content}>
           <div className={styles.top}>
             <span className={styles.name}>{displayName}</span>
-            {muted && <span className={styles.statusIcon}>🔕</span>}
-            {room.isPinned && <span className={styles.statusIcon}>📌</span>}
+            {muted && <span className={styles.statusIcon}><BellOff size={12} /></span>}
+            {room.isPinned && <span className={styles.statusIcon}><Pin size={12} /></span>}
             {room.lastMessageTs > 0 && (
               <time className={styles.time}>{formatTime(room.lastMessageTs)}</time>
             )}
