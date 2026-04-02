@@ -133,4 +133,13 @@ export async function logoutSession(): Promise<void> {
   }
   await stopClient()
   await clearSession()
+
+  localStorage.clear()
+
+  const dbs = await indexedDB.databases?.() ?? []
+  for (const db of dbs) {
+    if (db.name) {
+      try { indexedDB.deleteDatabase(db.name) } catch { /* ignore */ }
+    }
+  }
 }

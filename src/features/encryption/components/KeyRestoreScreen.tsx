@@ -62,10 +62,6 @@ export function KeyRestoreScreen() {
     }
   }, [recoveryKey, completeKeyRestore, t])
 
-  const handleSkip = useCallback(() => {
-    completeKeyRestore()
-  }, [completeKeyRestore])
-
   return (
     <div className={styles.layout}>
       <div className={styles.container}>
@@ -89,14 +85,6 @@ export function KeyRestoreScreen() {
           <div className={styles.actions}>
             <Button type="submit" loading={loading} disabled={!recoveryKey.trim()}>
               {t('encryption.restore')}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={handleSkip}
-              disabled={loading}
-            >
-              {t('encryption.skip')}
             </Button>
           </div>
         </form>

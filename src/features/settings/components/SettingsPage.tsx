@@ -1,5 +1,9 @@
+import { useState } from 'react'
 import { NavLink, Route, Routes, Navigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
+import { LogOut } from 'lucide-react'
+import { useAuthStore } from '../../auth/store/authStore.js'
+import { Modal, Button } from '../../../shared/ui/index.js'
 import { ProfileSettings } from './ProfileSettings.js'
 import { AppearanceSettings } from './AppearanceSettings.js'
 import { DevicesSettings } from './DevicesSettings.js'
@@ -9,6 +13,15 @@ import styles from './SettingsPage.module.scss'
 
 export default function SettingsPage() {
   const { t } = useTranslation()
+  const logout = useAuthStore((s) => s.logout)
+  const [showLogoutModal, setShowLogoutModal] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
+
+  const handleLogout = async () => {
+    setLoggingOut(true)
+    await logout()
+    window.location.href = '/login'
+  }
 
   return (
     <div className={styles.page}>
@@ -44,6 +57,13 @@ export default function SettingsPage() {
         >
           {t('settings.language')}
         </NavLink>
+
+        <div className={styles.spacer} />
+
+        <button className={styles.logoutBtn} onClick={() => setShowLogoutModal(true)}>
+          <LogOut size={16} />
+          {t('auth.logout')}
+        </button>
       </nav>
       <div className={styles.content}>
         <Routes>
@@ -55,6 +75,22 @@ export default function SettingsPage() {
           <Route path="language" element={<LanguageSettings />} />
         </Routes>
       </div>
+
+      {showLogoutModal && (
+        <Modal open onClose={() => setShowLogoutModal(false)} title={t('auth.logout')}>
+          <div className={styles.logoutModal}>
+            <p className={styles.logoutText}>Вы уверены, что хотите выйти из аккаунта?</p>
+            <div className={styles.logoutActions}>
+              <Button variant="secondary" onClick={() => setShowLogoutModal(false)}>
+                {t('common.cancel')}
+              </Button>
+              <Button variant="danger" onClick={handleLogout} loading={loggingOut}>
+                {t('auth.logout')}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }
