@@ -66,16 +66,16 @@ export function createMatrixClient(opts: {
     deviceId: opts.deviceId,
     useAuthorizationHeader: true,
     cryptoCallbacks: {
-      getSecretStorageKey: async ({ keys }) => {
+      getSecretStorageKey: async ({ keys }: { keys: Record<string, unknown> }) => {
         if (!cachedSecretStorageKey) return null
         const keyId = Object.keys(keys)[0]
         if (!keyId) return null
-        return [keyId, cachedSecretStorageKey]
+        return [keyId, cachedSecretStorageKey] as [string, Uint8Array<ArrayBuffer>]
       },
-      cacheSecretStorageKey: (_keyId, _keyInfo, key) => {
+      cacheSecretStorageKey: (_keyId: string, _keyInfo: unknown, key: Uint8Array) => {
         cachedSecretStorageKey = key
       },
-    },
+    } as never,
   })
   return clientInstance
 }

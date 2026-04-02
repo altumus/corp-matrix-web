@@ -25,8 +25,8 @@ export function AddToSpaceDialog({ roomId, onClose }: AddToSpaceDialogProps) {
       const serverDomain = userId.split(':')[1]
       await client.sendStateEvent(
         spaceId,
-        'm.space.child',
-        { via: [serverDomain] },
+        'm.space.child' as never,
+        { via: [serverDomain] } as never,
         roomId,
       )
       onClose()

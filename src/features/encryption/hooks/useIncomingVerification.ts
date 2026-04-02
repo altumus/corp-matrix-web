@@ -17,9 +17,14 @@ export function useIncomingVerification() {
       setRequest(req)
     }
 
-    crypto.on(CryptoEvent.VerificationRequestReceived, onRequest)
+    const emitter = crypto as unknown as {
+      on: (event: string, handler: (...args: never[]) => void) => void
+      removeListener: (event: string, handler: (...args: never[]) => void) => void
+    }
+
+    emitter.on(CryptoEvent.VerificationRequestReceived, onRequest as never)
     return () => {
-      crypto.removeListener(CryptoEvent.VerificationRequestReceived, onRequest)
+      emitter.removeListener(CryptoEvent.VerificationRequestReceived, onRequest as never)
     }
   }, [])
 

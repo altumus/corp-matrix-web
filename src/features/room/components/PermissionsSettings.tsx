@@ -74,11 +74,6 @@ export function PermissionsSettings({ roomId }: PermissionsSettingsProps) {
     }
   }
 
-  const getLevelLabel = (value: number): string => {
-    if (value >= 100) return `100 - ${t('rooms.admin')}`
-    if (value >= 50) return `50 - ${t('rooms.moderator')}`
-    return `0 - ${t('rooms.user')}`
-  }
 
   return (
     <div className={styles.section}>
