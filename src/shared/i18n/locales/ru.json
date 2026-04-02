@@ -113,7 +113,10 @@
     "placeholder": "Поиск сообщений...",
     "users": "Пользователи",
     "messages": "Сообщения",
-    "noResults": "Ничего не найдено"
+    "noResults": "Ничего не найдено",
+    "chatsAndPeople": "Чаты и люди",
+    "messagesResults": "Сообщения",
+    "searching": "Поиск..."
   },
   "spaces": {
     "title": "Пространства",

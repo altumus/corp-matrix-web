@@ -86,6 +86,7 @@ function collectEvents(room: Room): TimelineEvent[] {
     for (const e of tl.getEvents()) {
       if (!messageTypes.includes(e.getType())) continue
       if (isEditEvent(e)) continue
+      if (e.isRedacted()) continue
       const id = e.getId()!
       if (seen.has(id)) continue
       seen.add(id)
