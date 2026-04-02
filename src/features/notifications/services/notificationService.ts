@@ -5,8 +5,8 @@ import type { MatrixEvent, Room } from 'matrix-js-sdk'
 let notificationSound: HTMLAudioElement | null = null
 
 export function initNotificationSound() {
-  notificationSound = new Audio('/notification.mp3')
-  notificationSound.volume = 0.5
+  notificationSound = new Audio('/notification.wav')
+  notificationSound.volume = 0.3
 }
 
 export async function requestNotificationPermission(): Promise<boolean> {
