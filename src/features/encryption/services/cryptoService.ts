@@ -1,4 +1,5 @@
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import type { VerificationRequest } from 'matrix-js-sdk/lib/crypto-api/index.js'
 import type { DeviceInfo, KeyBackupInfo } from '../types.js'
 
 export async function getDeviceList(): Promise<DeviceInfo[]> {
@@ -87,4 +88,14 @@ export async function startVerification(userId: string, deviceId: string): Promi
   if (!crypto) throw new Error('Crypto not initialized')
 
   await crypto.requestDeviceVerification(userId, deviceId)
+}
+
+export async function requestOwnUserVerification(): Promise<VerificationRequest> {
+  const client = getMatrixClient()
+  if (!client) throw new Error('Client not initialized')
+
+  const crypto = client.getCrypto()
+  if (!crypto) throw new Error('Crypto not initialized')
+
+  return await crypto.requestOwnUserVerification()
 }

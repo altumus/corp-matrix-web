@@ -84,7 +84,7 @@ export function getMatrixClient(): sdk.MatrixClient | null {
   return clientInstance
 }
 
-async function clearCryptoStore(): Promise<void> {
+export async function clearCryptoStore(): Promise<void> {
   for (const name of CRYPTO_DB_NAMES) {
     try {
       const req = indexedDB.deleteDatabase(name)
@@ -99,20 +99,31 @@ async function clearCryptoStore(): Promise<void> {
   }
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms),
+    ),
+  ])
+}
+
 export async function startClient(): Promise<void> {
   if (!clientInstance) throw new Error('Matrix client not initialized')
 
   try {
-    await clientInstance.initRustCrypto()
+    await withTimeout(clientInstance.initRustCrypto(), 15_000, 'initRustCrypto')
   } catch (err) {
-    if (err instanceof Error && err.message.includes("doesn't match")) {
+    const msg = err instanceof Error ? err.message : ''
+    if (msg.includes("doesn't match") || msg.includes('timed out')) {
       await clearCryptoStore()
       try {
-        await clientInstance.initRustCrypto()
+        await withTimeout(clientInstance.initRustCrypto(), 15_000, 'initRustCrypto (retry)')
       } catch {
         // second attempt failed — continue without E2EE
       }
     }
+    // other crypto init errors — continue without E2EE
   }
 
   await clientInstance.startClient({ initialSyncLimit: 20 })

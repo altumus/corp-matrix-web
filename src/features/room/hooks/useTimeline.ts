@@ -214,17 +214,25 @@ export function useTimeline(roomId: string) {
       }).catch(() => {})
     }
 
-    const onTimelineEvent = () => {
+    const onTimelineEvent = (event: MatrixEvent) => {
       if (activeRoomIdRef.current !== roomId) return
+      const evType = event.getType()
+      if (evType === EventType.Reaction || evType === 'm.room.message') {
+        prevEventIdsRef.current = ''
+      }
       refreshEvents()
       sendReadReceipt()
     }
     const onRedaction = () => {
       if (activeRoomIdRef.current !== roomId) return
+      prevEventIdsRef.current = ''
       refreshEvents()
     }
     const onDecrypted = () => {
       if (activeRoomIdRef.current !== roomId) return
+      const room = roomRef.current
+      if (!room) return
+      prevEventIdsRef.current = ''
       refreshEvents()
     }
 

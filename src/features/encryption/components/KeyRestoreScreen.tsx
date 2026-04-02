@@ -1,14 +1,20 @@
 import { useState, useCallback, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+import { KeyRound, Smartphone, LogOut } from 'lucide-react'
 import { getMatrixClient, setSecretStorageKey } from '../../../shared/lib/matrixClient.js'
 import { decodeRecoveryKey } from 'matrix-js-sdk/lib/crypto-api/recovery-key.js'
 import { useAuthStore } from '../../auth/store/authStore.js'
 import { Button, Input } from '../../../shared/ui/index.js'
+import { CrossSignVerification } from './CrossSignVerification.js'
 import styles from './KeyRestoreScreen.module.scss'
+
+type Mode = 'choose' | 'key' | 'verify'
 
 export function KeyRestoreScreen() {
   const { t } = useTranslation()
   const completeKeyRestore = useAuthStore((s) => s.completeKeyRestore)
+  const logout = useAuthStore((s) => s.logout)
+  const [mode, setMode] = useState<Mode>('choose')
   const [recoveryKey, setRecoveryKey] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -62,32 +68,106 @@ export function KeyRestoreScreen() {
     }
   }, [recoveryKey, completeKeyRestore, t])
 
+  const handleBack = useCallback(() => {
+    setMode('choose')
+    setError(null)
+  }, [])
+
   return (
     <div className={styles.layout}>
       <div className={styles.container}>
-        <div className={styles.header}>
-          <span className={styles.icon}>🔑</span>
-          <h1 className={styles.title}>{t('encryption.restoreTitle')}</h1>
-          <p className={styles.description}>{t('encryption.restoreDescription')}</p>
-        </div>
+        {mode === 'choose' && (
+          <>
+            <div className={styles.header}>
+              <span className={styles.icon}>🔐</span>
+              <h1 className={styles.title}>{t('encryption.chooseMethod')}</h1>
+              <p className={styles.description}>{t('encryption.chooseMethodDescription')}</p>
+            </div>
 
-        <form onSubmit={handleSubmit} className={styles.form}>
-          <Input
-            label={t('encryption.recoveryKeyLabel')}
-            value={recoveryKey}
-            onChange={(e) => setRecoveryKey(e.target.value)}
-            placeholder="EsTc aHph ..."
-            autoFocus
-          />
+            <div className={styles.methodGrid}>
+              <button
+                type="button"
+                className={styles.methodCard}
+                onClick={() => setMode('key')}
+              >
+                <KeyRound size={28} />
+                <span className={styles.methodTitle}>{t('encryption.useRecoveryKey')}</span>
+                <span className={styles.methodDescription}>{t('encryption.useRecoveryKeyHint')}</span>
+              </button>
 
-          {error && <p className={styles.error}>{error}</p>}
+              <button
+                type="button"
+                className={styles.methodCard}
+                onClick={() => setMode('verify')}
+              >
+                <Smartphone size={28} />
+                <span className={styles.methodTitle}>{t('encryption.useDeviceVerification')}</span>
+                <span className={styles.methodDescription}>{t('encryption.useDeviceVerificationHint')}</span>
+              </button>
+            </div>
 
-          <div className={styles.actions}>
-            <Button type="submit" loading={loading} disabled={!recoveryKey.trim()}>
-              {t('encryption.restore')}
-            </Button>
-          </div>
-        </form>
+            <div className={styles.bottomLinks}>
+              <button
+                type="button"
+                className={styles.skipButton}
+                onClick={completeKeyRestore}
+              >
+                {t('encryption.skipForNow')}
+              </button>
+              <button
+                type="button"
+                className={styles.logoutButton}
+                onClick={logout}
+              >
+                <LogOut size={14} />
+                {t('auth.logout')}
+              </button>
+            </div>
+          </>
+        )}
+
+        {mode === 'key' && (
+          <>
+            <div className={styles.header}>
+              <span className={styles.icon}>🔑</span>
+              <h1 className={styles.title}>{t('encryption.restoreTitle')}</h1>
+              <p className={styles.description}>{t('encryption.restoreDescription')}</p>
+            </div>
+
+            <form onSubmit={handleSubmit} className={styles.form}>
+              <Input
+                label={t('encryption.recoveryKeyLabel')}
+                value={recoveryKey}
+                onChange={(e) => setRecoveryKey(e.target.value)}
+                placeholder="EsTc aHph ..."
+                autoFocus
+              />
+
+              {error && <p className={styles.error}>{error}</p>}
+
+              <div className={styles.actions}>
+                <Button type="submit" loading={loading} disabled={!recoveryKey.trim()}>
+                  {t('encryption.restore')}
+                </Button>
+                <Button type="button" variant="secondary" onClick={handleBack}>
+                  {t('encryption.back')}
+                </Button>
+              </div>
+            </form>
+          </>
+        )}
+
+        {mode === 'verify' && (
+          <>
+            <div className={styles.header}>
+              <span className={styles.icon}>📱</span>
+              <h1 className={styles.title}>{t('encryption.verifyFromDevice')}</h1>
+              <p className={styles.description}>{t('encryption.verifyFromDeviceDescription')}</p>
+            </div>
+
+            <CrossSignVerification onBack={handleBack} />
+          </>
+        )}
       </div>
     </div>
   )

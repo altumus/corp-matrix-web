@@ -21,19 +21,21 @@ export async function loginWithPassword(
 ): Promise<AuthUser> {
   const baseUrl = normalizeHomeserver(credentials.homeserver)
 
-  const client = createMatrixClient({ baseUrl })
+  const tempClient = createMatrixClient({ baseUrl })
 
-  const response = await client.loginWithPassword(
+  const response = await tempClient.loginWithPassword(
     credentials.username,
     credentials.password,
   )
 
-  await saveSession({
+  const sessionData = {
     userId: response.user_id,
     accessToken: response.access_token,
     deviceId: response.device_id,
     homeserverUrl: baseUrl,
-  })
+  }
+
+  await saveSession(sessionData)
 
   createMatrixClient({
     baseUrl,
@@ -56,9 +58,11 @@ export async function registerAccount(
 ): Promise<AuthUser> {
   const baseUrl = normalizeHomeserver(credentials.homeserver)
 
-  const client = createMatrixClient({ baseUrl })
+  await stopClient()
 
-  const response = await client.registerRequest({
+  const tempClient = createMatrixClient({ baseUrl })
+
+  const response = await tempClient.registerRequest({
     username: credentials.username,
     password: credentials.password,
     auth: {
@@ -70,12 +74,7 @@ export async function registerAccount(
   const accessToken = response.access_token!
   const deviceId = response.device_id!
 
-  await saveSession({
-    userId,
-    accessToken,
-    deviceId,
-    homeserverUrl: baseUrl,
-  })
+  await saveSession({ userId, accessToken, deviceId, homeserverUrl: baseUrl })
 
   createMatrixClient({
     baseUrl,

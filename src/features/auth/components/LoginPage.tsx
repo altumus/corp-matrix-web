@@ -1,7 +1,8 @@
-import { useState, type FormEvent } from 'react'
+import { useState, useEffect, type FormEvent } from 'react'
 import { Link, Navigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../hooks/useAuth.js'
+import { stopClient, clearCryptoStore } from '../../../shared/lib/matrixClient.js'
 import { ServerPicker } from './ServerPicker.js'
 import { Button, Input } from '../../../shared/ui/index.js'
 import styles from './AuthForms.module.scss'
@@ -12,6 +13,10 @@ export default function LoginPage() {
 
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+
+  useEffect(() => {
+    stopClient().then(() => clearCryptoStore()).catch(() => {})
+  }, [])
 
   if (status === 'authenticated') {
     return <Navigate to="/rooms" replace />

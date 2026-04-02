@@ -131,9 +131,28 @@ export function useCombinedSearch(query: string): CombinedSearchResult {
     }
   }, [debouncedQuery, searchUsers, searchMessages])
 
+  const deduplicatedUsers = useMemo(() => {
+    const client = getMatrixClient()
+    if (!client || filteredRooms.length === 0) return users
+
+    const dmUserIds = new Set<string>()
+    for (const room of filteredRooms) {
+      if (!room.isDirect) continue
+      const matrixRoom = client.getRoom(room.roomId)
+      if (!matrixRoom) continue
+      for (const member of matrixRoom.getJoinedMembers()) {
+        if (member.userId !== client.getUserId()) {
+          dmUserIds.add(member.userId)
+        }
+      }
+    }
+
+    return users.filter((u) => !dmUserIds.has(u.userId))
+  }, [users, filteredRooms])
+
   return {
     rooms: filteredRooms,
-    users,
+    users: deduplicatedUsers,
     messages,
     loadingUsers,
     loadingMessages,
