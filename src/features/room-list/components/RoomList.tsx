@@ -6,12 +6,14 @@ import { RoomListHeader } from './RoomListHeader.js'
 import { RoomSearch } from './RoomSearch.js'
 import { RoomListItem } from './RoomListItem.js'
 import { InvitesList } from './InvitesList.js'
+import { Spinner } from '../../../shared/ui/index.js'
 import styles from './RoomList.module.scss'
 
 export function RoomList() {
   const { t } = useTranslation()
   const { rooms, invites } = useRoomList()
   const searchQuery = useRoomListStore((s) => s.searchQuery)
+  const initialLoading = useRoomListStore((s) => s.initialLoading)
   const isSearching = searchQuery.trim().length > 0
 
   return (
@@ -22,7 +24,11 @@ export function RoomList() {
         <>
           <InvitesList invites={invites} />
           <div className={styles.list}>
-            {rooms.length === 0 ? (
+            {initialLoading ? (
+              <div className={styles.loading}>
+                <Spinner size={24} />
+              </div>
+            ) : rooms.length === 0 ? (
               <div className={styles.empty}>{t('rooms.empty')}</div>
             ) : (
               <Virtuoso

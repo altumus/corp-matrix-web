@@ -21,6 +21,7 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   const [highlightedEventId, setHighlightedEventId] = useState<string | null>(null)
   const [firstItemIndex, setFirstItemIndex] = useState(START_INDEX)
+  const prevFirstEventIdRef = useRef<string | null>(null)
   const prevEventsLengthRef = useRef(0)
   const focusHandledRef = useRef<string | null>(null)
   const paginateBackRef = useRef(paginateBack)
@@ -32,23 +33,32 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
 
   useEffect(() => {
     focusHandledRef.current = null
+    prevFirstEventIdRef.current = null
     prevEventsLengthRef.current = 0
     atTopRef.current = false
     requestAnimationFrame(() => setFirstItemIndex(START_INDEX))
   }, [roomId])
 
   useEffect(() => {
-    const prevLen = prevEventsLengthRef.current
-    const curLen = events.length
+    if (events.length === 0) {
+      prevFirstEventIdRef.current = null
+      prevEventsLengthRef.current = 0
+      return
+    }
 
-    if (prevLen > 0 && curLen > prevLen) {
-      const added = curLen - prevLen
+    const curFirstId = events[0].eventId
+    const prevFirstId = prevFirstEventIdRef.current
+    const prevLen = prevEventsLengthRef.current
+
+    if (prevFirstId && curFirstId !== prevFirstId && events.length > prevLen) {
+      const added = events.length - prevLen
       setFirstItemIndex((prev) => prev - added)
     }
 
-    prevEventsLengthRef.current = curLen
+    prevFirstEventIdRef.current = curFirstId
+    prevEventsLengthRef.current = events.length
 
-    if (atTopRef.current && curLen > 0) {
+    if (atTopRef.current) {
       paginateBackRef.current()
     }
   }, [events])
@@ -120,12 +130,17 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
           key={roomId}
           ref={virtuosoRef}
           data={events}
+          computeItemKey={(index) => {
+            const arrayIndex = index - firstItemIndex
+            return events[arrayIndex]?.eventId ?? `idx-${index}`
+          }}
           firstItemIndex={firstItemIndex}
           initialTopMostItemIndex={events.length - 1}
           followOutput="smooth"
           startReached={handleStartReached}
           atTopStateChange={handleAtTopStateChange}
           increaseViewportBy={{ top: 400, bottom: 0 }}
+          defaultItemHeight={52}
           itemContent={(index, event) => {
             const arrayIndex = index - firstItemIndex
             const prev = arrayIndex > 0 ? events[arrayIndex - 1] : null

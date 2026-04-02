@@ -30,7 +30,7 @@ export default function RoomView() {
   }
 
   if (!room) {
-    return <div className={styles.empty}>Комната не найдена</div>
+    return <div className={styles.empty}>Выберите чат</div>
   }
 
   return (

@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from 'react'
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
-import { ClientEvent } from 'matrix-js-sdk'
+import { ClientEvent, SyncState } from 'matrix-js-sdk'
 import { NotificationCountType } from 'matrix-js-sdk/lib/models/room.js'
 import type { Room } from 'matrix-js-sdk'
 import { useRoomListStore } from '../store/roomListStore.js'
@@ -81,7 +81,7 @@ function roomToEntry(room: Room): RoomListEntry {
 }
 
 export function useRoomList() {
-  const { rooms, searchQuery, setRooms } = useRoomListStore()
+  const { rooms, searchQuery, setRooms, setInitialLoading } = useRoomListStore()
   const activeSpaceId = useSpacesStore((s) => s.activeSpaceId)
   const spaces = useSpacesStore((s) => s.spaces)
 
@@ -111,15 +111,19 @@ export function useRoomList() {
     const client = getMatrixClient()
     if (!client) return
 
-    refresh()
+    const onSync = (state: SyncState) => {
+      if (state === SyncState.Prepared || state === SyncState.Syncing) {
+        setInitialLoading(false)
+      }
+      refresh()
+    }
 
-    const onSync = () => refresh()
     client.on(ClientEvent.Sync, onSync)
 
     return () => {
       client.removeListener(ClientEvent.Sync, onSync)
     }
-  }, [refresh])
+  }, [refresh, setInitialLoading])
 
   let filteredRooms = rooms
 
