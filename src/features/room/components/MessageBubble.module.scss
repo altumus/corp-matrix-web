@@ -20,6 +20,31 @@
   }
 }
 
+.selectMode {
+  cursor: pointer;
+}
+
+.selected {
+  .bubble {
+    box-shadow: 0 0 0 2px var(--color-accent);
+  }
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 24px;
+
+  input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--color-accent);
+    cursor: pointer;
+  }
+}
+
 .avatarPlaceholder {
   width: 32px;
   flex-shrink: 0;

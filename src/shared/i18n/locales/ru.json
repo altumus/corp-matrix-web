@@ -87,7 +87,18 @@
     "pin": "Закрепить",
     "unpin": "Открепить",
     "forward": "Переслать",
-    "select": "Выделить"
+    "select": "Выделить",
+    "selected": "{{count}} выбрано",
+    "pinMessages": "Закрепить сообщения",
+    "startPoll": "Начать опрос",
+    "sendImage": "Отправить изображение",
+    "sendVideo": "Отправить видео",
+    "sendFile": "Отправить файл",
+    "pollQuestion": "Вопрос",
+    "pollOption": "Вариант ответа",
+    "addOption": "Добавить вариант",
+    "vote": "Голосовать",
+    "createPoll": "Создать опрос"
   },
   "settings": {
     "title": "Настройки",

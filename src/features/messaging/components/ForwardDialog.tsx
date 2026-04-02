@@ -8,7 +8,7 @@ import styles from './ForwardDialog.module.scss'
 
 interface ForwardDialogProps {
   fromRoomId: string
-  eventId: string
+  eventId: string | string[]
   onClose: () => void
 }
 
@@ -19,6 +19,8 @@ export function ForwardDialog({ fromRoomId, eventId, onClose }: ForwardDialogPro
   const setSelectedRoom = useRoomListStore((s) => s.setSelectedRoom)
   const [search, setSearch] = useState('')
   const [sending, setSending] = useState(false)
+
+  const eventIds = Array.isArray(eventId) ? eventId : [eventId]
 
   const filteredRooms = useMemo(() => {
     const joined = rooms.filter((r) => !r.isInvite)
@@ -31,7 +33,9 @@ export function ForwardDialog({ fromRoomId, eventId, onClose }: ForwardDialogPro
     if (sending) return
     setSending(true)
     try {
-      await forwardMessage(fromRoomId, eventId, toRoomId)
+      for (const id of eventIds) {
+        await forwardMessage(fromRoomId, id, toRoomId)
+      }
       setSelectedRoom(toRoomId)
       navigate(`/rooms/${encodeURIComponent(toRoomId)}`)
       onClose()

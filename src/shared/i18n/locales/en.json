@@ -87,7 +87,18 @@
     "pin": "Pin",
     "unpin": "Unpin",
     "forward": "Forward",
-    "select": "Select"
+    "select": "Select",
+    "selected": "{{count}} selected",
+    "pinMessages": "Pin messages",
+    "startPoll": "Start poll",
+    "sendImage": "Send image",
+    "sendVideo": "Send video",
+    "sendFile": "Send file",
+    "pollQuestion": "Question",
+    "pollOption": "Answer option",
+    "addOption": "Add option",
+    "vote": "Vote",
+    "createPoll": "Create poll"
   },
   "settings": {
     "title": "Settings",

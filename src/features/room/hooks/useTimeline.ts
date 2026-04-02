@@ -77,7 +77,7 @@ function isEditEvent(e: MatrixEvent): boolean {
 }
 
 function collectEvents(room: Room): TimelineEvent[] {
-  const messageTypes = ['m.room.message', 'm.room.encrypted', 'm.sticker']
+  const messageTypes = ['m.room.message', 'm.room.encrypted', 'm.sticker', 'org.matrix.msc3381.poll.start']
   const mapped: TimelineEvent[] = []
   const seen = new Set<string>()
 
@@ -149,7 +149,7 @@ export function useTimeline(roomId: string) {
     sendReadReceipt()
 
     const timeline = room.getLiveTimeline()
-    const messageTypes = ['m.room.message', 'm.room.encrypted', 'm.sticker']
+    const messageTypes = ['m.room.message', 'm.room.encrypted', 'm.sticker', 'org.matrix.msc3381.poll.start']
     const hasMessages = timeline.getEvents().some((e) => messageTypes.includes(e.getType()))
     if (!hasMessages && timeline.getPaginationToken(Direction.Backward)) {
       client.paginateEventTimeline(timeline, { backwards: true, limit: 50 }).then(() => {

@@ -1,7 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
-import { Reply, Quote, Pencil, Copy, Link, Forward, Smile, Trash2 } from 'lucide-react';
+import {
+	Reply,
+	Quote,
+	Pencil,
+	Copy,
+	Link,
+	Forward,
+	Smile,
+	Trash2,
+	CheckSquare,
+} from 'lucide-react';
 import type { TimelineEvent } from '../types.js';
 import { Avatar, AuthImage } from '../../../shared/ui/index.js';
 import {
@@ -20,7 +30,9 @@ import {
 	sendReaction,
 } from '../../messaging/services/messageService.js';
 import { editMessage } from '../../messaging/services/messageService.js';
+import { useSelectionStore } from '../../messaging/store/selectionStore.js';
 import { ReadReceipts } from './ReadReceipts.js';
+import { PollMessage } from './PollMessage.js';
 import styles from './MessageBubble.module.scss';
 
 interface MessageBubbleProps {
@@ -29,7 +41,11 @@ interface MessageBubbleProps {
 	isHighlighted?: boolean;
 }
 
-export function MessageBubble({ event, showAvatar, isHighlighted }: MessageBubbleProps) {
+export function MessageBubble({
+	event,
+	showAvatar,
+	isHighlighted,
+}: MessageBubbleProps) {
 	const { t } = useTranslation();
 	const [contextMenu, setContextMenu] = useState<{
 		x: number;
@@ -41,8 +57,13 @@ export function MessageBubble({ event, showAvatar, isHighlighted }: MessageBubbl
 	const bubbleRef = useRef<HTMLDivElement>(null);
 	const setReplyTarget = useComposerStore((s) => s.setReplyTarget);
 	const setSelectedRoom = useRoomListStore((s) => s.setSelectedRoom);
+	const selecting = useSelectionStore((s) => s.selecting);
+	const selectedIds = useSelectionStore((s) => s.selectedIds);
+	const toggleSelection = useSelectionStore((s) => s.toggle);
+	const startSelecting = useSelectionStore((s) => s.startSelecting);
 	const scrollToEvent = useTimelineScroll();
 	const navigate = useNavigate();
+	const isSelected = selectedIds.has(event.eventId);
 
 	useEffect(() => {
 		const el = bubbleRef.current;
@@ -74,7 +95,9 @@ export function MessageBubble({ event, showAvatar, isHighlighted }: MessageBubbl
 					scrollToEvent(evId);
 				} else {
 					setSelectedRoom(targetRoomId);
-					navigate(`/rooms/${encodeURIComponent(targetRoomId)}?eventId=${encodeURIComponent(evId)}`);
+					navigate(
+						`/rooms/${encodeURIComponent(targetRoomId)}?eventId=${encodeURIComponent(evId)}`,
+					);
 				}
 				return;
 			}
@@ -190,6 +213,15 @@ export function MessageBubble({ event, showAvatar, isHighlighted }: MessageBubbl
 				},
 			},
 			{
+				id: 'select',
+				icon: <CheckSquare size={16} />,
+				label: t('messages.select'),
+				onClick: () => {
+					setContextMenu(null);
+					startSelecting(event.eventId);
+				},
+			},
+			{
 				id: 'react',
 				icon: <Smile size={16} />,
 				label: t('messages.react'),
@@ -213,7 +245,7 @@ export function MessageBubble({ event, showAvatar, isHighlighted }: MessageBubbl
 		];
 
 		return actions;
-	}, [contextMenu?.selectedText, event, isOwnMessage, setReplyTarget, t]);
+	}, [contextMenu?.selectedText, event, isOwnMessage, setReplyTarget, startSelecting, t]);
 
 	const receipts = useMemo<ReceiptEntry[]>(() => {
 		if (!contextMenu) return [];
@@ -252,11 +284,15 @@ export function MessageBubble({ event, showAvatar, isHighlighted }: MessageBubbl
 
 	if (event.isRedacted) {
 		return (
-			<div className={`${styles.message} ${isOwnMessage ? styles.outgoing : styles.incoming}`}>
+			<div
+				className={`${styles.message} ${isOwnMessage ? styles.outgoing : styles.incoming}`}
+			>
 				{!isOwnMessage && showAvatar && (
 					<Avatar src={event.senderAvatar} name={event.senderName} size='sm' />
 				)}
-				{!isOwnMessage && !showAvatar && <div className={styles.avatarPlaceholder} />}
+				{!isOwnMessage && !showAvatar && (
+					<div className={styles.avatarPlaceholder} />
+				)}
 				<div className={styles.bubble}>
 					<span className={styles.redacted}>Сообщение удалено</span>
 					{timeEl}
@@ -279,22 +315,39 @@ export function MessageBubble({ event, showAvatar, isHighlighted }: MessageBubbl
 		styles.message,
 		isOwnMessage ? styles.outgoing : styles.incoming,
 		isMentioned ? styles.mentioned : '',
+		selecting ? styles.selectMode : '',
+		isSelected ? styles.selected : '',
 	]
 		.filter(Boolean)
 		.join(' ');
 
+	const handleMessageClick = () => {
+		if (selecting) {
+			toggleSelection(event.eventId);
+		}
+	};
+
 	return (
 		<div
 			className={messageCls}
-			onContextMenu={handleContextMenu}
+			onContextMenu={selecting ? undefined : handleContextMenu}
+			onClick={handleMessageClick}
 		>
+			{selecting && (
+				<div className={styles.checkbox}>
+					<input type='checkbox' checked={isSelected} readOnly />
+				</div>
+			)}
 			{!isOwnMessage && showAvatar ? (
 				<Avatar src={event.senderAvatar} name={event.senderName} size='sm' />
 			) : !isOwnMessage ? (
 				<div className={styles.avatarPlaceholder} />
 			) : null}
 
-			<div ref={bubbleRef} className={`${styles.bubble} ${isHighlighted ? styles.highlighted : ''}`}>
+			<div
+				ref={bubbleRef}
+				className={`${styles.bubble} ${isHighlighted ? styles.highlighted : ''}`}
+			>
 				{!isOwnMessage && showAvatar && (
 					<span className={styles.sender}>{event.senderName}</span>
 				)}
@@ -319,9 +372,11 @@ export function MessageBubble({ event, showAvatar, isHighlighted }: MessageBubbl
 				)}
 
 				<div className={styles.content}>
-					{msgtype === 'm.image' && (
+					{msgtype === 'm.image' &&
 						(() => {
-							const info = content.info as { w?: number; h?: number } | undefined;
+							const info = content.info as
+								| { w?: number; h?: number }
+								| undefined;
 							const w = info?.w || 300;
 							const h = info?.h || 200;
 							const maxW = 400;
@@ -340,11 +395,12 @@ export function MessageBubble({ event, showAvatar, isHighlighted }: MessageBubbl
 									style={{ width: displayW, height: displayH }}
 								/>
 							);
-						})()
-					)}
-					{msgtype === 'm.video' && (
+						})()}
+					{msgtype === 'm.video' &&
 						(() => {
-							const info = content.info as { w?: number; h?: number } | undefined;
+							const info = content.info as
+								| { w?: number; h?: number }
+								| undefined;
 							const w = info?.w || 300;
 							const h = info?.h || 200;
 							const maxW = 400;
@@ -362,8 +418,7 @@ export function MessageBubble({ event, showAvatar, isHighlighted }: MessageBubbl
 									style={{ width: displayW, height: displayH }}
 								/>
 							);
-						})()
-					)}
+						})()}
 					{msgtype === 'm.file' && (
 						<div className={styles.fileMessage}>
 							📎 <span>{body}</span>
@@ -374,7 +429,10 @@ export function MessageBubble({ event, showAvatar, isHighlighted }: MessageBubbl
 							🎤 <span>Голосовое сообщение</span>
 						</div>
 					)}
-					{(msgtype === 'm.text' || msgtype === 'm.notice' || !msgtype) &&
+					{(event.type === 'org.matrix.msc3381.poll.start' || !!content['org.matrix.msc3381.poll']) && (
+						<PollMessage eventId={event.eventId} roomId={event.roomId} content={content} />
+					)}
+					{(msgtype === 'm.text' || msgtype === 'm.notice' || !msgtype) && !content['org.matrix.msc3381.poll'] &&
 						(formattedBody ? (
 							<div
 								className={styles.textContent}
@@ -408,7 +466,6 @@ export function MessageBubble({ event, showAvatar, isHighlighted }: MessageBubbl
 						})}
 					</div>
 				)}
-
 			</div>
 
 			{isOwnMessage && (
@@ -466,3 +523,4 @@ function stripReplyFallback(body: string): string {
 function stripHtmlReplyFallback(html: string): string {
 	return html.replace(/^<mx-reply>[\s\S]*?<\/mx-reply>/, '');
 }
+

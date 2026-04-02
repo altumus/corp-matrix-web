@@ -1,11 +1,17 @@
 import { useRef, useState, useCallback, useEffect, type FormEvent, type KeyboardEvent, type ClipboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Forward, Trash2, Copy, Pin, X, Plus } from 'lucide-react'
 import { useSendMessage } from '../hooks/useSendMessage.js'
 import { useMediaUpload } from '../../media/hooks/useMediaUpload.js'
 import { useMentions, type MentionCandidate } from '../hooks/useMentions.js'
 import { ImagePreviewDialog } from '../../media/components/ImagePreviewDialog.js'
 import { MentionPopup } from './MentionPopup.js'
+import { AttachMenu } from './AttachMenu.jsx'
+import { ForwardDialog } from './ForwardDialog.js'
 import { useComposerStore } from '../store/composerStore.js'
+import { useSelectionStore } from '../store/selectionStore.js'
+import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { redactMessage } from '../services/messageService.js'
 import styles from './MessageComposer.module.scss'
 
 interface MessageComposerProps {
@@ -23,7 +29,7 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
   const { t } = useTranslation()
   const { send, onTyping } = useSendMessage(roomId)
   const { upload, uploading } = useMediaUpload(roomId)
-  const { candidates, active: mentionActive, open: openMention, close: closeMention, setQuery: setMentionQuery } = useMentions(roomId)
+  const { candidates, active: mentionActive, open: openMention, close: closeMention } = useMentions(roomId)
   const replyTarget = useComposerStore((s) => s.replyTarget)
   const clearReply = useComposerStore((s) => s.clearReply)
   const [text, setText] = useState('')
@@ -158,10 +164,6 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
     setPendingFile(null)
   }, [])
 
-  const handleAttachClick = () => {
-    fileInputRef.current?.click()
-  }
-
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files?.length) return
@@ -175,6 +177,107 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
 
     e.target.value = ''
   }, [upload])
+
+  const selecting = useSelectionStore((s) => s.selecting)
+  const selectedIds = useSelectionStore((s) => s.selectedIds)
+  const clearSelection = useSelectionStore((s) => s.clear)
+  const [showAttachMenu, setShowAttachMenu] = useState(false)
+  const [showForwardSelected, setShowForwardSelected] = useState(false)
+
+  const getSortedSelectedIds = () => {
+    const client = getMatrixClient()
+    if (!client) return [...selectedIds]
+    const room = client.getRoom(roomId)
+    if (!room) return [...selectedIds]
+
+    return [...selectedIds].sort((a, b) => {
+      const evA = room.findEventById(a)
+      const evB = room.findEventById(b)
+      return (evA?.getTs() ?? 0) - (evB?.getTs() ?? 0)
+    })
+  }
+
+  const handleForwardSelected = () => {
+    setShowForwardSelected(true)
+  }
+
+  const handleDeleteSelected = async () => {
+    if (!confirm(t('messages.remove') + '?')) return
+    for (const eventId of getSortedSelectedIds()) {
+      await redactMessage(roomId, eventId).catch(() => {})
+    }
+    clearSelection()
+  }
+
+  const handleCopySelected = () => {
+    const client = getMatrixClient()
+    if (!client) return
+    const room = client.getRoom(roomId)
+    if (!room) return
+
+    const texts: string[] = []
+    for (const eventId of getSortedSelectedIds()) {
+      const ev = room.findEventById(eventId)
+      if (ev) {
+        const body = (ev.getContent().body as string) || ''
+        texts.push(body)
+      }
+    }
+    navigator.clipboard.writeText(texts.join('\n\n'))
+    clearSelection()
+  }
+
+  const handlePinSelected = async () => {
+    const client = getMatrixClient()
+    if (!client) return
+    const room = client.getRoom(roomId)
+    if (!room) return
+
+    const existingPinned = room.currentState.getStateEvents('m.room.pinned_events', '')?.getContent()?.pinned as string[] || []
+    const newPinned = [...new Set([...existingPinned, ...selectedIds])]
+    await client.sendStateEvent(roomId, 'm.room.pinned_events' as never, { pinned: newPinned } as never, '').catch(() => {})
+    clearSelection()
+  }
+
+  if (selecting) {
+    return (
+      <>
+        <div className={styles.selectionBar}>
+          <button className={styles.selectionCancel} onClick={clearSelection}>
+            <X size={18} />
+          </button>
+          <span className={styles.selectionCount}>
+            {t('messages.selected', { count: selectedIds.size })}
+          </span>
+          <div className={styles.selectionActions}>
+            <button className={styles.selectionBtn} onClick={handleForwardSelected} title={t('messages.forward')}>
+              <Forward size={18} />
+            </button>
+            <button className={styles.selectionBtn} onClick={handleDeleteSelected} title={t('messages.remove')}>
+              <Trash2 size={18} />
+            </button>
+            <button className={styles.selectionBtn} onClick={handleCopySelected} title={t('messages.copyText')}>
+              <Copy size={18} />
+            </button>
+            <button className={styles.selectionBtn} onClick={handlePinSelected} title={t('messages.pinMessages')}>
+              <Pin size={18} />
+            </button>
+          </div>
+        </div>
+
+        {showForwardSelected && (
+          <ForwardDialog
+            fromRoomId={roomId}
+            eventId={getSortedSelectedIds()}
+            onClose={() => {
+              setShowForwardSelected(false)
+              clearSelection()
+            }}
+          />
+        )}
+      </>
+    )
+  }
 
   return (
     <>
@@ -209,15 +312,30 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
         )}
 
         <div className={styles.inputArea}>
-          <button
-            type="button"
-            className={styles.attachBtn}
-            title={t('messages.attachFile')}
-            onClick={handleAttachClick}
-            disabled={uploading}
-          >
-            +
-          </button>
+          <div className={styles.attachWrap}>
+            <button
+              type="button"
+              className={styles.attachBtn}
+              title={t('messages.attachFile')}
+              onClick={() => setShowAttachMenu((v) => !v)}
+              disabled={uploading}
+            >
+              <Plus size={20} />
+            </button>
+            {showAttachMenu && (
+              <AttachMenu
+                roomId={roomId}
+                onFileSelect={(accept: string) => {
+                  setShowAttachMenu(false)
+                  if (fileInputRef.current) {
+                    fileInputRef.current.accept = accept
+                    fileInputRef.current.click()
+                  }
+                }}
+                onClose={() => setShowAttachMenu(false)}
+              />
+            )}
+          </div>
           <textarea
             ref={textareaRef}
             className={styles.textarea}
