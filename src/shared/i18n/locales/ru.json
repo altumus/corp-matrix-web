@@ -45,7 +45,8 @@
     "typing": "печатает...",
     "typingMultiple": "печатают...",
     "yesterday": "Вчера",
-    "unreadMessages": "Непрочитанные сообщения"
+    "unreadMessages": "Непрочитанные сообщения",
+    "savedMessages": "Избранное"
   },
   "messages": {
     "placeholder": "Введите сообщение...",

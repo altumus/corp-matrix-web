@@ -7,6 +7,11 @@
   background: var(--color-bg-primary);
   box-shadow: var(--shadow-popup);
   color: var(--color-text-primary);
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
 
   &::backdrop {
     background: var(--color-bg-overlay);

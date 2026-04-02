@@ -45,7 +45,8 @@
     "typing": "is typing...",
     "typingMultiple": "are typing...",
     "yesterday": "Yesterday",
-    "unreadMessages": "Unread messages"
+    "unreadMessages": "Unread messages",
+    "savedMessages": "Saved Messages"
   },
   "messages": {
     "placeholder": "Type a message...",

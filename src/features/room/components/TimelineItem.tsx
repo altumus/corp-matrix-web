@@ -17,12 +17,11 @@ export function TimelineItem({ event, showAvatar, isHighlighted }: TimelineItemP
   const cls = [
     styles.item,
     showAvatar ? styles.withAvatar : styles.continuation,
-    isHighlighted ? styles.highlighted : '',
   ].filter(Boolean).join(' ')
 
   return (
     <div className={cls}>
-      <MessageBubble event={event} showAvatar={showAvatar} />
+      <MessageBubble event={event} showAvatar={showAvatar} isHighlighted={isHighlighted} />
     </div>
   )
 }

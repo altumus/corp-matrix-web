@@ -1,0 +1,16 @@
+.picker {
+  position: fixed;
+  z-index: var(--z-modal);
+  animation: pickerFadeIn 120ms ease;
+}
+
+@keyframes pickerFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

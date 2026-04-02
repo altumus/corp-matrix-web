@@ -1,5 +1,6 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router';
 import type { TimelineEvent } from '../types.js';
 import { Avatar, AuthImage } from '../../../shared/ui/index.js';
 import {
@@ -7,7 +8,10 @@ import {
 	type ContextMenuAction,
 	type ReceiptEntry,
 } from '../../messaging/components/MessageContextMenu.js';
+import { EmojiPicker } from '../../messaging/components/EmojiPicker.js';
+import { ForwardDialog } from '../../messaging/components/ForwardDialog.js';
 import { useComposerStore } from '../../messaging/store/composerStore.js';
+import { useRoomListStore } from '../../room-list/store/roomListStore.js';
 import { useTimelineScroll } from '../context/TimelineScrollContext.js';
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js';
 import {
@@ -15,22 +19,80 @@ import {
 	sendReaction,
 } from '../../messaging/services/messageService.js';
 import { editMessage } from '../../messaging/services/messageService.js';
+import { ReadReceipts } from './ReadReceipts.js';
 import styles from './MessageBubble.module.scss';
 
 interface MessageBubbleProps {
 	event: TimelineEvent;
 	showAvatar: boolean;
+	isHighlighted?: boolean;
 }
 
-export function MessageBubble({ event, showAvatar }: MessageBubbleProps) {
+export function MessageBubble({ event, showAvatar, isHighlighted }: MessageBubbleProps) {
 	const { t } = useTranslation();
 	const [contextMenu, setContextMenu] = useState<{
 		x: number;
 		y: number;
 		selectedText: string;
 	} | null>(null);
+	const [showReactionPicker, setShowReactionPicker] = useState(false);
+	const [showForwardDialog, setShowForwardDialog] = useState(false);
+	const bubbleRef = useRef<HTMLDivElement>(null);
 	const setReplyTarget = useComposerStore((s) => s.setReplyTarget);
+	const setSelectedRoom = useRoomListStore((s) => s.setSelectedRoom);
 	const scrollToEvent = useTimelineScroll();
+	const navigate = useNavigate();
+
+	useEffect(() => {
+		const el = bubbleRef.current;
+		if (!el) return;
+
+		const handleLinkClick = (e: MouseEvent) => {
+			const target = e.target as HTMLElement;
+			const anchor = target.closest('a');
+			if (!anchor) return;
+
+			const rawHref = anchor.getAttribute('href') || '';
+			if (!rawHref.includes('matrix.to')) return;
+
+			let href: string;
+			try {
+				href = decodeURIComponent(rawHref);
+			} catch {
+				href = rawHref;
+			}
+
+			const eventMatch = href.match(/matrix\.to\/#\/([^/]+)\/(\$[^?\s]+)/);
+			if (eventMatch) {
+				e.preventDefault();
+				e.stopPropagation();
+				const targetRoomId = eventMatch[1];
+				const evId = eventMatch[2];
+
+				if (targetRoomId === event.roomId) {
+					scrollToEvent(evId);
+				} else {
+					setSelectedRoom(targetRoomId);
+					navigate(`/rooms/${encodeURIComponent(targetRoomId)}?eventId=${encodeURIComponent(evId)}`);
+				}
+				return;
+			}
+
+			const roomMatch = href.match(/matrix\.to\/#\/([^/\s]+)/);
+			if (roomMatch) {
+				e.preventDefault();
+				e.stopPropagation();
+				const targetRoomId = roomMatch[1];
+				if (targetRoomId.startsWith('!') || targetRoomId.startsWith('#')) {
+					setSelectedRoom(targetRoomId);
+					navigate(`/rooms/${encodeURIComponent(targetRoomId)}`);
+				}
+			}
+		};
+
+		el.addEventListener('click', handleLinkClick, true);
+		return () => el.removeEventListener('click', handleLinkClick, true);
+	}, [navigate, scrollToEvent, setSelectedRoom, event.roomId]);
 
 	const client = getMatrixClient();
 	const myUserId = client?.getUserId();
@@ -118,12 +180,21 @@ export function MessageBubble({ event, showAvatar }: MessageBubbleProps) {
 				},
 			},
 			{
+				id: 'forward',
+				icon: '➤',
+				label: t('messages.forward'),
+				onClick: () => {
+					setContextMenu(null);
+					setShowForwardDialog(true);
+				},
+			},
+			{
 				id: 'react',
 				icon: '😀',
 				label: t('messages.react'),
 				onClick: () => {
-					const emoji = prompt('Emoji:');
-					if (emoji) sendReaction(event.roomId, event.eventId, emoji);
+					setContextMenu(null);
+					setShowReactionPicker(true);
 				},
 			},
 			{
@@ -169,15 +240,25 @@ export function MessageBubble({ event, showAvatar }: MessageBubbleProps) {
 		return result.sort((a, b) => b.ts - a.ts);
 	}, [contextMenu, event.roomId, event.eventId, myUserId]);
 
+	const timeEl = (
+		<time
+			className={styles.time}
+			dateTime={new Date(event.timestamp).toISOString()}
+		>
+			{formatTime(event.timestamp)}
+		</time>
+	);
+
 	if (event.isRedacted) {
 		return (
-			<div className={styles.message}>
-				{showAvatar && (
+			<div className={`${styles.message} ${isOwnMessage ? styles.outgoing : styles.incoming}`}>
+				{!isOwnMessage && showAvatar && (
 					<Avatar src={event.senderAvatar} name={event.senderName} size='sm' />
 				)}
-				{!showAvatar && <div className={styles.avatarPlaceholder} />}
-				<div className={styles.body}>
+				{!isOwnMessage && !showAvatar && <div className={styles.avatarPlaceholder} />}
+				<div className={styles.bubble}>
 					<span className={styles.redacted}>Сообщение удалено</span>
+					{timeEl}
 				</div>
 			</div>
 		);
@@ -193,29 +274,28 @@ export function MessageBubble({ event, showAvatar }: MessageBubbleProps) {
 			? stripHtmlReplyFallback(rawFormatted)
 			: rawFormatted;
 
-	const messageCls = [styles.message, isMentioned ? styles.mentioned : '']
+	const messageCls = [
+		styles.message,
+		isOwnMessage ? styles.outgoing : styles.incoming,
+		isMentioned ? styles.mentioned : '',
+	]
 		.filter(Boolean)
 		.join(' ');
 
 	return (
-		<div className={messageCls} onContextMenu={handleContextMenu}>
-			{showAvatar ? (
+		<div
+			className={messageCls}
+			onContextMenu={handleContextMenu}
+		>
+			{!isOwnMessage && showAvatar ? (
 				<Avatar src={event.senderAvatar} name={event.senderName} size='sm' />
-			) : (
+			) : !isOwnMessage ? (
 				<div className={styles.avatarPlaceholder} />
-			)}
+			) : null}
 
-			<div className={styles.body}>
-				{showAvatar && (
-					<div className={styles.header}>
-						<span className={styles.sender}>{event.senderName}</span>
-						<time
-							className={styles.time}
-							dateTime={new Date(event.timestamp).toISOString()}
-						>
-							{formatTime(event.timestamp)}
-						</time>
-					</div>
+			<div ref={bubbleRef} className={`${styles.bubble} ${isHighlighted ? styles.highlighted : ''}`}>
+				{!isOwnMessage && showAvatar && (
+					<span className={styles.sender}>{event.senderName}</span>
 				)}
 
 				{event.replyToEvent && event.replyTo && (
@@ -275,16 +355,36 @@ export function MessageBubble({ event, showAvatar }: MessageBubbleProps) {
 					{event.isEdited && <span className={styles.edited}>(изм.)</span>}
 				</div>
 
+				<span className={styles.meta}>
+					{event.isEdited && <span className={styles.editedMeta}>изм.</span>}
+					{timeEl}
+				</span>
+
 				{event.reactions.size > 0 && (
 					<div className={styles.reactions}>
-						{[...event.reactions.entries()].map(([key, senders]) => (
-							<button key={key} className={styles.reaction}>
-								{key} <span>{senders.size}</span>
-							</button>
-						))}
+						{[...event.reactions.entries()].map(([key, senders]) => {
+							const myReaction = myUserId ? senders.has(myUserId) : false;
+							return (
+								<button
+									key={key}
+									className={`${styles.reaction} ${myReaction ? styles.reactionMine : ''}`}
+									onClick={() => sendReaction(event.roomId, event.eventId, key)}
+									title={[...senders].join(', ')}
+								>
+									{key} <span>{senders.size}</span>
+								</button>
+							);
+						})}
 					</div>
 				)}
+
 			</div>
+
+			{isOwnMessage && (
+				<div className={styles.receiptsWrap}>
+					<ReadReceipts eventId={event.eventId} roomId={event.roomId} />
+				</div>
+			)}
 
 			{contextMenu && (
 				<MessageContextMenu
@@ -293,6 +393,24 @@ export function MessageBubble({ event, showAvatar }: MessageBubbleProps) {
 					actions={contextMenuActions}
 					receipts={receipts}
 					onClose={() => setContextMenu(null)}
+				/>
+			)}
+
+			{showForwardDialog && (
+				<ForwardDialog
+					fromRoomId={event.roomId}
+					eventId={event.eventId}
+					onClose={() => setShowForwardDialog(false)}
+				/>
+			)}
+
+			{showReactionPicker && (
+				<EmojiPicker
+					anchorRef={bubbleRef}
+					onSelect={(emoji) => {
+						sendReaction(event.roomId, event.eventId, emoji);
+					}}
+					onClose={() => setShowReactionPicker(false)}
 				/>
 			)}
 		</div>
@@ -317,4 +435,3 @@ function stripReplyFallback(body: string): string {
 function stripHtmlReplyFallback(html: string): string {
 	return html.replace(/^<mx-reply>[\s\S]*?<\/mx-reply>/, '');
 }
-

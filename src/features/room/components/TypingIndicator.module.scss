@@ -8,7 +8,7 @@
 
 .text {
   font-size: var(--font-size-xs);
-  color: var(--color-text-tertiary);
+  color: var(--color-text-secondary);
   font-style: italic;
 }
 
@@ -21,7 +21,7 @@
     width: 4px;
     height: 4px;
     border-radius: 50%;
-    background: var(--color-text-tertiary);
+    background: var(--color-accent);
     animation: bounce 1.4s ease-in-out infinite;
 
     &:nth-child(2) {

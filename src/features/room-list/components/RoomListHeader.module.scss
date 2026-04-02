@@ -20,6 +20,7 @@
   gap: var(--spacing-xs);
 }
 
+.savedBtn,
 .createBtn {
   display: flex;
   align-items: center;
@@ -34,6 +35,10 @@
   &:hover {
     background: var(--color-bg-hover);
     color: var(--color-text-primary);
+  }
+
+  &:active {
+    transform: scale(0.98);
   }
 }
 
@@ -51,5 +56,9 @@
 
   &:hover {
     background: var(--color-bg-hover);
+  }
+
+  &:active {
+    transform: scale(0.98);
   }
 }

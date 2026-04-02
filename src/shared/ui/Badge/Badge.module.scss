@@ -2,14 +2,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: var(--radius-full);
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-bold);
   line-height: 1;
-  background: var(--color-text-tertiary);
+  background: var(--color-unread-badge);
   color: var(--color-text-on-accent);
 }
 

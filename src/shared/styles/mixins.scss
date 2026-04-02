@@ -48,7 +48,7 @@
     border-radius: var(--radius-full);
 
     &:hover {
-      background: var(--color-text-tertiary);
+      background: var(--color-text-secondary);
     }
   }
 
@@ -59,7 +59,7 @@
 @mixin interactive {
   cursor: pointer;
   user-select: none;
-  transition: background var(--transition-fast);
+  transition: background var(--transition-fast), transform var(--transition-fast);
 
   &:hover {
     background: var(--color-bg-hover);
@@ -67,6 +67,7 @@
 
   &:active {
     background: var(--color-bg-active);
+    transform: scale(0.98);
   }
 
   &:focus-visible {

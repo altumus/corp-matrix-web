@@ -1,7 +1,9 @@
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
 import { redactMessage, sendReaction } from '../services/messageService.js'
 import { useComposerStore } from '../store/composerStore.js'
+import { EmojiPicker } from './EmojiPicker.js'
 import styles from './MessageActions.module.scss'
 
 interface MessageActionsProps {
@@ -17,6 +19,8 @@ export function MessageActions({ eventId, roomId, sender, senderName, body }: Me
   const client = getMatrixClient()
   const isOwnMessage = client?.getUserId() === sender
   const setReplyTarget = useComposerStore((s) => s.setReplyTarget)
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const actionsRef = useRef<HTMLDivElement>(null)
 
   const handleReact = (emoji: string) => {
     sendReaction(roomId, eventId, emoji)
@@ -33,12 +37,19 @@ export function MessageActions({ eventId, roomId, sender, senderName, body }: Me
   }
 
   return (
-    <div className={styles.actions}>
+    <div ref={actionsRef} className={styles.actions}>
       <button className={styles.btn} onClick={() => handleReact('👍')} title={t('messages.react')}>
         👍
       </button>
       <button className={styles.btn} onClick={() => handleReact('❤️')} title={t('messages.react')}>
         ❤️
+      </button>
+      <button
+        className={styles.btn}
+        onClick={() => setShowEmojiPicker((v) => !v)}
+        title={t('messages.emoji')}
+      >
+        😊
       </button>
       <button className={styles.btn} onClick={handleReply} title={t('messages.reply')}>
         ↩
@@ -47,6 +58,13 @@ export function MessageActions({ eventId, roomId, sender, senderName, body }: Me
         <button className={styles.btn} onClick={handleRemove} title={t('messages.remove')}>
           🗑
         </button>
+      )}
+      {showEmojiPicker && (
+        <EmojiPicker
+          anchorRef={actionsRef}
+          onSelect={(emoji) => handleReact(emoji)}
+          onClose={() => setShowEmojiPicker(false)}
+        />
       )}
     </div>
   )

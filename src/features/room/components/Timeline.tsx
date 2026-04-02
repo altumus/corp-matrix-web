@@ -10,16 +10,23 @@ import styles from './Timeline.module.scss'
 
 interface TimelineProps {
   roomId: string
+  focusEventId?: string
+  onFocusHandled?: () => void
 }
 
 const START_INDEX = 100_000
 
-export function Timeline({ roomId }: TimelineProps) {
+export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps) {
   const { events, loading, paginating, canPaginateBack, paginateBack } = useTimeline(roomId)
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   const [highlightedEventId, setHighlightedEventId] = useState<string | null>(null)
   const [firstItemIndex, setFirstItemIndex] = useState(START_INDEX)
   const prevFirstEventIdRef = useRef<string | null>(null)
+  const focusHandledRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    focusHandledRef.current = null
+  }, [roomId])
 
   useEffect(() => {
     if (events.length === 0) {
@@ -36,6 +43,35 @@ export function Timeline({ roomId }: TimelineProps) {
     }
     prevFirstEventIdRef.current = currentFirstId
   }, [events])
+
+  useEffect(() => {
+    if (!focusEventId || events.length === 0) return
+    if (focusHandledRef.current === focusEventId) return
+
+    const index = events.findIndex((e) => e.eventId === focusEventId)
+    if (index === -1) return
+
+    focusHandledRef.current = focusEventId
+
+    const scrollTimer = setTimeout(() => {
+      virtuosoRef.current?.scrollToIndex({ index, align: 'center', behavior: 'smooth' })
+    }, 100)
+
+    const highlightTimer = setTimeout(() => {
+      setHighlightedEventId(focusEventId)
+    }, 400)
+
+    const clearTimer = setTimeout(() => {
+      setHighlightedEventId(null)
+      onFocusHandled?.()
+    }, 2500)
+
+    return () => {
+      clearTimeout(scrollTimer)
+      clearTimeout(highlightTimer)
+      clearTimeout(clearTimer)
+    }
+  }, [focusEventId, events, onFocusHandled])
 
   const scrollToEvent = useCallback((eventId: string) => {
     const index = events.findIndex((e) => e.eventId === eventId)

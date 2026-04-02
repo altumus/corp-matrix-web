@@ -2,7 +2,14 @@
 
 .layout {
   display: flex;
+  flex-direction: column;
   height: 100dvh;
+  overflow: hidden;
+}
+
+.main {
+  display: flex;
+  flex: 1;
   overflow: hidden;
 }
 

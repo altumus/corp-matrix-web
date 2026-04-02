@@ -1,29 +1,11 @@
 .item {
-  padding: var(--spacing-xxs) var(--spacing-lg);
-
-  &:hover {
-    background: var(--color-bg-hover);
-  }
+  padding: var(--spacing-xs) 0;
 }
 
 .withAvatar {
-  padding-top: var(--spacing-sm);
+  padding-top: var(--spacing-lg);
 }
 
 .continuation {
   padding-top: var(--spacing-xxs);
-}
-
-.highlighted {
-  background: var(--color-accent-light);
-  animation: highlightFade 2s ease-out forwards;
-}
-
-@keyframes highlightFade {
-  0% {
-    background: var(--color-accent-light);
-  }
-  100% {
-    background: transparent;
-  }
 }

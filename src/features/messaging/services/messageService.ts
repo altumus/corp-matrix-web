@@ -113,6 +113,55 @@ export async function sendReaction(
   await client.sendEvent(roomId, EventType.Reaction, reactionContent);
 }
 
+export async function forwardMessage(
+	fromRoomId: string,
+	eventId: string,
+	toRoomId: string,
+): Promise<void> {
+	const client = getMatrixClient();
+	if (!client) throw new Error('Client not initialized');
+
+	const room = client.getRoom(fromRoomId);
+	if (!room) throw new Error('Room not found');
+
+	const matrixEvent = room.findEventById(eventId);
+	if (!matrixEvent) throw new Error('Event not found');
+
+	const originalContent = matrixEvent.getContent();
+	const senderId = matrixEvent.getSender()!;
+	const senderMember = room.getMember(senderId);
+	const senderName = senderMember?.name || senderId;
+
+	const msgtype = (originalContent.msgtype as MsgType) || MsgType.Text;
+	const body = (originalContent.body as string) || '';
+
+	const esc = (s: string) =>
+		s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+	const messageLink = `https://matrix.to/#/${encodeURIComponent(fromRoomId)}/${encodeURIComponent(eventId)}`;
+
+	const content: Record<string, unknown> = {
+		msgtype,
+		body: `Переслано от ${senderName} (${messageLink}):\n${body}`,
+		format: 'org.matrix.custom.html',
+		formatted_body:
+			`<a href="${messageLink}"><strong>Переслано от ${esc(senderName)}</strong></a><br/>` +
+			((originalContent.formatted_body as string) || esc(body)),
+	};
+
+	if (originalContent.url) {
+		content.url = originalContent.url;
+	}
+	if (originalContent.info) {
+		content.info = originalContent.info;
+	}
+	if (originalContent.file) {
+		content.file = originalContent.file;
+	}
+
+	await client.sendMessage(toRoomId, content as unknown as RoomMessageEventContent);
+}
+
 export async function sendTypingIndicator(
 	roomId: string,
 	typing: boolean,

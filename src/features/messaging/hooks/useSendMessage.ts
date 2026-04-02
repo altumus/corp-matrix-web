@@ -1,6 +1,16 @@
 import { useCallback, useRef } from 'react'
+import { marked } from 'marked'
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
 import { sendTextMessage, sendTypingIndicator } from '../services/messageService.js'
+
+marked.setOptions({
+  breaks: true,
+  gfm: true,
+})
+
+function hasMarkdown(text: string): boolean {
+  return /(\*\*.+?\*\*|__.+?__|_.+?_|\*.+?\*|~~.+?~~|`.+?`|```[\s\S]+?```|^#{1,6}\s|^[-*+]\s|^\d+\.\s|^\|.+\||\[.+\]\(.+\))/m.test(text)
+}
 
 function buildMentionFormats(body: string, roomId: string): { body: string; formattedBody: string | undefined } {
   const client = getMatrixClient()
@@ -33,6 +43,14 @@ function buildMentionFormats(body: string, roomId: string): { body: string; form
   }
 }
 
+function renderMarkdown(text: string): string {
+  const html = marked.parse(text, { async: false }) as string
+  return html
+    .replace(/^<p>/, '')
+    .replace(/<\/p>\s*$/, '')
+    .trim()
+}
+
 export function useSendMessage(roomId: string) {
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -46,6 +64,10 @@ export function useSendMessage(roomId: string) {
       const mentionResult = buildMentionFormats(finalBody, roomId)
       finalBody = mentionResult.body
       formattedBody = mentionResult.formattedBody
+
+      if (!formattedBody && hasMarkdown(finalBody)) {
+        formattedBody = renderMarkdown(finalBody)
+      }
 
       if (quotedText) {
         const senderLine = quotedSender ? `${quotedSender}:\n` : ''

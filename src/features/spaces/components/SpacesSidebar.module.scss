@@ -26,6 +26,10 @@
     background: var(--color-bg-hover);
   }
 
+  &:active {
+    transform: scale(0.98);
+  }
+
   &.active {
     border-radius: var(--radius-md);
 
@@ -61,12 +65,16 @@
   height: 40px;
   border-radius: var(--radius-full);
   font-size: 20px;
-  color: var(--color-success);
+  color: var(--color-accent);
   border: 1px dashed var(--color-border);
   transition: all var(--transition-fast);
 
   &:hover {
     background: var(--color-bg-hover);
-    border-color: var(--color-success);
+    border-color: var(--color-accent);
+  }
+
+  &:active {
+    transform: scale(0.98);
   }
 }

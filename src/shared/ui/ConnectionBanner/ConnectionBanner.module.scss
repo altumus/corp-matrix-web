@@ -1,0 +1,40 @@
+.banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-lg);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-on-accent);
+  z-index: var(--z-toast);
+  flex-shrink: 0;
+  animation: slideDown 200ms ease;
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.reconnecting {
+  background: var(--color-warning);
+}
+
+.error {
+  background: var(--color-danger);
+}
+
+.icon {
+  font-size: 16px;
+}
+
+.text {
+  line-height: 1;
+}
