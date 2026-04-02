@@ -1,18 +1,34 @@
-import { useEffect, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
+import { useEffect, useRef, useState } from 'react'
+import { Avatar } from '../../../shared/ui/index.js'
 import styles from './MessageContextMenu.module.scss'
+
+export interface ContextMenuAction {
+  id: string
+  label: string
+  icon: string
+  danger?: boolean
+  hidden?: boolean
+  onClick: () => void
+}
+
+export interface ReceiptEntry {
+  userId: string
+  name: string
+  avatarUrl: string | null
+  ts: number
+}
 
 interface MessageContextMenuProps {
   x: number
   y: number
-  onReplyWithQuote: () => void
-  onCopy: () => void
+  actions: ContextMenuAction[]
+  receipts: ReceiptEntry[]
   onClose: () => void
 }
 
-export function MessageContextMenu({ x, y, onReplyWithQuote, onCopy, onClose }: MessageContextMenuProps) {
-  const { t } = useTranslation()
+export function MessageContextMenu({ x, y, actions, receipts, onClose }: MessageContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
+  const [showReceipts, setShowReceipts] = useState(false)
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -41,7 +57,9 @@ export function MessageContextMenu({ x, y, onReplyWithQuote, onCopy, onClose }: 
     if (rect.bottom > window.innerHeight) {
       menu.style.top = `${y - rect.height}px`
     }
-  }, [x, y])
+  }, [x, y, showReceipts])
+
+  const visibleActions = actions.filter((a) => !a.hidden)
 
   return (
     <div
@@ -49,12 +67,70 @@ export function MessageContextMenu({ x, y, onReplyWithQuote, onCopy, onClose }: 
       className={styles.menu}
       style={{ left: x, top: y }}
     >
-      <button className={styles.item} onClick={onReplyWithQuote}>
-        {t('messages.replyWithQuote')}
-      </button>
-      <button className={styles.item} onClick={onCopy}>
-        {t('messages.copyText')}
-      </button>
+      {visibleActions.map((action) => (
+        <button
+          key={action.id}
+          className={`${styles.item} ${action.danger ? styles.danger : ''}`}
+          onClick={() => {
+            action.onClick()
+            onClose()
+          }}
+        >
+          <span className={styles.icon}>{action.icon}</span>
+          <span className={styles.label}>{action.label}</span>
+        </button>
+      ))}
+
+      {receipts.length > 0 && (
+        <>
+          <div className={styles.separator} />
+          <button
+            className={styles.receiptsRow}
+            onClick={() => setShowReceipts((v) => !v)}
+          >
+            <span className={styles.icon}>✓</span>
+            <span className={styles.label}>{receipts.length} просмотров</span>
+            <div className={styles.receiptAvatars}>
+              {receipts.slice(0, 3).map((r) => (
+                <div key={r.userId} className={styles.receiptAvatarWrap}>
+                  <Avatar src={r.avatarUrl} name={r.name} size="xs" />
+                </div>
+              ))}
+            </div>
+          </button>
+
+          {showReceipts && (
+            <div className={styles.receiptList}>
+              {receipts.map((r) => (
+                <div key={r.userId} className={styles.receiptItem}>
+                  <Avatar src={r.avatarUrl} name={r.name} size="sm" />
+                  <div className={styles.receiptInfo}>
+                    <span className={styles.receiptName}>{r.name}</span>
+                    <span className={styles.receiptTime}>✓ {formatReceiptTime(r.ts)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
+}
+
+function formatReceiptTime(ts: number): string {
+  const date = new Date(ts)
+  const now = new Date()
+  const isToday = date.toDateString() === now.toDateString()
+  const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+
+  if (isToday) return `сегодня в ${time}`
+
+  const yesterday = new Date(now)
+  yesterday.setDate(yesterday.getDate() - 1)
+  if (date.toDateString() === yesterday.toDateString()) {
+    return `вчера в ${time}`
+  }
+
+  return `${date.toLocaleDateString([], { day: 'numeric', month: 'short' })} в ${time}`
 }

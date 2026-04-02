@@ -1,7 +1,6 @@
 import type { TimelineEvent } from '../types.js'
 import { MessageBubble } from './MessageBubble.js'
 import { SystemMessage } from './SystemMessage.js'
-import { ReadReceipts } from './ReadReceipts.js'
 import styles from './TimelineItem.module.scss'
 
 interface TimelineItemProps {
@@ -24,7 +23,6 @@ export function TimelineItem({ event, showAvatar, isHighlighted }: TimelineItemP
   return (
     <div className={cls}>
       <MessageBubble event={event} showAvatar={showAvatar} />
-      <ReadReceipts eventId={event.eventId} />
     </div>
   )
 }

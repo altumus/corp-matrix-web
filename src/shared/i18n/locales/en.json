@@ -63,7 +63,12 @@
     "voiceMessage": "Voice message",
     "emoji": "Emoji",
     "replyWithQuote": "Reply with quote",
-    "copyText": "Copy text"
+    "copyText": "Copy text",
+    "copyLink": "Copy link to message",
+    "pin": "Pin",
+    "unpin": "Unpin",
+    "forward": "Forward",
+    "select": "Select"
   },
   "settings": {
     "title": "Settings",
