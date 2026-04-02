@@ -70,6 +70,21 @@
   }
 }
 
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-size: var(--font-size-md);
+  color: var(--color-text-primary);
+  cursor: pointer;
+
+  input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--color-accent);
+  }
+}
+
 .actions {
   display: flex;
   gap: var(--spacing-sm);

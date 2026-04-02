@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BarChart3, Check } from 'lucide-react'
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
@@ -9,35 +9,140 @@ interface PollAnswer {
   text: string
 }
 
+interface VoteInfo {
+  answerId: string
+  userId: string
+  name: string
+}
+
 interface PollMessageProps {
   eventId: string
   roomId: string
   content: Record<string, unknown>
 }
 
+function getText(obj: unknown): string {
+  if (!obj || typeof obj !== 'object') return ''
+  const o = obj as Record<string, unknown>
+  return (o['org.matrix.msc1767.text'] as string)
+    || (o['m.text'] as string)
+    || (o.body as string)
+    || (typeof o.text === 'string' ? o.text : '')
+    || ''
+}
+
+function extractPoll(content: Record<string, unknown>) {
+  return (
+    content['org.matrix.msc3381.poll']
+    || content['m.poll']
+    || content['org.matrix.msc3381.poll.start']
+    || content['m.poll.start']
+  ) as Record<string, unknown> | null
+}
+
+function collectVotes(roomId: string, pollEventId: string): VoteInfo[] {
+  const client = getMatrixClient()
+  if (!client) return []
+  const room = client.getRoom(roomId)
+  if (!room) return []
+
+  const votes: VoteInfo[] = []
+  const latestByUser = new Map<string, VoteInfo>()
+
+  const allTimelines = room.getUnfilteredTimelineSet().getTimelines()
+  for (const tl of allTimelines) {
+    for (const ev of tl.getEvents()) {
+      const type = ev.getType()
+      if (type !== 'org.matrix.msc3381.poll.response' && type !== 'm.poll.response') continue
+
+      const relates = ev.getContent()?.['m.relates_to'] as Record<string, unknown> | undefined
+      if (relates?.event_id !== pollEventId) continue
+
+      const response = (ev.getContent()?.['org.matrix.msc3381.poll.response'] || ev.getContent()?.['m.poll.response']) as Record<string, unknown> | undefined
+      const answers = response?.answers as string[] | undefined
+      if (!answers?.length) continue
+
+      const userId = ev.getSender()!
+      const member = room.getMember(userId)
+      const name = member?.name || userId
+
+      for (const answerId of answers) {
+        latestByUser.set(`${userId}:${answerId}`, { answerId, userId, name })
+      }
+    }
+  }
+
+  for (const vote of latestByUser.values()) {
+    votes.push(vote)
+  }
+
+  return votes
+}
+
 export function PollMessage({ eventId, roomId, content }: PollMessageProps) {
   const { t } = useTranslation()
-  const [voted, setVoted] = useState<string | null>(null)
+  const [myVotes, setMyVotes] = useState<string[]>([])
+  const [allVotes, setAllVotes] = useState<VoteInfo[]>([])
 
-  const poll = (content['org.matrix.msc3381.poll'] || content['m.poll']) as {
-    question?: { 'org.matrix.msc1767.text'?: string; body?: string }
-    answers?: Array<{ id: string; 'org.matrix.msc1767.text'?: string; body?: string }>
-  } | undefined
+  const poll = extractPoll(content)
 
-  const question = poll?.question?.['org.matrix.msc1767.text'] || poll?.question?.body || ''
+  const question = useMemo(() => {
+    if (!poll) return getText(content)
+    return getText(poll.question)
+  }, [poll, content])
+
+  const maxSelections = (poll?.max_selections as number) || 1
+
   const answers = useMemo<PollAnswer[]>(() => {
     if (!poll?.answers) return []
-    return poll.answers.map((a) => ({
-      id: a.id,
-      text: a['org.matrix.msc1767.text'] || a.body || '',
+    return (poll.answers as Array<Record<string, unknown>>).map((a) => ({
+      id: (a.id as string) || '',
+      text: getText(a),
     }))
-  }, [poll?.answers])
+  }, [poll])
+
+  useEffect(() => {
+    const votes = collectVotes(roomId, eventId)
+    setAllVotes(votes)
+
+    const client = getMatrixClient()
+    const myUserId = client?.getUserId()
+    if (myUserId) {
+      const mine = votes.filter((v) => v.userId === myUserId).map((v) => v.answerId)
+      setMyVotes(mine)
+    }
+  }, [roomId, eventId])
+
+  const totalVotes = useMemo(() => {
+    const voters = new Set(allVotes.map((v) => v.userId))
+    return voters.size
+  }, [allVotes])
+
+  const votesPerAnswer = useMemo(() => {
+    const map = new Map<string, VoteInfo[]>()
+    for (const v of allVotes) {
+      if (!map.has(v.answerId)) map.set(v.answerId, [])
+      map.get(v.answerId)!.push(v)
+    }
+    return map
+  }, [allVotes])
 
   const handleVote = async (answerId: string) => {
     const client = getMatrixClient()
-    if (!client || voted) return
+    if (!client) return
 
-    setVoted(answerId)
+    let nextVoted: string[]
+    if (maxSelections > 1) {
+      nextVoted = myVotes.includes(answerId)
+        ? myVotes.filter((id) => id !== answerId)
+        : [...myVotes, answerId]
+    } else {
+      if (myVotes.includes(answerId)) return
+      nextVoted = [answerId]
+    }
+
+    setMyVotes(nextVoted)
+
     try {
       await client.sendEvent(roomId, 'org.matrix.msc3381.poll.response' as never, {
         'm.relates_to': {
@@ -45,17 +150,27 @@ export function PollMessage({ eventId, roomId, content }: PollMessageProps) {
           event_id: eventId,
         },
         'org.matrix.msc3381.poll.response': {
-          answers: [answerId],
+          answers: nextVoted,
         },
       } as never)
+
+      const myUserId = client.getUserId()!
+      const myName = client.getRoom(roomId)?.getMember(myUserId)?.name || myUserId
+      setAllVotes((prev) => {
+        const without = prev.filter((v) => v.userId !== myUserId)
+        return [...without, ...nextVoted.map((aid) => ({ answerId: aid, userId: myUserId, name: myName }))]
+      })
     } catch {
-      setVoted(null)
+      setMyVotes(myVotes)
     }
   }
 
   if (!poll || answers.length === 0) {
-    return <p>{(content.body as string) || 'Опрос'}</p>
+    const fallback = getText(content) || (content.body as string) || 'Опрос'
+    return <p>{fallback}</p>
   }
+
+  const hasVotes = totalVotes > 0
 
   return (
     <div className={styles.poll}>
@@ -65,21 +180,43 @@ export function PollMessage({ eventId, roomId, content }: PollMessageProps) {
       </div>
       <div className={styles.answers}>
         {answers.map((answer) => {
-          const isVoted = voted === answer.id
+          const isVoted = myVotes.includes(answer.id)
+          const voters = votesPerAnswer.get(answer.id) || []
+          const pct = totalVotes > 0 ? Math.round((voters.length / totalVotes) * 100) : 0
+
           return (
-            <button
-              key={answer.id}
-              className={`${styles.answer} ${isVoted ? styles.voted : ''}`}
-              onClick={() => handleVote(answer.id)}
-              disabled={!!voted}
-            >
-              <span className={styles.answerText}>{answer.text}</span>
-              {isVoted && <Check size={16} className={styles.check} />}
-            </button>
+            <div key={answer.id} className={styles.answerWrap}>
+              <button
+                className={`${styles.answer} ${isVoted ? styles.voted : ''}`}
+                onClick={() => handleVote(answer.id)}
+              >
+                <div className={styles.answerContent}>
+                  <span className={styles.answerText}>{answer.text}</span>
+                  {hasVotes && <span className={styles.pct}>{pct}%</span>}
+                  {isVoted && <Check size={14} className={styles.check} />}
+                </div>
+                {hasVotes && (
+                  <div className={styles.progressBar}>
+                    <div
+                      className={`${styles.progressFill} ${isVoted ? styles.progressVoted : ''}`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                )}
+              </button>
+              {voters.length > 0 && (
+                <div className={styles.voters}>
+                  {voters.map((v) => v.name).join(', ')}
+                </div>
+              )}
+            </div>
           )
         })}
       </div>
-      {!voted && (
+      {hasVotes && (
+        <span className={styles.totalVotes}>{totalVotes} голос(ов)</span>
+      )}
+      {!hasVotes && (
         <span className={styles.hint}>{t('messages.vote')}</span>
       )}
     </div>

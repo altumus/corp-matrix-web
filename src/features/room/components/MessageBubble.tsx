@@ -429,10 +429,24 @@ export function MessageBubble({
 							🎤 <span>Голосовое сообщение</span>
 						</div>
 					)}
-					{(event.type === 'org.matrix.msc3381.poll.start' || !!content['org.matrix.msc3381.poll']) && (
-						<PollMessage eventId={event.eventId} roomId={event.roomId} content={content} />
-					)}
-					{(msgtype === 'm.text' || msgtype === 'm.notice' || !msgtype) && !content['org.matrix.msc3381.poll'] &&
+					{(() => {
+						const isPoll = event.type === 'org.matrix.msc3381.poll.start'
+							|| event.type === 'm.poll.start'
+							|| !!content['org.matrix.msc3381.poll']
+							|| !!content['m.poll']
+							|| !!content['org.matrix.msc3381.poll.start']
+							|| !!content['m.poll.start'];
+						return isPoll ? <PollMessage eventId={event.eventId} roomId={event.roomId} content={content} /> : null;
+					})()}
+					{(() => {
+						const isPoll = !!content['org.matrix.msc3381.poll']
+							|| !!content['m.poll']
+							|| !!content['org.matrix.msc3381.poll.start']
+							|| !!content['m.poll.start']
+							|| event.type === 'org.matrix.msc3381.poll.start'
+							|| event.type === 'm.poll.start';
+						return !isPoll && (msgtype === 'm.text' || msgtype === 'm.notice' || !msgtype);
+					})() &&
 						(formattedBody ? (
 							<div
 								className={styles.textContent}

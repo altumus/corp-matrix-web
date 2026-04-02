@@ -15,11 +15,11 @@ export function CreatePollDialog({ roomId, onClose }: CreatePollDialogProps) {
   const { t } = useTranslation()
   const [question, setQuestion] = useState('')
   const [options, setOptions] = useState(['', ''])
+  const [disclosed, setDisclosed] = useState(true)
+  const [multiSelect, setMultiSelect] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  const addOption = () => {
-    setOptions([...options, ''])
-  }
+  const addOption = () => setOptions([...options, ''])
 
   const removeOption = (index: number) => {
     if (options.length <= 2) return
@@ -43,20 +43,26 @@ export function CreatePollDialog({ roomId, onClose }: CreatePollDialogProps) {
     setLoading(true)
     try {
       const answers = validOptions.map((text, i) => ({
-        id: `option-${i}`,
+        id: `opt-${i}-${Date.now()}`,
         'org.matrix.msc1767.text': text.trim(),
       }))
 
+      const kind = disclosed
+        ? 'org.matrix.msc3381.poll.disclosed'
+        : 'org.matrix.msc3381.poll.undisclosed'
+
+      const pollData = {
+        kind,
+        max_selections: multiSelect ? validOptions.length : 1,
+        question: { 'org.matrix.msc1767.text': question.trim() },
+        answers,
+      }
+
+      const fallbackText = `${question.trim()}\n${validOptions.map((o, i) => `${i + 1}. ${o}`).join('\n')}`
+
       await client.sendEvent(roomId, 'org.matrix.msc3381.poll.start' as never, {
-        'org.matrix.msc3381.poll': {
-          kind: 'org.matrix.msc3381.poll.disclosed',
-          max_selections: 1,
-          question: {
-            'org.matrix.msc1767.text': question.trim(),
-          },
-          answers,
-        },
-        'org.matrix.msc1767.text': `${question.trim()}\n${validOptions.map((o, i) => `${i + 1}. ${o}`).join('\n')}`,
+        'org.matrix.msc3381.poll': pollData,
+        'org.matrix.msc1767.text': fallbackText,
       } as never)
 
       toast(t('messages.createPoll'), 'success')
@@ -101,6 +107,24 @@ export function CreatePollDialog({ roomId, onClose }: CreatePollDialogProps) {
           <Plus size={16} />
           {t('messages.addOption')}
         </button>
+
+        <label className={styles.toggle}>
+          <input
+            type="checkbox"
+            checked={disclosed}
+            onChange={(e) => setDisclosed(e.target.checked)}
+          />
+          <span>Ответы видны</span>
+        </label>
+
+        <label className={styles.toggle}>
+          <input
+            type="checkbox"
+            checked={multiSelect}
+            onChange={(e) => setMultiSelect(e.target.checked)}
+          />
+          <span>Разрешить несколько ответов</span>
+        </label>
 
         <div className={styles.actions}>
           <Button variant="secondary" onClick={onClose} type="button">

@@ -7,6 +7,7 @@ import { useMentions, type MentionCandidate } from '../hooks/useMentions.js'
 import { ImagePreviewDialog } from '../../media/components/ImagePreviewDialog.js'
 import { MentionPopup } from './MentionPopup.js'
 import { AttachMenu } from './AttachMenu.jsx'
+import { CreatePollDialog } from './CreatePollDialog.js'
 import { ForwardDialog } from './ForwardDialog.js'
 import { useComposerStore } from '../store/composerStore.js'
 import { useSelectionStore } from '../store/selectionStore.js'
@@ -182,6 +183,7 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
   const selectedIds = useSelectionStore((s) => s.selectedIds)
   const clearSelection = useSelectionStore((s) => s.clear)
   const [showAttachMenu, setShowAttachMenu] = useState(false)
+  const [showPollDialog, setShowPollDialog] = useState(false)
   const [showForwardSelected, setShowForwardSelected] = useState(false)
 
   const getSortedSelectedIds = () => {
@@ -324,7 +326,6 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
             </button>
             {showAttachMenu && (
               <AttachMenu
-                roomId={roomId}
                 onFileSelect={(accept: string) => {
                   setShowAttachMenu(false)
                   if (fileInputRef.current) {
@@ -332,6 +333,7 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
                     fileInputRef.current.click()
                   }
                 }}
+                onPoll={() => setShowPollDialog(true)}
                 onClose={() => setShowAttachMenu(false)}
               />
             )}
@@ -373,6 +375,13 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
           file={pendingFile}
           onConfirm={handleConfirmSend}
           onCancel={handleCancelSend}
+        />
+      )}
+
+      {showPollDialog && (
+        <CreatePollDialog
+          roomId={roomId}
+          onClose={() => setShowPollDialog(false)}
         />
       )}
     </>
