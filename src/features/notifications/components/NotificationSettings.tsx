@@ -1,11 +1,13 @@
 import { useTranslation } from 'react-i18next'
 import { useNotifications } from '../hooks/useNotifications.js'
+import { getPushTopic } from '../services/pushService.js'
 import { Button } from '../../../shared/ui/index.js'
 import styles from './NotificationSettings.module.scss'
 
 export function NotificationSettings() {
   const { t } = useTranslation()
   const { permission, enable, pushStatus, pushError } = useNotifications()
+  const topic = getPushTopic()
 
   return (
     <div className={styles.container}>
@@ -26,15 +28,22 @@ export function NotificationSettings() {
             <p className={styles.status}>Push: подключение...</p>
           )}
           {pushStatus === 'active' && (
-            <p className={styles.status}>Push: активен</p>
+            <>
+              <p className={styles.status}>Push: активен</p>
+              {topic && (
+                <p className={styles.topicInfo}>
+                  Для фоновых уведомлений установите{' '}
+                  <a href="https://ntfy.sh" target="_blank" rel="noreferrer">ntfy</a>
+                  {' '}и подпишитесь на топик:{' '}
+                  <code className={styles.topicCode}>{topic}</code>
+                </p>
+              )}
+            </>
           )}
           {pushStatus === 'failed' && (
             <p className={styles.statusDenied}>
               Push: ошибка — {pushError}
             </p>
-          )}
-          {pushStatus === 'idle' && (
-            <p className={styles.status}>Push: ожидание</p>
           )}
         </div>
       )}

@@ -2,6 +2,7 @@ import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
 
 const NTFY_SERVER = import.meta.env.VITE_NTFY_SERVER || 'https://ntfy.sh'
 const NTFY_TOPIC_PREFIX = import.meta.env.VITE_NTFY_TOPIC_PREFIX || 'corp-matrix'
+const NTFY_TOKEN = import.meta.env.VITE_NTFY_TOKEN || ''
 
 function getUserTopic(): string | null {
   const client = getMatrixClient()
@@ -20,63 +21,30 @@ function simpleHash(str: string): string {
   return Math.abs(h).toString(36)
 }
 
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
-  const raw = atob(base64)
-  const arr = new Uint8Array(raw.length)
-  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i)
-  return arr
-}
-
-async function getNtfyVapidKey(): Promise<string> {
-  console.log('[Push] Fetching VAPID key from', `${NTFY_SERVER}/v1/webpush`)
-  const res = await fetch(`${NTFY_SERVER}/v1/webpush`)
-  if (!res.ok) throw new Error(`Failed to get VAPID key: ${res.status} ${res.statusText}`)
-  const data = await res.json()
-  console.log('[Push] Got VAPID key:', data.public_key?.slice(0, 20) + '...')
-  return data.public_key
-}
-
-async function subscribeWebPush(vapidKey: string): Promise<PushSubscription> {
-  const registration = await navigator.serviceWorker.ready
-  console.log('[Push] Service worker ready')
-
-  let subscription = await registration.pushManager.getSubscription()
-  if (subscription) {
-    console.log('[Push] Reusing existing Web Push subscription')
-    return subscription
+async function subscribeNtfyAccount(topic: string): Promise<void> {
+  if (!NTFY_TOKEN) {
+    console.log('[Push] No NTFY_TOKEN — skipping account subscription')
+    return
   }
 
-  console.log('[Push] Creating new Web Push subscription...')
-  subscription = await registration.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(vapidKey).buffer as ArrayBuffer,
-  })
-  console.log('[Push] Web Push subscription created:', subscription.endpoint.slice(0, 60) + '...')
-  return subscription
-}
-
-async function registerNtfySubscription(
-  subscription: PushSubscription,
-  topic: string,
-): Promise<void> {
-  const json = subscription.toJSON()
-  console.log('[Push] Registering with ntfy for topic:', topic)
-  const res = await fetch(`${NTFY_SERVER}/v1/webpush`, {
+  console.log('[Push] Subscribing ntfy account to topic:', topic)
+  const res = await fetch(`${NTFY_SERVER}/v1/account/subscription`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${NTFY_TOKEN}`,
+    },
     body: JSON.stringify({
-      endpoint: json.endpoint,
-      keys: json.keys,
-      topics: [topic],
+      topic,
+      base_url: NTFY_SERVER,
     }),
   })
-  if (!res.ok) {
+
+  if (!res.ok && res.status !== 409) {
     const text = await res.text()
-    throw new Error(`ntfy registration failed: ${res.status} ${text}`)
+    throw new Error(`ntfy account subscription failed: ${res.status} ${text}`)
   }
-  console.log('[Push] Registered with ntfy successfully')
+  console.log('[Push] ntfy account subscribed')
 }
 
 async function registerMatrixPusher(topic: string): Promise<void> {
@@ -102,34 +70,25 @@ async function registerMatrixPusher(topic: string): Promise<void> {
     append: false,
   } as never)
 
-  console.log('[Push] Matrix pusher registered successfully')
+  console.log('[Push] Matrix pusher registered')
 }
 
 export async function subscribeToPush(): Promise<boolean> {
-  try {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-      console.warn('[Push] Service Worker or PushManager not supported')
-      return false
-    }
-
-    const topic = getUserTopic()
-    if (!topic) {
-      console.warn('[Push] No user topic — client not ready?')
-      return false
-    }
-    console.log('[Push] Starting push subscription for topic:', topic)
-
-    const vapidKey = await getNtfyVapidKey()
-    const subscription = await subscribeWebPush(vapidKey)
-    await registerNtfySubscription(subscription, topic)
-    await registerMatrixPusher(topic)
-
-    console.log('[Push] All done — push notifications active!')
-    return true
-  } catch (err) {
-    console.error('[Push] Subscription failed:', err)
-    return false
+  const topic = getUserTopic()
+  if (!topic) {
+    throw new Error('Matrix client not ready — no user ID')
   }
+  console.log('[Push] Starting push setup for topic:', topic)
+
+  await subscribeNtfyAccount(topic)
+  await registerMatrixPusher(topic)
+
+  console.log('[Push] Push setup complete! Topic:', topic)
+  return true
+}
+
+export function getPushTopic(): string | null {
+  return getUserTopic()
 }
 
 export async function unsubscribeFromPush(): Promise<void> {
@@ -150,12 +109,6 @@ export async function unsubscribeFromPush(): Promise<void> {
           data: {},
         } as never)
       }
-    }
-
-    const registration = await navigator.serviceWorker.ready
-    const subscription = await registration.pushManager.getSubscription()
-    if (subscription) {
-      await subscription.unsubscribe()
     }
     console.log('[Push] Unsubscribed')
   } catch (err) {
