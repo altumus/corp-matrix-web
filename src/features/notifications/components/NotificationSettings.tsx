@@ -5,7 +5,7 @@ import styles from './NotificationSettings.module.scss'
 
 export function NotificationSettings() {
   const { t } = useTranslation()
-  const { permission, enable } = useNotifications()
+  const { permission, enable, pushStatus, pushError } = useNotifications()
 
   return (
     <div className={styles.container}>
@@ -18,6 +18,25 @@ export function NotificationSettings() {
         </p>
       ) : (
         <Button onClick={enable}>{t('notifications.enable')}</Button>
+      )}
+
+      {permission === 'granted' && (
+        <div className={styles.pushStatus}>
+          {pushStatus === 'subscribing' && (
+            <p className={styles.status}>Push: подключение...</p>
+          )}
+          {pushStatus === 'active' && (
+            <p className={styles.status}>Push: активен</p>
+          )}
+          {pushStatus === 'failed' && (
+            <p className={styles.statusDenied}>
+              Push: ошибка — {pushError}
+            </p>
+          )}
+          {pushStatus === 'idle' && (
+            <p className={styles.status}>Push: ожидание</p>
+          )}
+        </div>
       )}
     </div>
   )
