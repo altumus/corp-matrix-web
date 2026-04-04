@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Archive, Info } from 'lucide-react';
+import { Archive, Bell, Info } from 'lucide-react';
 import { useSpaces } from '../hooks/useSpaces.js';
 import { Avatar } from '../../../shared/ui/index.js';
 import { CreateSpaceDialog } from './CreateSpaceDialog.js';
+import { requestNotificationPermission } from '../../notifications/services/notificationService.js';
 import styles from './SpacesSidebar.module.scss';
 
 const ARCHIVE_ID = '__archive__';
@@ -54,6 +55,30 @@ export function SpacesSidebar() {
 				title={t('rooms.archive')}
 			>
 				<Archive size={20} className={styles.homeIcon} />
+			</button>
+
+			<button
+				className={styles.item}
+				onClick={async () => {
+					const granted = await requestNotificationPermission();
+					if (!granted) return;
+
+					const options: NotificationOptions = {
+						body: 'Уведомления работают корректно!',
+						icon: '/corp-logo.png',
+						tag: 'test',
+					};
+
+					if ('serviceWorker' in navigator) {
+						const reg = await navigator.serviceWorker.ready;
+						await reg.showNotification('Corp Matrix', options);
+					} else {
+						new Notification('Corp Matrix', options);
+					}
+				}}
+				title='Тест уведомлений'
+			>
+				<Bell size={20} className={styles.homeIcon} />
 			</button>
 
 			<a

@@ -18,16 +18,27 @@ export async function requestNotificationPermission(): Promise<boolean> {
   return permission === 'granted'
 }
 
-export function showDesktopNotification(title: string, body: string, roomId?: string) {
+export async function showDesktopNotification(title: string, body: string, roomId?: string) {
   if (Notification.permission !== 'granted') return
   if (document.hasFocus()) return
 
-  const notification = new Notification(title, {
+  const options: NotificationOptions = {
     body,
     icon: '/corp-logo.png',
     tag: roomId,
-  })
+  }
 
+  if ('serviceWorker' in navigator) {
+    try {
+      const registration = await navigator.serviceWorker.ready
+      await registration.showNotification(title, options)
+      return
+    } catch {
+      // fallback below
+    }
+  }
+
+  const notification = new Notification(title, options)
   notification.onclick = () => {
     window.focus()
     if (roomId) {
