@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useIsTouchDevice } from './useMediaQuery.js'
 
 interface UseLongPressOptions {
@@ -13,6 +13,17 @@ export function useLongPress({ onLongPress, delay = 500 }: UseLongPressOptions) 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const startPos = useRef<{ x: number; y: number } | null>(null)
   const firedRef = useRef(false)
+  const elementRef = useRef<EventTarget | null>(null)
+
+  const blockContextMenu = useCallback((e: Event) => {
+    e.preventDefault()
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+  }, [])
 
   const clear = useCallback(() => {
     if (timerRef.current) {
@@ -20,20 +31,34 @@ export function useLongPress({ onLongPress, delay = 500 }: UseLongPressOptions) 
       timerRef.current = null
     }
     startPos.current = null
-  }, [])
+    if (elementRef.current) {
+      const el = elementRef.current as HTMLElement
+      el.removeEventListener('contextmenu', blockContextMenu)
+      el.style.removeProperty('-webkit-user-select')
+      el.style.removeProperty('user-select')
+      elementRef.current = null
+    }
+  }, [blockContextMenu])
 
   const onTouchStart = useCallback(
     (e: React.TouchEvent) => {
       firedRef.current = false
       const touch = e.touches[0]
       startPos.current = { x: touch.clientX, y: touch.clientY }
+
+      const el = e.currentTarget as HTMLElement
+      elementRef.current = el
+      el.addEventListener('contextmenu', blockContextMenu)
+      el.style.setProperty('-webkit-user-select', 'none')
+      el.style.setProperty('user-select', 'none')
+
       timerRef.current = setTimeout(() => {
         firedRef.current = true
         navigator.vibrate?.(50)
         onLongPress(e)
       }, delay)
     },
-    [onLongPress, delay],
+    [onLongPress, delay, blockContextMenu],
   )
 
   const onTouchMove = useCallback(

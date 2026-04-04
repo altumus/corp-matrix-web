@@ -56,13 +56,21 @@
   scrollbar-color: var(--color-border) transparent;
 }
 
+@mixin hover-support {
+  @media (hover: hover) and (pointer: fine) {
+    @content;
+  }
+}
+
 @mixin interactive {
   cursor: pointer;
   user-select: none;
   transition: background var(--transition-fast), transform var(--transition-fast);
 
-  &:hover {
-    background: var(--color-bg-hover);
+  @include hover-support {
+    &:hover {
+      background: var(--color-bg-hover);
+    }
   }
 
   &:active {
