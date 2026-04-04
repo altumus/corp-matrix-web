@@ -2,7 +2,7 @@ name: Deploy
 
 on:
   push:
-    branches: [feature/mobile-adaptive]
+    branches: [release]
 
 jobs:
   deploy:
@@ -16,7 +16,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             cd /opt/corp-matrix
-            git pull origin feature/mobile-adaptive
+            git pull origin release
             echo "VITE_VAPID_PUBLIC_KEY=${{ secrets.VAPID_PUBLIC_KEY }}" > .env
             npm install
             npm run build
