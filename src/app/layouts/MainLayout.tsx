@@ -14,9 +14,11 @@ export function MainLayout() {
   const isMobile = useIsMobile()
   const location = useLocation()
   const isInRoom = /^\/rooms\/[^/]+/.test(location.pathname)
+  const isInSettings = location.pathname.startsWith('/settings')
+  const showFullContent = isInRoom || isInSettings
 
-  const showRoomList = !isMobile || !isInRoom
-  const showContent = !isMobile || isInRoom
+  const showRoomList = !isMobile || !showFullContent
+  const showContent = !isMobile || showFullContent
 
   return (
     <div className={styles.layout}>
