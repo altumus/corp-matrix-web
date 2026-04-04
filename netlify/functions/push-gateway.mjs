@@ -1,13 +1,17 @@
 import webpush from 'web-push'
 import { getStore } from '@netlify/blobs'
 
-export default async (req) => {
-  if (req.method === 'GET') {
-    return Response.json({ gateway: 'matrix' })
+export async function handler(event) {
+  if (event.httpMethod === 'GET') {
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ gateway: 'matrix' }),
+    }
   }
 
-  if (req.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405 })
+  if (event.httpMethod !== 'POST') {
+    return { statusCode: 405, body: 'Method not allowed' }
   }
 
   const vapidPublic = process.env.VAPID_PUBLIC_KEY
@@ -16,26 +20,37 @@ export default async (req) => {
 
   if (!vapidPublic || !vapidPrivate) {
     console.error('VAPID keys not configured')
-    return Response.json({ rejected: [] })
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rejected: [] }),
+    }
   }
 
   webpush.setVapidDetails(vapidEmail, vapidPublic, vapidPrivate)
 
   let body
   try {
-    body = await req.json()
+    body = JSON.parse(event.body)
   } catch {
-    return Response.json({ rejected: [] })
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rejected: [] }),
+    }
   }
 
   const notification = body.notification
   if (!notification) {
-    return Response.json({ rejected: [] })
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rejected: [] }),
+    }
   }
 
   const devices = notification.devices || []
   const rejected = []
-
   const store = getStore('push-subscriptions')
 
   for (const device of devices) {
@@ -84,10 +99,9 @@ export default async (req) => {
     }
   }
 
-  return Response.json({ rejected })
-}
-
-export const config = {
-  path: ['/_matrix/push/v1/notify'],
-  method: ['GET', 'POST'],
+  return {
+    statusCode: 200,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rejected }),
+  }
 }

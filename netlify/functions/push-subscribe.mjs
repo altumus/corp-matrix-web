@@ -1,49 +1,64 @@
 import { getStore } from '@netlify/blobs'
 
-export default async (req) => {
-  if (req.method === 'GET') {
-    const vapidPublic = process.env.VAPID_PUBLIC_KEY
-    if (!vapidPublic) {
-      return Response.json({ error: 'VAPID key not configured' }, { status: 500 })
-    }
-    return Response.json({ public_key: vapidPublic })
+export async function handler(event) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
   }
 
-  if (req.method === 'DELETE') {
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 204, headers }
+  }
+
+  if (event.httpMethod === 'GET') {
+    const vapidPublic = process.env.VAPID_PUBLIC_KEY
+    if (!vapidPublic) {
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'VAPID key not configured' }),
+      }
+    }
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({ public_key: vapidPublic }),
+    }
+  }
+
+  if (event.httpMethod === 'DELETE') {
     try {
-      const { pushkey } = await req.json()
+      const { pushkey } = JSON.parse(event.body)
       if (!pushkey) {
-        return Response.json({ error: 'pushkey required' }, { status: 400 })
+        return { statusCode: 400, headers, body: JSON.stringify({ error: 'pushkey required' }) }
       }
       const store = getStore('push-subscriptions')
       await store.delete(pushkey)
-      return Response.json({ ok: true })
+      return { statusCode: 200, headers, body: JSON.stringify({ ok: true }) }
     } catch (err) {
-      return Response.json({ error: err.message }, { status: 500 })
+      return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) }
     }
   }
 
-  if (req.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405 })
-  }
-
-  try {
-    const { pushkey, subscription } = await req.json()
-
-    if (!pushkey || !subscription?.endpoint) {
-      return Response.json({ error: 'pushkey and subscription required' }, { status: 400 })
+  if (event.httpMethod === 'POST') {
+    try {
+      const { pushkey, subscription } = JSON.parse(event.body)
+      if (!pushkey || !subscription?.endpoint) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'pushkey and subscription required' }),
+        }
+      }
+      const store = getStore('push-subscriptions')
+      await store.set(pushkey, JSON.stringify(subscription))
+      return { statusCode: 200, headers, body: JSON.stringify({ ok: true }) }
+    } catch (err) {
+      return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) }
     }
-
-    const store = getStore('push-subscriptions')
-    await store.set(pushkey, JSON.stringify(subscription))
-
-    return Response.json({ ok: true })
-  } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 })
   }
-}
 
-export const config = {
-  path: ['/api/push/subscribe'],
-  method: ['GET', 'POST', 'DELETE'],
+  return { statusCode: 405, headers, body: 'Method not allowed' }
 }
