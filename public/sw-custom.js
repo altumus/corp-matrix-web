@@ -1,21 +1,22 @@
 self.addEventListener('push', (event) => {
   if (!event.data) return
 
-  let payload
+  let data
   try {
-    payload = event.data.json()
+    data = event.data.json()
   } catch {
-    payload = { title: 'Corp Matrix', message: event.data.text() }
+    data = { body: event.data.text() }
   }
 
-  const title = payload.title || 'Corp Matrix'
-  const body = payload.message || payload.body || ''
-  const roomId = payload.topic || payload.tag || ''
+  const title = data.sender || data.room_name || 'Corp Matrix'
+  const body = data.body || 'Новое сообщение'
+  const roomId = data.room_id || ''
 
   event.waitUntil(
     self.registration.showNotification(title, {
       body,
       icon: '/corp-logo.png',
+      badge: '/corp-logo.png',
       tag: roomId,
       data: { roomId },
       renotify: !!roomId,
