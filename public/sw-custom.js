@@ -8,7 +8,11 @@ self.addEventListener('push', (event) => {
     data = { body: event.data.text() }
   }
 
-  const title = data.sender || data.room_name || 'Corp Matrix'
+  const sender = data.sender || ''
+  const room = data.room_name || ''
+  const title = sender && room && room !== sender
+    ? `${sender} — ${room}`
+    : sender || room || 'Corp Matrix'
   const body = data.body || 'Новое сообщение'
   const roomId = data.room_id || ''
 
