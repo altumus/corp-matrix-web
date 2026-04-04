@@ -9,7 +9,6 @@ import { usePresence, getDmPartnerId } from '../../../shared/hooks/usePresence.j
 import { InviteToRoomDialog } from './InviteToRoomDialog.js'
 import { useRightPanel } from '../context/RightPanelContext.js'
 import { useIsMobile } from '../../../shared/hooks/useMediaQuery.js'
-import { useMobileNavStore } from '../../../shared/stores/mobileNavStore.js'
 import styles from './RoomHeader.module.scss'
 
 interface RoomHeaderProps {
@@ -22,12 +21,10 @@ export function RoomHeader({ room }: RoomHeaderProps) {
   const [showInvite, setShowInvite] = useState(false)
   const { openDetails } = useRightPanel()
   const isMobile = useIsMobile()
-  const setActiveView = useMobileNavStore((s) => s.setActiveView)
   const dmPartnerId = room.isDirect ? getDmPartnerId(room.roomId) : null
   const presence = usePresence(dmPartnerId)
 
   const handleBack = () => {
-    setActiveView('rooms')
     navigate('/rooms')
   }
 

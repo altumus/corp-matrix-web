@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router'
+import { Outlet, useLocation } from 'react-router'
 import { SpacesSidebar } from '../../features/spaces/components/SpacesSidebar.js'
 import { RoomList } from '../../features/room-list/components/RoomList.js'
 import { ConnectionBanner } from '../../shared/ui/ConnectionBanner/ConnectionBanner.js'
@@ -6,17 +6,17 @@ import { useNotifications } from '../../features/notifications/hooks/useNotifica
 import { useIncomingVerification } from '../../features/encryption/hooks/useIncomingVerification.js'
 import { IncomingVerificationDialog } from '../../features/encryption/components/IncomingVerificationDialog.js'
 import { useIsMobile } from '../../shared/hooks/useMediaQuery.js'
-import { useMobileNavStore } from '../../shared/stores/mobileNavStore.js'
 import styles from './MainLayout.module.scss'
 
 export function MainLayout() {
   useNotifications()
   const { request: verificationRequest, dismiss: dismissVerification } = useIncomingVerification()
   const isMobile = useIsMobile()
-  const activeView = useMobileNavStore((s) => s.activeView)
+  const location = useLocation()
+  const isInRoom = /^\/rooms\/[^/]+/.test(location.pathname)
 
-  const showRoomList = !isMobile || activeView === 'rooms'
-  const showContent = !isMobile || activeView === 'chat'
+  const showRoomList = !isMobile || !isInRoom
+  const showContent = !isMobile || isInRoom
 
   return (
     <div className={styles.layout}>
