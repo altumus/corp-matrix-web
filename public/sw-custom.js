@@ -17,7 +17,7 @@ self.addEventListener('push', (event) => {
       body,
       icon: '/corp-logo.png',
       badge: '/corp-logo.png',
-      tag: roomId,
+      tag: roomId || undefined,
       data: { roomId },
       renotify: !!roomId,
     })

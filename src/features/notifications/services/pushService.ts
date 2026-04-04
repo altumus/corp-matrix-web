@@ -1,21 +1,7 @@
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
 
-function getUserPushkey(): string | null {
-  const client = getMatrixClient()
-  if (!client) return null
-  const userId = client.getUserId()
-  if (!userId) return null
-  const hash = simpleHash(userId)
-  return `corp-matrix-${hash}`
-}
-
-function simpleHash(str: string): string {
-  let h = 0
-  for (let i = 0; i < str.length; i++) {
-    h = ((h << 5) - h + str.charCodeAt(i)) | 0
-  }
-  return Math.abs(h).toString(36)
-}
+const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || ''
+const PUSH_GATEWAY_URL = import.meta.env.VITE_PUSH_GATEWAY_URL || ''
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
@@ -26,57 +12,40 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return arr
 }
 
-async function getVapidKey(): Promise<string> {
-  console.log('[Push] Fetching VAPID key...')
-  const res = await fetch('/api/push/subscribe')
-  if (!res.ok) throw new Error(`Failed to get VAPID key: ${res.status}`)
-  const data = await res.json()
-  console.log('[Push] Got VAPID key')
-  return data.public_key
+function subscriptionToPushkey(sub: PushSubscription): string {
+  const json = JSON.stringify(sub.toJSON())
+  return btoa(json).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
 }
 
-async function subscribeWebPush(vapidKey: string): Promise<PushSubscription> {
-  const registration = await navigator.serviceWorker.ready
-  console.log('[Push] Service worker ready')
-
-  let subscription = await registration.pushManager.getSubscription()
-  if (subscription) {
-    console.log('[Push] Reusing existing Web Push subscription')
-    return subscription
+async function ensureServiceWorker(): Promise<ServiceWorkerRegistration> {
+  if (!('serviceWorker' in navigator)) {
+    throw new Error('Service Worker not supported')
   }
 
-  console.log('[Push] Creating new Web Push subscription...')
-  subscription = await registration.pushManager.subscribe({
+  if (import.meta.env.DEV) {
+    const reg = await navigator.serviceWorker.register('/sw-custom.js')
+    await navigator.serviceWorker.ready
+    return reg
+  }
+
+  return navigator.serviceWorker.ready
+}
+
+async function getWebPushSubscription(): Promise<PushSubscription> {
+  const registration = await ensureServiceWorker()
+
+  const existing = await registration.pushManager.getSubscription()
+  if (existing) return existing
+
+  return registration.pushManager.subscribe({
     userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(vapidKey).buffer as ArrayBuffer,
+    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
   })
-  console.log('[Push] Web Push subscription created')
-  return subscription
 }
 
-async function registerSubscription(
-  pushkey: string,
-  subscription: PushSubscription,
-): Promise<void> {
-  console.log('[Push] Registering subscription on server...')
-  const res = await fetch('/api/push/subscribe', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ pushkey, subscription: subscription.toJSON() }),
-  })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`Subscription registration failed: ${res.status} ${text}`)
-  }
-  console.log('[Push] Subscription registered')
-}
-
-async function registerMatrixPusher(pushkey: string): Promise<void> {
+async function registerMatrixPusher(pushkey: string, gatewayUrl: string): Promise<void> {
   const client = getMatrixClient()
   if (!client) throw new Error('Matrix client not available')
-
-  const gatewayUrl = `${window.location.origin}/_matrix/push/v1/notify`
-  console.log('[Push] Registering Matrix pusher — pushkey:', pushkey, 'gateway:', gatewayUrl)
 
   await client.setPusher({
     pushkey,
@@ -88,38 +57,51 @@ async function registerMatrixPusher(pushkey: string): Promise<void> {
     profile_tag: '',
     data: {
       url: gatewayUrl,
-      format: 'event_id_only',
     },
     append: false,
   } as never)
-
-  console.log('[Push] Matrix pusher registered')
 }
 
 export async function subscribeToPush(): Promise<boolean> {
-  const pushkey = getUserPushkey()
-  if (!pushkey) throw new Error('Matrix client not ready — no user ID')
+  if (!('PushManager' in window)) throw new Error('Push API not supported')
+  if (!VAPID_PUBLIC_KEY) throw new Error('VITE_VAPID_PUBLIC_KEY not configured')
 
-  console.log('[Push] Starting push setup, pushkey:', pushkey)
+  const subscription = await getWebPushSubscription()
+  const pushkey = subscriptionToPushkey(subscription)
 
-  const vapidKey = await getVapidKey()
-  const subscription = await subscribeWebPush(vapidKey)
-  await registerSubscription(pushkey, subscription)
-  await registerMatrixPusher(pushkey)
+  const gatewayBase = PUSH_GATEWAY_URL || window.location.origin
+  const gatewayPushUrl = `${gatewayBase}/_matrix/push/v1/notify`
 
-  console.log('[Push] All done — native push notifications active!')
+  if (PUSH_GATEWAY_URL) {
+    const client = getMatrixClient()
+    const userId = client?.getUserId() || 'unknown'
+    await fetch(`${PUSH_GATEWAY_URL}/api/push-subscribe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscription: subscription.toJSON(), userId }),
+    })
+    console.log('[Push] Subscription sent to gateway')
+  }
+
+  if (gatewayPushUrl.startsWith('https://')) {
+    await registerMatrixPusher(pushkey, gatewayPushUrl)
+    console.log('[Push] Matrix pusher registered, gateway:', gatewayPushUrl)
+  } else {
+    console.log('[Push] Local dev mode — Matrix pusher skipped')
+    console.log('[Push] Test at:', `${gatewayBase}/api/push-test`)
+  }
+
   return true
-}
-
-export function getPushTopic(): string | null {
-  return getUserPushkey()
 }
 
 export async function unsubscribeFromPush(): Promise<void> {
   try {
     const client = getMatrixClient()
-    const pushkey = getUserPushkey()
-    if (client && pushkey) {
+    const registration = await navigator.serviceWorker.ready
+    const subscription = await registration.pushManager.getSubscription()
+
+    if (client && subscription) {
+      const pushkey = subscriptionToPushkey(subscription)
       await client.setPusher({
         pushkey,
         kind: null,
@@ -130,17 +112,9 @@ export async function unsubscribeFromPush(): Promise<void> {
         profile_tag: '',
         data: {},
       } as never)
-      await fetch('/api/push/subscribe', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pushkey }),
-      })
     }
 
-    const registration = await navigator.serviceWorker.ready
-    const sub = await registration.pushManager.getSubscription()
-    if (sub) await sub.unsubscribe()
-
+    if (subscription) await subscription.unsubscribe()
     console.log('[Push] Unsubscribed')
   } catch (err) {
     console.error('[Push] Unsubscribe failed:', err)

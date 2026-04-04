@@ -2,15 +2,8 @@
   command = "npm run build"
   publish = "dist"
 
-[[redirects]]
-  from = "/_matrix/push/v1/notify"
-  to = "/.netlify/functions/push-gateway"
-  status = 200
-
-[[redirects]]
-  from = "/api/push/subscribe"
-  to = "/.netlify/functions/push-subscribe"
-  status = 200
+[functions]
+  node_bundler = "esbuild"
 
 [[redirects]]
   from = "/*"

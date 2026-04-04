@@ -1,0 +1,12 @@
+{
+  "name": "corp-matrix-push-gateway",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file=.env server.mjs",
+    "generate-keys": "node generate-vapid-keys.mjs"
+  },
+  "dependencies": {
+    "web-push": "^3.6.7"
+  }
+}

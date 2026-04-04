@@ -1,107 +1,66 @@
-import webpush from 'web-push'
-import { getStore } from '@netlify/blobs'
+import webPush from 'web-push'
 
-export async function handler(event) {
-  if (event.httpMethod === 'GET') {
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ gateway: 'matrix' }),
-    }
-  }
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY
+const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:admin@corp-matrix.local'
 
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, body: 'Method not allowed' }
-  }
+let vapidConfigured = false
+if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+  webPush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
+  vapidConfigured = true
+}
 
-  const vapidPublic = process.env.VAPID_PUBLIC_KEY
-  const vapidPrivate = process.env.VAPID_PRIVATE_KEY
-  const vapidEmail = process.env.VAPID_EMAIL || 'mailto:admin@corp-matrix.app'
-
-  if (!vapidPublic || !vapidPrivate) {
-    console.error('VAPID keys not configured')
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rejected: [] }),
-    }
-  }
-
-  webpush.setVapidDetails(vapidEmail, vapidPublic, vapidPrivate)
-
-  let body
-  try {
-    body = JSON.parse(event.body)
-  } catch {
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rejected: [] }),
-    }
-  }
-
-  const notification = body.notification
-  if (!notification) {
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rejected: [] }),
-    }
-  }
-
-  const devices = notification.devices || []
-  const rejected = []
-  const store = getStore('push-subscriptions')
-
-  for (const device of devices) {
-    const pushkey = device.pushkey
-    if (!pushkey) continue
-
-    let subscriptionStr
-    try {
-      subscriptionStr = await store.get(pushkey)
-    } catch {
-      rejected.push(pushkey)
-      continue
-    }
-
-    if (!subscriptionStr) {
-      rejected.push(pushkey)
-      continue
-    }
-
-    let subscription
-    try {
-      subscription = JSON.parse(subscriptionStr)
-    } catch {
-      rejected.push(pushkey)
-      continue
-    }
-
-    const payload = JSON.stringify({
-      event_id: notification.event_id,
-      room_id: notification.room_id,
-      room_name: notification.room_name || '',
-      sender: notification.sender_display_name || notification.sender || '',
-      body: notification.content?.body || '',
-      unread: notification.counts?.unread || 0,
-      prio: notification.prio || 'high',
+export default async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+      },
     })
+  }
 
-    try {
-      await webpush.sendNotification(subscription, payload)
-    } catch (err) {
-      console.error('Web push failed for', pushkey, err.statusCode || err.message)
-      if (err.statusCode === 404 || err.statusCode === 410) {
-        rejected.push(pushkey)
-        try { await store.delete(pushkey) } catch {}
+  if (!vapidConfigured) {
+    return Response.json(
+      { rejected: [], error: 'VAPID keys not configured' },
+      { status: 500 },
+    )
+  }
+
+  try {
+    const body = await req.json()
+    const n = body.notification || {}
+    const rejected = []
+
+    for (const device of n.devices || []) {
+      try {
+        const subJson = Buffer.from(device.pushkey, 'base64url').toString()
+        const subscription = JSON.parse(subJson)
+
+        const payload = JSON.stringify({
+          sender: n.sender_display_name || n.sender || '',
+          room_name: n.room_name || '',
+          body: n.content?.body || 'Новое сообщение',
+          room_id: n.room_id || '',
+          event_id: n.event_id || '',
+        })
+
+        await webPush.sendNotification(subscription, payload)
+      } catch (err) {
+        console.error('[Push Gateway]', err.message)
+        rejected.push(device.pushkey)
       }
     }
-  }
 
-  return {
-    statusCode: 200,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ rejected }),
+    return Response.json({ rejected })
+  } catch (err) {
+    console.error('[Push Gateway]', err)
+    return Response.json({ rejected: [] }, { status: 500 })
   }
+}
+
+export const config = {
+  path: '/_matrix/push/v1/notify',
 }
