@@ -1,9 +1,8 @@
 import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { Bell, Bookmark, Plus, Settings } from 'lucide-react'
+import { Bookmark, Plus, Settings } from 'lucide-react'
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
-import { requestNotificationPermission } from '../../notifications/services/notificationService.js'
 import { useRoomListStore } from '../store/roomListStore.js'
 import { CreateRoomDialog } from './CreateRoomDialog.js'
 import styles from './RoomListHeader.module.scss'
@@ -58,29 +57,6 @@ export function RoomListHeader() {
           title={t('rooms.create')}
         >
           <Plus size={18} />
-        </button>
-        <button
-          className={styles.settingsBtn}
-          onClick={async () => {
-            const granted = await requestNotificationPermission()
-            if (!granted) return
-
-            const options: NotificationOptions = {
-              body: 'Уведомления работают корректно!',
-              icon: '/corp-logo.png',
-              tag: 'test',
-            }
-
-            if ('serviceWorker' in navigator) {
-              const reg = await navigator.serviceWorker.ready
-              await reg.showNotification('Corp Matrix', options)
-            } else {
-              new Notification('Corp Matrix', options)
-            }
-          }}
-          title='Тест уведомлений'
-        >
-          <Bell size={18} />
         </button>
         <button
           className={styles.settingsBtn}
