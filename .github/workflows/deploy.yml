@@ -1,0 +1,25 @@
+name: Deploy
+
+on:
+  push:
+    branches: [feature/mobile-adaptive]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd /opt/corp-matrix
+            git pull origin feature/mobile-adaptive
+            echo "VITE_VAPID_PUBLIC_KEY=${{ secrets.VAPID_PUBLIC_KEY }}" > .env
+            npm install
+            npm run build
+            cd push-gateway
+            npm install
+            pm2 restart push-gateway
