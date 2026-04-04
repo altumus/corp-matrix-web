@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Avatar } from '../../../shared/ui/index.js'
+import { useIsMobile } from '../../../shared/hooks/useMediaQuery.js'
 import styles from './MessageContextMenu.module.scss'
 
 export interface ContextMenuAction {
@@ -29,9 +30,10 @@ interface MessageContextMenuProps {
 export function MessageContextMenu({ x, y, actions, receipts, onClose }: MessageContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
   const [showReceipts, setShowReceipts] = useState(false)
+  const isMobile = useIsMobile()
 
   useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
+    const handleOutside = (e: MouseEvent | TouchEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         onClose()
       }
@@ -39,15 +41,18 @@ export function MessageContextMenu({ x, y, actions, receipts, onClose }: Message
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
     }
-    document.addEventListener('mousedown', handleClick)
+    document.addEventListener('mousedown', handleOutside)
+    document.addEventListener('touchstart', handleOutside)
     document.addEventListener('keydown', handleKey)
     return () => {
-      document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('mousedown', handleOutside)
+      document.removeEventListener('touchstart', handleOutside)
       document.removeEventListener('keydown', handleKey)
     }
   }, [onClose])
 
   useEffect(() => {
+    if (isMobile) return
     const menu = menuRef.current
     if (!menu) return
     const rect = menu.getBoundingClientRect()
@@ -57,16 +62,18 @@ export function MessageContextMenu({ x, y, actions, receipts, onClose }: Message
     if (rect.bottom > window.innerHeight) {
       menu.style.top = `${y - rect.height}px`
     }
-  }, [x, y, showReceipts])
+  }, [x, y, showReceipts, isMobile])
 
   const visibleActions = actions.filter((a) => !a.hidden)
 
   return (
-    <div
-      ref={menuRef}
-      className={styles.menu}
-      style={{ left: x, top: y }}
-    >
+    <>
+      {isMobile && <div className={styles.backdrop} onClick={onClose} />}
+      <div
+        ref={menuRef}
+        className={`${styles.menu} ${isMobile ? styles.menuMobile : ''}`}
+        style={isMobile ? undefined : { left: x, top: y }}
+      >
       {visibleActions.map((action) => (
         <button
           key={action.id}
@@ -115,6 +122,7 @@ export function MessageContextMenu({ x, y, actions, receipts, onClose }: Message
         </>
       )}
     </div>
+    </>
   )
 }
 

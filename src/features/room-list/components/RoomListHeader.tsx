@@ -1,16 +1,20 @@
 import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { Bookmark, Plus, Settings } from 'lucide-react'
+import { Bookmark, Plus, Settings, LayoutGrid } from 'lucide-react'
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
 import { useRoomListStore } from '../store/roomListStore.js'
+import { useIsMobile } from '../../../shared/hooks/useMediaQuery.js'
 import { CreateRoomDialog } from './CreateRoomDialog.js'
+import { SpacesDrawer } from '../../spaces/components/SpacesDrawer.js'
 import styles from './RoomListHeader.module.scss'
 
 export function RoomListHeader() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const isMobile = useIsMobile()
   const [showCreate, setShowCreate] = useState(false)
+  const [showSpaces, setShowSpaces] = useState(false)
   const rooms = useRoomListStore((s) => s.rooms)
   const setSelectedRoom = useRoomListStore((s) => s.setSelectedRoom)
 
@@ -42,6 +46,15 @@ export function RoomListHeader() {
 
   return (
     <div className={styles.header}>
+      {isMobile && (
+        <button
+          className={styles.spacesBtn}
+          onClick={() => setShowSpaces(true)}
+          title={t('spaces.title', 'Пространства')}
+        >
+          <LayoutGrid size={18} />
+        </button>
+      )}
       <h1 className={styles.title}>{t('rooms.title')}</h1>
       <div className={styles.actions}>
         <button
@@ -67,6 +80,7 @@ export function RoomListHeader() {
         </button>
       </div>
       {showCreate && <CreateRoomDialog onClose={() => setShowCreate(false)} />}
+      {showSpaces && <SpacesDrawer onClose={() => setShowSpaces(false)} />}
     </div>
   )
 }

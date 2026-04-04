@@ -6,6 +6,7 @@ import { Avatar } from '../../../shared/ui/index.js'
 import { MemberList } from './MemberList.js'
 import { AccessibilitySettings } from './AccessibilitySettings.js'
 import { PermissionsSettings } from './PermissionsSettings.js'
+import { useIsMobile } from '../../../shared/hooks/useMediaQuery.js'
 import styles from './RoomDetailsPanel.module.scss'
 
 interface RoomDetailsPanelProps {
@@ -18,10 +19,12 @@ type View = 'main' | 'accessibility' | 'permissions'
 export function RoomDetailsPanel({ room, onClose }: RoomDetailsPanelProps) {
   const { t } = useTranslation()
   const [view, setView] = useState<View>('main')
+  const isMobile = useIsMobile()
+  const panelCls = `${styles.panel} ${isMobile ? styles.panelMobile : ''}`
 
   if (view === 'accessibility') {
     return (
-      <div className={styles.panel}>
+      <div className={panelCls}>
         <div className={styles.header}>
           <button className={styles.backBtn} onClick={() => setView('main')}>
             <ArrowLeft size={18} />
@@ -37,7 +40,7 @@ export function RoomDetailsPanel({ room, onClose }: RoomDetailsPanelProps) {
 
   if (view === 'permissions') {
     return (
-      <div className={styles.panel}>
+      <div className={panelCls}>
         <div className={styles.header}>
           <button className={styles.backBtn} onClick={() => setView('main')}>
             <ArrowLeft size={18} />
@@ -52,7 +55,7 @@ export function RoomDetailsPanel({ room, onClose }: RoomDetailsPanelProps) {
   }
 
   return (
-    <div className={styles.panel}>
+    <div className={panelCls}>
       <div className={styles.header}>
         <button className={styles.closeBtn} onClick={onClose}>
           <X size={18} />

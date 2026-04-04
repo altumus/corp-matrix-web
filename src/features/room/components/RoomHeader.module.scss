@@ -54,6 +54,23 @@
   color: var(--color-success);
 }
 
+.backBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  color: var(--color-text-secondary);
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+
+  &:active {
+    transform: scale(0.95);
+    background: var(--color-bg-active);
+  }
+}
+
 .inviteBtn {
   display: flex;
   align-items: center;

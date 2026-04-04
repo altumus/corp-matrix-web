@@ -12,6 +12,9 @@ import {
 } from '../../messaging/components/MessageContextMenu.js'
 import { EncryptionBadge } from '../../encryption/components/EncryptionBadge.js'
 import { usePresence, getDmPartnerId } from '../../../shared/hooks/usePresence.js'
+import { useIsMobile } from '../../../shared/hooks/useMediaQuery.js'
+import { useMobileNavStore } from '../../../shared/stores/mobileNavStore.js'
+import { useLongPress } from '../../../shared/hooks/useLongPress.js'
 import { AddToSpaceDialog } from './AddToSpaceDialog.jsx'
 import styles from './RoomListItem.module.scss'
 
@@ -80,6 +83,9 @@ export function RoomListItem({ room }: RoomListItemProps) {
   const [unreadLocal, setUnreadLocal] = useState(() => isMarkedUnread(room.roomId))
   const [lowPriorityLocal, setLowPriorityLocal] = useState(() => hasTag(room.roomId, 'm.lowpriority'))
 
+  const isMobile = useIsMobile()
+  const setActiveView = useMobileNavStore((s) => s.setActiveView)
+
   const client = getMatrixClient()
   const myUserId = client?.getUserId() ?? null
   const dmPartnerId = room.isDirect && !room.isSavedMessages ? getDmPartnerId(room.roomId) : null
@@ -88,12 +94,22 @@ export function RoomListItem({ room }: RoomListItemProps) {
   const handleClick = () => {
     setSelectedRoom(room.roomId)
     navigate(`/rooms/${encodeURIComponent(room.roomId)}`)
+    if (isMobile) setActiveView('chat')
   }
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     setContextMenu({ x: e.clientX, y: e.clientY })
   }, [])
+
+  const longPressHandlers = useLongPress({
+    onLongPress: useCallback((e: React.TouchEvent) => {
+      const touch = e.touches[0]
+      if (touch) {
+        setContextMenu({ x: touch.clientX, y: touch.clientY })
+      }
+    }, []),
+  })
 
   const isPinned = room.isPinned
   const isLowPriority = lowPriorityLocal
@@ -214,6 +230,7 @@ export function RoomListItem({ room }: RoomListItemProps) {
         onClick={handleClick}
         onContextMenu={handleContextMenu}
         aria-current={isSelected ? 'page' : undefined}
+        {...longPressHandlers}
       >
         {room.isSavedMessages ? (
           <SavedMessagesIcon />
