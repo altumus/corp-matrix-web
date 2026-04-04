@@ -62,6 +62,36 @@ async function registerMatrixPusher(pushkey: string, gatewayUrl: string): Promis
   } as never)
 }
 
+async function removeOldPushers(): Promise<void> {
+  const client = getMatrixClient()
+  if (!client) return
+
+  try {
+    const response = await client.getPushers()
+    const pushers = response?.pushers || []
+
+    for (const pusher of pushers) {
+      if (pusher.app_id !== 'corp.matrix.web') continue
+      if (pusher.pushkey?.includes('ntfy')) {
+        console.log('[Push] Removing old ntfy pusher:', pusher.pushkey)
+        await client.setPusher({
+          pushkey: pusher.pushkey,
+          kind: null,
+          app_id: pusher.app_id,
+          app_display_name: '',
+          device_display_name: '',
+          lang: '',
+          profile_tag: '',
+          data: {},
+        } as never)
+        console.log('[Push] Old ntfy pusher removed')
+      }
+    }
+  } catch (err) {
+    console.warn('[Push] Failed to clean old pushers:', err)
+  }
+}
+
 export async function subscribeToPush(): Promise<boolean> {
   if (!('PushManager' in window)) throw new Error('Push API not supported')
   if (!VAPID_PUBLIC_KEY) throw new Error('VITE_VAPID_PUBLIC_KEY not configured')
@@ -71,6 +101,8 @@ export async function subscribeToPush(): Promise<boolean> {
 
   const gatewayBase = PUSH_GATEWAY_URL || window.location.origin
   const gatewayPushUrl = `${gatewayBase}/_matrix/push/v1/notify`
+
+  await removeOldPushers()
 
   if (PUSH_GATEWAY_URL) {
     const client = getMatrixClient()

@@ -55,7 +55,10 @@ export function RoomListHeader() {
           <LayoutGrid size={18} />
         </button>
       )}
-      <h1 className={styles.title}>{t('rooms.title')}</h1>
+      <h1 className={styles.title}>
+        {t('rooms.title')}
+        <span className={styles.version}>v{__APP_VERSION__}</span>
+      </h1>
       <div className={styles.actions}>
         <button
           className={styles.savedBtn}
