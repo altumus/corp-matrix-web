@@ -9,6 +9,7 @@ import { AppearanceSettings } from './AppearanceSettings.js'
 import { DevicesSettings } from './DevicesSettings.js'
 import { EncryptionSettings } from './EncryptionSettings.js'
 import { LanguageSettings } from './LanguageSettings.js'
+import { NotificationSettings } from '../../notifications/components/NotificationSettings.js'
 import styles from './SettingsPage.module.scss'
 
 export default function SettingsPage() {
@@ -57,6 +58,12 @@ export default function SettingsPage() {
         >
           {t('settings.language')}
         </NavLink>
+        <NavLink
+          to="/settings/notifications"
+          className={({ isActive }) => `${styles.link} ${isActive ? styles.active : ''}`}
+        >
+          {t('notifications.title')}
+        </NavLink>
 
         <div className={styles.spacer} />
 
@@ -73,6 +80,7 @@ export default function SettingsPage() {
           <Route path="devices" element={<DevicesSettings />} />
           <Route path="encryption" element={<EncryptionSettings />} />
           <Route path="language" element={<LanguageSettings />} />
+          <Route path="notifications" element={<NotificationSettings />} />
         </Routes>
       </div>
 
