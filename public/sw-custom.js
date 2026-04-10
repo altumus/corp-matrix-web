@@ -1,7 +1,37 @@
+self.addEventListener('push', (event) => {
+  if (!event.data) return
+
+  let data
+  try {
+    data = event.data.json()
+  } catch {
+    data = { body: event.data.text() }
+  }
+
+  const sender = data.sender || ''
+  const room = data.room_name || ''
+  const title = sender && room && room !== sender
+    ? `${sender} — ${room}`
+    : sender || room || 'Corp Matrix'
+  const body = data.body || 'Новое сообщение'
+  const roomId = data.room_id || ''
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon: '/corp-logo.png',
+      badge: '/corp-logo.png',
+      tag: roomId || undefined,
+      data: { roomId },
+      renotify: !!roomId,
+    })
+  )
+})
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
 
-  const roomId = event.notification.tag
+  const roomId = event.notification.data?.roomId || event.notification.tag
   const urlToOpen = roomId
     ? `/rooms/${encodeURIComponent(roomId)}`
     : '/'

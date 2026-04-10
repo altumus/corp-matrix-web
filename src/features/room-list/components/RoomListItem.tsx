@@ -12,6 +12,7 @@ import {
 } from '../../messaging/components/MessageContextMenu.js'
 import { EncryptionBadge } from '../../encryption/components/EncryptionBadge.js'
 import { usePresence, getDmPartnerId } from '../../../shared/hooks/usePresence.js'
+import { useLongPress } from '../../../shared/hooks/useLongPress.js'
 import { AddToSpaceDialog } from './AddToSpaceDialog.jsx'
 import styles from './RoomListItem.module.scss'
 
@@ -94,6 +95,15 @@ export function RoomListItem({ room }: RoomListItemProps) {
     e.preventDefault()
     setContextMenu({ x: e.clientX, y: e.clientY })
   }, [])
+
+  const longPressHandlers = useLongPress({
+    onLongPress: useCallback((e: React.TouchEvent) => {
+      const touch = e.touches[0]
+      if (touch) {
+        setContextMenu({ x: touch.clientX, y: touch.clientY })
+      }
+    }, []),
+  })
 
   const isPinned = room.isPinned
   const isLowPriority = lowPriorityLocal
@@ -214,6 +224,7 @@ export function RoomListItem({ room }: RoomListItemProps) {
         onClick={handleClick}
         onContextMenu={handleContextMenu}
         aria-current={isSelected ? 'page' : undefined}
+        {...longPressHandlers}
       >
         {room.isSavedMessages ? (
           <SavedMessagesIcon />

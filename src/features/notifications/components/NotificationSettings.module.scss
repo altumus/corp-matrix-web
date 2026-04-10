@@ -19,4 +19,26 @@
   font-size: var(--font-size-sm);
   color: var(--color-warning);
   margin: 0;
+  word-break: break-word;
+}
+
+.pushStatus {
+  padding-top: var(--spacing-xs);
+  border-top: 1px solid var(--color-border);
+}
+
+.topicInfo {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin: 0;
+  line-height: var(--line-height-relaxed);
+}
+
+.topicCode {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  background: var(--color-bg-tertiary);
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  user-select: all;
 }

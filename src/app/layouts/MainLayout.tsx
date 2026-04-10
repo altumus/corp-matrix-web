@@ -1,27 +1,40 @@
-import { Outlet } from 'react-router'
+import { Outlet, useLocation } from 'react-router'
 import { SpacesSidebar } from '../../features/spaces/components/SpacesSidebar.js'
 import { RoomList } from '../../features/room-list/components/RoomList.js'
 import { ConnectionBanner } from '../../shared/ui/ConnectionBanner/ConnectionBanner.js'
 import { useNotifications } from '../../features/notifications/hooks/useNotifications.js'
 import { useIncomingVerification } from '../../features/encryption/hooks/useIncomingVerification.js'
 import { IncomingVerificationDialog } from '../../features/encryption/components/IncomingVerificationDialog.js'
+import { useIsMobile } from '../../shared/hooks/useMediaQuery.js'
 import styles from './MainLayout.module.scss'
 
 export function MainLayout() {
   useNotifications()
   const { request: verificationRequest, dismiss: dismissVerification } = useIncomingVerification()
+  const isMobile = useIsMobile()
+  const location = useLocation()
+  const isInRoom = /^\/rooms\/[^/]+/.test(location.pathname)
+  const isInSettings = location.pathname.startsWith('/settings')
+  const showFullContent = isInRoom || isInSettings
+
+  const showRoomList = !isMobile || !showFullContent
+  const showContent = !isMobile || showFullContent
 
   return (
     <div className={styles.layout}>
       <ConnectionBanner />
       <div className={styles.main}>
-        <SpacesSidebar />
-        <aside className={styles.sidebar}>
-          <RoomList />
-        </aside>
-        <main className={styles.content}>
-          <Outlet />
-        </main>
+        {!isMobile && <SpacesSidebar />}
+        {showRoomList && (
+          <aside className={`${styles.sidebar} ${isMobile ? styles.sidebarMobile : ''}`}>
+            <RoomList />
+          </aside>
+        )}
+        {showContent && (
+          <main className={`${styles.content} ${isMobile ? styles.contentMobile : ''}`}>
+            <Outlet />
+          </main>
+        )}
       </div>
 
       {verificationRequest && (

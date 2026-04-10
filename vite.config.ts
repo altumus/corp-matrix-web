@@ -4,8 +4,12 @@ import babel from '@rolldown/plugin-babel';
 import wasm from 'vite-plugin-wasm';
 import { VitePWA } from 'vite-plugin-pwa';
 import path from 'path';
+import pkg from './package.json' with { type: 'json' };
 
 export default defineConfig({
+	define: {
+		__APP_VERSION__: JSON.stringify(pkg.version),
+	},
 	plugins: [
 		wasm(),
 		react(),

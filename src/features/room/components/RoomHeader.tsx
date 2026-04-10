@@ -1,12 +1,14 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { UserPlus } from 'lucide-react'
+import { ArrowLeft, UserPlus } from 'lucide-react'
 import type { RoomSummary } from '../types.js'
 import { Avatar } from '../../../shared/ui/index.js'
 import { EncryptionBadge } from '../../encryption/components/EncryptionBadge.js'
 import { usePresence, getDmPartnerId } from '../../../shared/hooks/usePresence.js'
 import { InviteToRoomDialog } from './InviteToRoomDialog.js'
 import { useRightPanel } from '../context/RightPanelContext.js'
+import { useIsMobile } from '../../../shared/hooks/useMediaQuery.js'
 import styles from './RoomHeader.module.scss'
 
 interface RoomHeaderProps {
@@ -15,10 +17,16 @@ interface RoomHeaderProps {
 
 export function RoomHeader({ room }: RoomHeaderProps) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const [showInvite, setShowInvite] = useState(false)
   const { openDetails } = useRightPanel()
+  const isMobile = useIsMobile()
   const dmPartnerId = room.isDirect ? getDmPartnerId(room.roomId) : null
   const presence = usePresence(dmPartnerId)
+
+  const handleBack = () => {
+    navigate('/rooms')
+  }
 
   const subtitle = (() => {
     if (room.topic) return room.topic
@@ -39,6 +47,11 @@ export function RoomHeader({ room }: RoomHeaderProps) {
 
   return (
     <header className={styles.header}>
+      {isMobile && (
+        <button className={styles.backBtn} onClick={handleBack}>
+          <ArrowLeft size={20} />
+        </button>
+      )}
       <Avatar
         src={room.avatarUrl}
         name={room.name}

@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { useIsMobile } from '../../hooks/useMediaQuery.js'
 import styles from './Modal.module.scss'
 
 interface ModalProps {
@@ -12,6 +13,7 @@ interface ModalProps {
 
 export function Modal({ open, onClose, title, children, className = '' }: ModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     const dialog = dialogRef.current
@@ -46,7 +48,7 @@ export function Modal({ open, onClose, title, children, className = '' }: ModalP
   return createPortal(
     <dialog
       ref={dialogRef}
-      className={`${styles.modal} ${className}`}
+      className={`${styles.modal} ${isMobile ? styles.mobileSheet : ''} ${className}`}
       onClick={handleBackdropClick}
     >
       <div className={styles.content}>

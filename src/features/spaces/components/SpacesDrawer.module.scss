@@ -1,0 +1,124 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--color-bg-overlay);
+  z-index: var(--z-modal-backdrop);
+  animation: fadeIn 150ms ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.drawer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 280px;
+  max-width: 80%;
+  background: var(--color-bg-secondary);
+  display: flex;
+  flex-direction: column;
+  animation: slideIn 200ms ease;
+  box-shadow: var(--shadow-lg);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+  height: var(--header-height);
+}
+
+.title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.closeBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-full);
+  color: var(--color-text-secondary);
+  transition: all var(--transition-fast);
+
+  &:active {
+    background: var(--color-bg-active);
+  }
+}
+
+.list {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-sm) 0;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  width: 100%;
+  padding: var(--spacing-md) var(--spacing-lg);
+  font-size: var(--font-size-md);
+  color: var(--color-text-primary);
+  text-align: left;
+  min-height: 48px;
+  transition: background var(--transition-fast);
+
+  &:active {
+    background: var(--color-bg-active);
+  }
+
+  &.active {
+    background: var(--color-accent-light);
+    color: var(--color-accent);
+  }
+}
+
+.homeIcon {
+  font-size: 20px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+}
+
+.addItem {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  width: 100%;
+  padding: var(--spacing-md) var(--spacing-lg);
+  font-size: var(--font-size-md);
+  color: var(--color-accent);
+  text-align: left;
+  min-height: 48px;
+  transition: background var(--transition-fast);
+
+  &:active {
+    background: var(--color-bg-active);
+  }
+}

@@ -1,12 +1,38 @@
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
-import { RoomEvent } from 'matrix-js-sdk'
-import type { MatrixEvent, Room } from 'matrix-js-sdk'
+import { RoomEvent, ClientEvent, SyncState } from 'matrix-js-sdk'
+import type { MatrixEvent, Room, IRoomTimelineData } from 'matrix-js-sdk'
+import { useRoomListStore } from '../../room-list/store/roomListStore.js'
 
 let notificationSound: HTMLAudioElement | null = null
+let soundUnlocked = false
 
 export function initNotificationSound() {
   notificationSound = new Audio('/notification.wav')
   notificationSound.volume = 0.3
+}
+
+function unlockAudio() {
+  if (soundUnlocked || !notificationSound) return
+  const ctx = new (window.AudioContext || (window as never as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
+  const buffer = ctx.createBuffer(1, 1, 22050)
+  const source = ctx.createBufferSource()
+  source.buffer = buffer
+  source.connect(ctx.destination)
+  source.start()
+
+  notificationSound.play().then(() => {
+    notificationSound!.pause()
+    notificationSound!.currentTime = 0
+    soundUnlocked = true
+  }).catch(() => {})
+
+  document.removeEventListener('touchstart', unlockAudio, true)
+  document.removeEventListener('click', unlockAudio, true)
+}
+
+export function setupAudioUnlock() {
+  document.addEventListener('touchstart', unlockAudio, { capture: true, once: true })
+  document.addEventListener('click', unlockAudio, { capture: true, once: true })
 }
 
 export async function requestNotificationPermission(): Promise<boolean> {
@@ -49,31 +75,55 @@ export async function showDesktopNotification(title: string, body: string, roomI
 }
 
 export function playNotificationSound() {
-  notificationSound?.play().catch(() => {
-    // autoplay blocked
-  })
+  if (!notificationSound) return
+  notificationSound.currentTime = 0
+  notificationSound.play().catch(() => {})
 }
 
 export function setupNotificationListeners() {
   const client = getMatrixClient()
   if (!client) return
 
-  client.on(RoomEvent.Timeline, (event: MatrixEvent, room: Room | undefined) => {
-    if (!event || !room) return
+  let initialSyncDone = false
 
-    const sender = event.getSender()
-    if (sender === client.getUserId()) return
+  const syncState = client.getSyncState()
+  if (syncState === SyncState.Prepared || syncState === SyncState.Syncing) {
+    initialSyncDone = true
+  } else {
+    const onSync = (state: SyncState) => {
+      if (state === SyncState.Prepared || state === SyncState.Syncing) {
+        initialSyncDone = true
+        client.removeListener(ClientEvent.Sync, onSync)
+      }
+    }
+    client.on(ClientEvent.Sync, onSync)
+  }
 
-    if (event.getType() !== 'm.room.message') return
+  client.on(
+    RoomEvent.Timeline,
+    (event: MatrixEvent, room: Room | undefined, _toStart: boolean | undefined, _removed: boolean, data: IRoomTimelineData) => {
+      if (!initialSyncDone) return
+      if (!data.liveEvent) return
+      if (!event || !room) return
 
-    const content = event.getContent()
-    const body = (content.body as string) || ''
-    const senderMember = room.getMember(sender!)
-    const senderName = senderMember?.name || sender || ''
+      const sender = event.getSender()
+      if (sender === client.getUserId()) return
+      if (event.getType() !== 'm.room.message') return
 
-    showDesktopNotification(senderName, body, room.roomId)
-    playNotificationSound()
-  })
+      const currentRoomId = useRoomListStore.getState().selectedRoomId
+      const isInCurrentRoom = currentRoomId === room.roomId && document.hasFocus()
+
+      if (isInCurrentRoom) return
+
+      const content = event.getContent()
+      const body = (content.body as string) || ''
+      const senderMember = room.getMember(sender!)
+      const senderName = senderMember?.name || sender || ''
+
+      showDesktopNotification(senderName, body, room.roomId)
+      playNotificationSound()
+    },
+  )
 }
 
 export type NotificationLevel = 'all' | 'mentions' | 'mute'

@@ -36,6 +36,7 @@ import { ReactionDetailsDialog } from './ReactionDetailsDialog.js';
 import { Lightbox, type MediaType } from '../../media/components/Lightbox.js';
 import { ReadReceipts } from './ReadReceipts.js';
 import { PollMessage } from './PollMessage.js';
+import { useLongPress } from '../../../shared/hooks/useLongPress.js';
 import styles from './MessageBubble.module.scss';
 
 interface MessageBubbleProps {
@@ -139,6 +140,15 @@ export function MessageBubble({
 		const selectedText = selection?.toString().trim() || '';
 		setContextMenu({ x: e.clientX, y: e.clientY, selectedText });
 	}, []);
+
+	const longPressHandlers = useLongPress({
+		onLongPress: useCallback((e: React.TouchEvent) => {
+			const touch = e.touches[0];
+			if (touch) {
+				setContextMenu({ x: touch.clientX, y: touch.clientY, selectedText: '' });
+			}
+		}, []),
+	});
 
 	const isMentioned = useMemo(() => {
 		if (event.isRedacted) return false;
@@ -372,6 +382,7 @@ export function MessageBubble({
 			className={messageCls}
 			onContextMenu={selecting ? undefined : handleContextMenu}
 			onClick={handleMessageClick}
+			{...longPressHandlers}
 		>
 			{selecting && (
 				<div className={styles.checkbox}>

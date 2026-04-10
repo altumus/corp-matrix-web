@@ -10,6 +10,7 @@ html {
   -webkit-text-size-adjust: 100%;
   -moz-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  touch-action: pan-x pan-y;
 }
 
 body {
@@ -20,6 +21,8 @@ body {
   background: var(--color-bg-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
 }
 
 #root {
@@ -41,6 +44,8 @@ button {
   background: none;
   border: none;
   cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 input,
@@ -67,4 +72,12 @@ ol {
 h1, h2, h3, h4, h5, h6 {
   font-weight: var(--font-weight-semibold);
   line-height: var(--line-height-tight);
+}
+
+@media (hover: none) and (pointer: coarse) {
+  :root,
+  [data-theme='light'],
+  [data-theme='dark'] {
+    --color-bg-hover: transparent;
+  }
 }

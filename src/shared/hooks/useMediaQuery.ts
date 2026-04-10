@@ -13,10 +13,23 @@ export function useMediaQuery(query: string): boolean {
   return matches
 }
 
+export function useIsTouchDevice(): boolean {
+  const [isTouch] = useState(() => {
+    const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0
+    const isMobileUA = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+    return hasTouch && isMobileUA
+  })
+  return isTouch
+}
+
 export function useIsMobile() {
-  return useMediaQuery('(max-width: 767px)')
+  const narrow = useMediaQuery('(max-width: 767px)')
+  const touch = useIsTouchDevice()
+  return narrow && touch
 }
 
 export function useIsTablet() {
-  return useMediaQuery('(max-width: 1024px)')
+  const medium = useMediaQuery('(max-width: 1024px)')
+  const touch = useIsTouchDevice()
+  return medium && touch
 }

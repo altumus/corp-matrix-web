@@ -11,6 +11,7 @@ import { RoomDetailsPanel } from './RoomDetailsPanel.js'
 import { ThreadPanel } from './ThreadPanel.js'
 import { Spinner } from '../../../shared/ui/index.js'
 import { RightPanelCtx, type RightPanel } from '../context/RightPanelContext.js'
+import { useIsTouchDevice } from '../../../shared/hooks/useMediaQuery.js'
 import styles from './RoomView.module.scss'
 
 const SESSION_KEY = 'app_navigated'
@@ -20,15 +21,17 @@ export default function RoomView() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const redirected = useRef(false)
+  const isTouch = useIsTouchDevice()
 
   useEffect(() => {
+    if (isTouch) return
     if (redirected.current) return
     if (!sessionStorage.getItem(SESSION_KEY)) {
       sessionStorage.setItem(SESSION_KEY, '1')
       redirected.current = true
       navigate('/rooms', { replace: true })
     }
-  }, [navigate])
+  }, [navigate, isTouch])
 
   const { room, loading } = useRoom(roomId)
   const { uploadFiles } = useMediaUpload(roomId ?? '')

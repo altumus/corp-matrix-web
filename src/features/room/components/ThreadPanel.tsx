@@ -4,6 +4,7 @@ import { X, Send } from 'lucide-react'
 import { useThread } from '../hooks/useThread.js'
 import { Avatar } from '../../../shared/ui/index.js'
 import { sendTextMessage } from '../../messaging/services/messageService.js'
+import { useIsMobile } from '../../../shared/hooks/useMediaQuery.js'
 import styles from './ThreadPanel.module.scss'
 
 interface ThreadPanelProps {
@@ -17,6 +18,7 @@ export function ThreadPanel({ roomId, threadRootId, onClose }: ThreadPanelProps)
   const { rootEvent, replies } = useThread(roomId, threadRootId)
   const [text, setText] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const isMobile = useIsMobile()
 
   const handleSend = useCallback(async () => {
     if (!text.trim()) return
@@ -44,7 +46,7 @@ export function ThreadPanel({ roomId, threadRootId, onClose }: ThreadPanelProps)
   }
 
   return (
-    <div className={styles.panel}>
+    <div className={`${styles.panel} ${isMobile ? styles.panelMobile : ''}`}>
       <div className={styles.header}>
         <span className={styles.title}>{t('messages.thread')}</span>
         <button className={styles.closeBtn} onClick={onClose}>
