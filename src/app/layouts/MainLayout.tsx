@@ -2,10 +2,12 @@ import { Outlet, useLocation } from 'react-router'
 import { SpacesSidebar } from '../../features/spaces/components/SpacesSidebar.js'
 import { RoomList } from '../../features/room-list/components/RoomList.js'
 import { ConnectionBanner } from '../../shared/ui/ConnectionBanner/ConnectionBanner.js'
+import { CryptoBanner } from '../../shared/ui/CryptoBanner/CryptoBanner.js'
 import { useNotifications } from '../../features/notifications/hooks/useNotifications.js'
 import { useIncomingVerification } from '../../features/encryption/hooks/useIncomingVerification.js'
 import { IncomingVerificationDialog } from '../../features/encryption/components/IncomingVerificationDialog.js'
 import { useIsMobile } from '../../shared/hooks/useMediaQuery.js'
+import { ErrorBoundary } from '../../shared/ui/index.js'
 import styles from './MainLayout.module.scss'
 
 export function MainLayout() {
@@ -23,6 +25,7 @@ export function MainLayout() {
   return (
     <div className={styles.layout}>
       <ConnectionBanner />
+      <CryptoBanner />
       <div className={styles.main}>
         {!isMobile && <SpacesSidebar />}
         {showRoomList && (
@@ -32,7 +35,9 @@ export function MainLayout() {
         )}
         {showContent && (
           <main className={`${styles.content} ${isMobile ? styles.contentMobile : ''}`}>
-            <Outlet />
+            <ErrorBoundary>
+              <Outlet />
+            </ErrorBoundary>
           </main>
         )}
       </div>

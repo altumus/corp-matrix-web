@@ -1,7 +1,9 @@
 import { useCallback, useRef } from 'react'
 import { marked } from 'marked'
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { sanitizeHtml } from '../../../shared/lib/sanitizeHtml.js'
 import { sendTextMessage, sendTypingIndicator } from '../services/messageService.js'
+import { toast } from '../../../shared/ui/Toast/toastService.js'
 
 marked.setOptions({
   breaks: true,
@@ -45,18 +47,20 @@ function buildMentionFormats(body: string, roomId: string): { body: string; form
 
 function renderMarkdown(text: string): string {
   const html = marked.parse(text, { async: false }) as string
-  return html
-    .replace(/^<p>/, '')
-    .replace(/<\/p>\s*$/, '')
-    .trim()
+  return sanitizeHtml(
+    html
+      .replace(/^<p>/, '')
+      .replace(/<\/p>\s*$/, '')
+      .trim(),
+  )
 }
 
 export function useSendMessage(roomId: string) {
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const send = useCallback(
-    async (body: string, replyToEventId?: string, quotedText?: string, quotedSender?: string, threadRootId?: string) => {
-      if (!body.trim()) return
+    async (body: string, replyToEventId?: string, quotedText?: string, quotedSender?: string, threadRootId?: string): Promise<boolean> => {
+      if (!body.trim()) return false
 
       let finalBody = body.trim()
       let formattedBody: string | undefined
@@ -79,8 +83,14 @@ export function useSendMessage(roomId: string) {
         formattedBody = `<blockquote>${senderHtml}${esc(quotedText)}</blockquote>${bodyHtml}`
       }
 
-      await sendTextMessage({ roomId, body: finalBody, formattedBody, replyToEventId, threadRootId })
-      await sendTypingIndicator(roomId, false)
+      try {
+        await sendTextMessage({ roomId, body: finalBody, formattedBody, replyToEventId, threadRootId })
+        await sendTypingIndicator(roomId, false)
+        return true
+      } catch (err) {
+        toast(err instanceof Error ? err.message : 'Не удалось отправить сообщение', 'error')
+        return false
+      }
     },
     [roomId],
   )

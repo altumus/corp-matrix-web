@@ -51,6 +51,21 @@ export async function loadSession(): Promise<SessionData | null> {
 export async function clearSession(): Promise<void> {
   const db = await getDb()
   await db.delete(SESSION_STORE, 'current')
+  await db.delete(SESSION_STORE, 'recoveryKey').catch(() => {})
+}
+
+export async function saveRecoveryKey(key: Uint8Array): Promise<void> {
+  const db = await getDb()
+  await db.put(SESSION_STORE, Array.from(key), 'recoveryKey')
+}
+
+export async function loadRecoveryKey(): Promise<Uint8Array | null> {
+  const db = await getDb()
+  const stored = await db.get(SESSION_STORE, 'recoveryKey')
+  if (stored && Array.isArray(stored)) {
+    return new Uint8Array(stored)
+  }
+  return null
 }
 
 export function createMatrixClient(opts: {
@@ -110,22 +125,33 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   ])
 }
 
+let cryptoInitialized = false
+
+export function isCryptoReady(): boolean {
+  return cryptoInitialized
+}
+
 export async function startClient(): Promise<void> {
   if (!clientInstance) throw new Error('Matrix client not initialized')
 
+  cryptoInitialized = false
+
   try {
     await withTimeout(clientInstance.initRustCrypto(), 15_000, 'initRustCrypto')
+    cryptoInitialized = true
   } catch (err) {
     const msg = err instanceof Error ? err.message : ''
     if (msg.includes("doesn't match") || msg.includes('timed out')) {
       await clearCryptoStore()
       try {
         await withTimeout(clientInstance.initRustCrypto(), 15_000, 'initRustCrypto (retry)')
+        cryptoInitialized = true
       } catch {
-        // second attempt failed — continue without E2EE
+        console.warn('[crypto] E2E encryption unavailable — init failed on retry')
       }
+    } else {
+      console.warn('[crypto] E2E encryption unavailable —', msg)
     }
-    // other crypto init errors — continue without E2EE
   }
 
   await clientInstance.startClient({ initialSyncLimit: 20 })

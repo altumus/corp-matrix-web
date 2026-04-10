@@ -289,6 +289,12 @@
   font-size: var(--font-size-md);
 }
 
+.decryptionError {
+  font-style: italic;
+  color: var(--color-warning, #e6a700);
+  font-size: var(--font-size-md);
+}
+
 .imageMessage {
   max-width: 400px;
   max-height: 300px;

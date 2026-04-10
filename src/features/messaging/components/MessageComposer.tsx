@@ -13,6 +13,7 @@ import { useComposerStore } from '../store/composerStore.js'
 import { useSelectionStore } from '../store/selectionStore.js'
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
 import { redactMessage, editMessage } from '../services/messageService.js'
+import { toast } from '../../../shared/ui/Toast/toastService.js'
 import styles from './MessageComposer.module.scss'
 
 interface MessageComposerProps {
@@ -103,18 +104,23 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
     }
   }, [openMention, closeMention])
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!text.trim()) return
 
     if (editTarget) {
       if (text.trim() !== editTarget.body) {
-        editMessage(roomId, editTarget.eventId, text.trim())
+        try {
+          await editMessage(roomId, editTarget.eventId, text.trim())
+        } catch {
+          return // keep text in composer on failure
+        }
       }
       setText('')
       clearEdit()
     } else {
-      send(text, replyTarget?.eventId, replyTarget?.quotedText, replyTarget?.quotedText ? replyTarget.sender : undefined)
+      const ok = await send(text, replyTarget?.eventId, replyTarget?.quotedText, replyTarget?.quotedText ? replyTarget.sender : undefined)
+      if (!ok) return // keep text in composer on failure
       setText('')
       clearReply()
     }
@@ -241,7 +247,7 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
   const handleDeleteSelected = async () => {
     if (!confirm(t('messages.remove') + '?')) return
     for (const eventId of getSortedSelectedIds()) {
-      await redactMessage(roomId, eventId).catch(() => {})
+      await redactMessage(roomId, eventId).catch((err: Error) => toast(err.message, 'error'))
     }
     clearSelection()
   }
@@ -272,7 +278,7 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
 
     const existingPinned = room.currentState.getStateEvents('m.room.pinned_events', '')?.getContent()?.pinned as string[] || []
     const newPinned = [...new Set([...existingPinned, ...selectedIds])]
-    await client.sendStateEvent(roomId, 'm.room.pinned_events' as never, { pinned: newPinned } as never, '').catch(() => {})
+    await client.sendStateEvent(roomId, 'm.room.pinned_events' as never, { pinned: newPinned } as never, '').catch((err: Error) => toast(err.message, 'error'))
     clearSelection()
   }
 
@@ -318,7 +324,7 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
 
   return (
     <>
-      <form className={styles.composer} onSubmit={handleSubmit}>
+      <form className={styles.composer} onSubmit={handleSubmit} role="form" aria-label={t('messages.placeholder')}>
         {editTarget && (
           <div className={styles.replyPreview}>
             <div className={styles.replyInfo}>
@@ -401,6 +407,7 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
             placeholder={uploading ? t('messages.uploading') : t('messages.placeholder')}
+            aria-label={t('messages.placeholder')}
             rows={1}
             disabled={uploading}
           />
@@ -409,6 +416,7 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
             className={styles.sendBtn}
             disabled={!text.trim() || uploading}
             title={t('messages.send')}
+            aria-label={t('messages.send')}
           >
             ➤
           </button>

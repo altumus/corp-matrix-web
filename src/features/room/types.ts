@@ -19,6 +19,7 @@ export interface TimelineEvent {
   content: Record<string, unknown>
   isEdited: boolean
   isRedacted: boolean
+  isDecryptionFailure: boolean
   replyTo?: string
   replyToEvent?: {
     sender: string

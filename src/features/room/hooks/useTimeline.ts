@@ -30,9 +30,10 @@ function mapEvent(event: MatrixEvent, room: Room): TimelineEvent {
   }
 
   const isEncrypted = event.isEncrypted()
+  const isDecryptionFailure = isEncrypted && event.getType() === 'm.room.encrypted'
   let content: Record<string, unknown>
-  if (isEncrypted && event.getType() === 'm.room.encrypted') {
-    content = { msgtype: 'm.text', body: '🔒 Зашифрованное сообщение' }
+  if (isDecryptionFailure) {
+    content = { msgtype: 'm.text', body: '' }
   } else {
     const replacing = event.replacingEvent()
     const newContent = replacing?.getContent()?.['m.new_content'] as Record<string, unknown> | undefined
@@ -65,6 +66,7 @@ function mapEvent(event: MatrixEvent, room: Room): TimelineEvent {
     content,
     isEdited,
     isRedacted: event.isRedacted(),
+    isDecryptionFailure,
     replyTo: replyToId,
     replyToEvent,
     threadRootId: relatesTo?.rel_type === 'm.thread'

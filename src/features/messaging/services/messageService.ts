@@ -1,4 +1,5 @@
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js';
+import { sanitizeHtml } from '../../../shared/lib/sanitizeHtml.js';
 import { EventType, MsgType, RelationType } from 'matrix-js-sdk';
 import type { RoomMessageEventContent, ReactionEventContent } from 'matrix-js-sdk/lib/@types/events.js';
 import type { SendMessageOptions } from '../types.js';
@@ -188,7 +189,7 @@ export async function forwardMessage(
 		format: 'org.matrix.custom.html',
 		formatted_body:
 			`<a href="${messageLink}"><strong>Переслано от ${esc(senderName)}</strong></a><br/>` +
-			((originalContent.formatted_body as string) || esc(body)),
+			(originalContent.formatted_body ? sanitizeHtml(originalContent.formatted_body as string) : esc(body)),
 	};
 
 	if (originalContent.url) {

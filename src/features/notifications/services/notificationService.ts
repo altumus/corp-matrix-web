@@ -110,6 +110,14 @@ export function setupNotificationListeners() {
       if (sender === client.getUserId()) return
       if (event.getType() !== 'm.room.message') return
 
+      // Muted rooms: skip unless user was @mentioned (Telegram-style)
+      const pushRules = client.pushRules
+      const isMuted = !!pushRules?.global?.room?.find((r) => r.rule_id === room.roomId)
+      if (isMuted) {
+        const actions = client.pushProcessor.actionsForEvent(event)
+        if (!actions.tweaks?.highlight) return
+      }
+
       const currentRoomId = useRoomListStore.getState().selectedRoomId
       const isInCurrentRoom = currentRoomId === room.roomId && document.hasFocus()
 

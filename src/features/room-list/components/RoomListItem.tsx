@@ -5,7 +5,7 @@ import { Bookmark, BellOff, Bell, Circle, Pin, ArrowDown, Home, Archive, LogOut 
 import type { RoomListEntry } from '../types.js'
 import { useRoomListStore } from '../store/roomListStore.js'
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
-import { Avatar, Badge } from '../../../shared/ui/index.js'
+import { Avatar, Badge, toast } from '../../../shared/ui/index.js'
 import {
   MessageContextMenu,
   type ContextMenuAction,
@@ -30,14 +30,18 @@ function SavedMessagesIcon() {
 
 function getMessagePreview(room: RoomListEntry, myUserId: string | null, youLabel: string): string {
   if (!room.lastMessage) return ''
+  // Replace SDK's UTD placeholder with a cleaner message
+  const msg = room.lastMessage.startsWith('** Unable to decrypt')
+    ? 'Зашифрованное сообщение'
+    : room.lastMessage
   const isMyMessage = myUserId && room.lastMessageSenderId === myUserId
-  if (room.isSavedMessages) return room.lastMessage
+  if (room.isSavedMessages) return msg
   if (room.isDirect) {
-    return isMyMessage ? `${youLabel}: ${room.lastMessage}` : room.lastMessage
+    return isMyMessage ? `${youLabel}: ${msg}` : msg
   }
-  if (isMyMessage) return `${youLabel}: ${room.lastMessage}`
-  if (room.lastMessageSender) return `${room.lastMessageSender}: ${room.lastMessage}`
-  return room.lastMessage
+  if (isMyMessage) return `${youLabel}: ${msg}`
+  if (room.lastMessageSender) return `${room.lastMessageSender}: ${msg}`
+  return msg
 }
 
 function hasTag(roomId: string, tag: string): boolean {
@@ -126,12 +130,12 @@ export function RoomListItem({ room }: RoomListItemProps) {
           const c = getMatrixClient()
           if (!c) return
           if (muted) {
-            c.deletePushRule('global', 'room' as never, room.roomId).catch(() => {})
+            c.deletePushRule('global', 'room' as never, room.roomId).catch((err: Error) => toast(err.message, 'error'))
           } else {
             c.addPushRule('global', 'room' as never, room.roomId, {
               actions: ['dont_notify' as never],
               conditions: [{ kind: 'event_match' as never, key: 'room_id', pattern: room.roomId }],
-            } as never).catch(() => {})
+            } as never).catch((err: Error) => toast(err.message, 'error'))
           }
           setMutedLocal(!muted)
         },
@@ -143,7 +147,7 @@ export function RoomListItem({ room }: RoomListItemProps) {
         onClick: () => {
           const c = getMatrixClient()
           if (!c) return
-          c.setRoomAccountData(room.roomId, 'com.famedly.marked_unread' as never, { unread: !markedUnread } as never).catch(() => {})
+          c.setRoomAccountData(room.roomId, 'com.famedly.marked_unread' as never, { unread: !markedUnread } as never).catch((err: Error) => toast(err.message, 'error'))
           setUnreadLocal(!markedUnread)
         },
       },
@@ -155,9 +159,9 @@ export function RoomListItem({ room }: RoomListItemProps) {
           const c = getMatrixClient()
           if (!c) return
           if (isPinned) {
-            c.deleteRoomTag(room.roomId, 'm.favourite').catch(() => {})
+            c.deleteRoomTag(room.roomId, 'm.favourite').catch((err: Error) => toast(err.message, 'error'))
           } else {
-            c.setRoomTag(room.roomId, 'm.favourite', { order: 0.5 }).catch(() => {})
+            c.setRoomTag(room.roomId, 'm.favourite', { order: 0.5 }).catch((err: Error) => toast(err.message, 'error'))
           }
         },
       },
@@ -169,9 +173,9 @@ export function RoomListItem({ room }: RoomListItemProps) {
           const c = getMatrixClient()
           if (!c) return
           if (isLowPriority) {
-            c.deleteRoomTag(room.roomId, 'm.lowpriority').catch(() => {})
+            c.deleteRoomTag(room.roomId, 'm.lowpriority').catch((err: Error) => toast(err.message, 'error'))
           } else {
-            c.setRoomTag(room.roomId, 'm.lowpriority', { order: 0.5 }).catch(() => {})
+            c.setRoomTag(room.roomId, 'm.lowpriority', { order: 0.5 }).catch((err: Error) => toast(err.message, 'error'))
           }
           setLowPriorityLocal(!isLowPriority)
         },
@@ -192,9 +196,9 @@ export function RoomListItem({ room }: RoomListItemProps) {
           const c = getMatrixClient()
           if (!c) return
           if (hasTag(room.roomId, 'm.archive')) {
-            c.deleteRoomTag(room.roomId, 'm.archive').catch(() => {})
+            c.deleteRoomTag(room.roomId, 'm.archive').catch((err: Error) => toast(err.message, 'error'))
           } else {
-            c.setRoomTag(room.roomId, 'm.archive', { order: 0 }).catch(() => {})
+            c.setRoomTag(room.roomId, 'm.archive', { order: 0 }).catch((err: Error) => toast(err.message, 'error'))
           }
         },
       },
@@ -207,7 +211,7 @@ export function RoomListItem({ room }: RoomListItemProps) {
           if (!confirm(t('rooms.leaveConfirm'))) return
           const c = getMatrixClient()
           if (!c) return
-          c.leave(room.roomId).catch(() => {})
+          c.leave(room.roomId).catch((err: Error) => toast(err.message, 'error'))
         },
       },
     ]

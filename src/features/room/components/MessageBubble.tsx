@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import type { TimelineEvent } from '../types.js';
 import { Avatar, AuthImage } from '../../../shared/ui/index.js';
+import { sanitizeHtml } from '../../../shared/lib/sanitizeHtml.js';
 import {
 	MessageContextMenu,
 	type ContextMenuAction,
@@ -332,6 +333,27 @@ export function MessageBubble({
 		);
 	}
 
+	if (event.isDecryptionFailure) {
+		return (
+			<div
+				className={`${styles.message} ${isOwnMessage ? styles.outgoing : styles.incoming}`}
+			>
+				{!isOwnMessage && showAvatar && (
+					<Avatar src={event.senderAvatar} name={event.senderName} size='sm' />
+				)}
+				{!isOwnMessage && !showAvatar && (
+					<div className={styles.avatarPlaceholder} />
+				)}
+				<div className={styles.bubble}>
+					<span className={styles.decryptionError}>
+						{t('encryption.unableToDecrypt', { defaultValue: 'Не удалось расшифровать сообщение. Настройте резервное копирование ключей в настройках.' })}
+					</span>
+					{timeEl}
+				</div>
+			</div>
+		);
+	}
+
 	const content = event.content;
 	const msgtype = content.msgtype as string;
 	const rawBody = (content.body as string) || '';
@@ -511,7 +533,7 @@ export function MessageBubble({
 						(formattedBody ? (
 							<div
 								className={styles.textContent}
-								dangerouslySetInnerHTML={{ __html: formattedBody }}
+								dangerouslySetInnerHTML={{ __html: sanitizeHtml(formattedBody) }}
 							/>
 						) : (
 							<p className={styles.textContent}>{body}</p>
