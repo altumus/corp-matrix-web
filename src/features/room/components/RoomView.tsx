@@ -6,6 +6,7 @@ import { useMediaUpload } from '../../media/hooks/useMediaUpload.js'
 import { MediaUploader } from '../../media/components/MediaUploader.js'
 import { RoomHeader } from './RoomHeader.js'
 import { Timeline } from './Timeline.js'
+import { MentionNavigator } from './MentionNavigator.js'
 import { MessageComposer } from '../../messaging/components/MessageComposer.js'
 import { RoomDetailsPanel } from './RoomDetailsPanel.js'
 import { ThreadPanel } from './ThreadPanel.js'
@@ -81,7 +82,10 @@ export default function RoomView() {
               focusEventId={focusEventId}
               onFocusHandled={clearFocusEvent}
             />
-            <MessageComposer roomId={room.roomId} />
+            <div style={{ position: 'relative' }}>
+              <MentionNavigator roomId={room.roomId} />
+              <MessageComposer roomId={room.roomId} />
+            </div>
           </div>
 
           {rightPanel?.type === 'details' && (

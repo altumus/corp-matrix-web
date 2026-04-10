@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { Bookmark, BellOff, Bell, Circle, Pin, ArrowDown, Home, Archive, LogOut } from 'lucide-react'
+import { Bookmark, BellOff, Bell, Circle, Pin, ArrowDown, Home, Archive, LogOut, AtSign } from 'lucide-react'
 import type { RoomListEntry } from '../types.js'
 import { useRoomListStore } from '../store/roomListStore.js'
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
@@ -92,6 +92,29 @@ export function RoomListItem({ room }: RoomListItemProps) {
 
   const handleClick = () => {
     setSelectedRoom(room.roomId)
+
+    // If user was mentioned — scroll to first (oldest) unread mention
+    if (room.highlightCount > 0 && client) {
+      const matrixRoom = client.getRoom(room.roomId)
+      if (matrixRoom) {
+        const timeline = matrixRoom.getLiveTimeline().getEvents()
+        const myId = client.getUserId()
+        const encodedId = myId ? encodeURIComponent(myId) : ''
+        for (const ev of timeline) {
+          if (ev.getSender() === myId) continue
+          const content = ev.getContent()
+          const mentions = content['m.mentions'] as { user_ids?: string[]; room?: boolean } | undefined
+          const html = (content.formatted_body as string) || ''
+          const isMention = mentions?.user_ids?.includes(myId!) || mentions?.room ||
+            html.includes(`matrix.to/#/${encodedId}`) || html.includes(`matrix.to/#/${myId}`)
+          if (isMention) {
+            navigate(`/rooms/${encodeURIComponent(room.roomId)}?eventId=${encodeURIComponent(ev.getId()!)}`)
+            return
+          }
+        }
+      }
+    }
+
     navigate(`/rooms/${encodeURIComponent(room.roomId)}`)
   }
 
@@ -252,6 +275,11 @@ export function RoomListItem({ room }: RoomListItemProps) {
           </div>
           <div className={styles.bottom}>
             <span className={styles.message}>{messagePreview}</span>
+            {room.highlightCount > 0 && (
+              <span className={styles.mentionIcon} title="Вас упомянули">
+                <AtSign size={14} />
+              </span>
+            )}
             {room.unreadCount > 0 && (
               <Badge count={room.unreadCount} highlight={room.highlightCount > 0} />
             )}
