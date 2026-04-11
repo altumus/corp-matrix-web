@@ -14,6 +14,8 @@ export function RoomList() {
   const { rooms, invites } = useRoomList()
   const searchQuery = useRoomListStore((s) => s.searchQuery)
   const initialLoading = useRoomListStore((s) => s.initialLoading)
+  const activeTab = useRoomListStore((s) => s.activeTab)
+  const setActiveTab = useRoomListStore((s) => s.setActiveTab)
   const isSearching = searchQuery.trim().length > 0
 
   return (
@@ -22,6 +24,26 @@ export function RoomList() {
       <RoomSearch />
       {!isSearching && (
         <>
+          <div className={styles.tabs}>
+            <button
+              className={`${styles.tab} ${activeTab === 'all' ? styles.tabActive : ''}`}
+              onClick={() => setActiveTab('all')}
+            >
+              {t('rooms.tabAll', { defaultValue: 'Все' })}
+            </button>
+            <button
+              className={`${styles.tab} ${activeTab === 'unread' ? styles.tabActive : ''}`}
+              onClick={() => setActiveTab('unread')}
+            >
+              {t('rooms.tabUnread', { defaultValue: 'Непрочитанные' })}
+            </button>
+            <button
+              className={`${styles.tab} ${activeTab === 'dms' ? styles.tabActive : ''}`}
+              onClick={() => setActiveTab('dms')}
+            >
+              {t('rooms.tabDms', { defaultValue: 'Личные' })}
+            </button>
+          </div>
           <InvitesList invites={invites} />
           <div className={styles.list}>
             {initialLoading ? (

@@ -1,6 +1,6 @@
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
-import { RoomEvent, ClientEvent, SyncState } from 'matrix-js-sdk'
-import type { MatrixEvent, Room, IRoomTimelineData } from 'matrix-js-sdk'
+import { RoomEvent, ClientEvent, SyncState, RoomMemberEvent } from 'matrix-js-sdk'
+import type { MatrixEvent, Room, IRoomTimelineData, RoomMember } from 'matrix-js-sdk'
 import { useRoomListStore } from '../../room-list/store/roomListStore.js'
 
 let notificationSound: HTMLAudioElement | null = null
@@ -156,6 +156,26 @@ export function setupNotificationListeners() {
       playNotificationSound()
     },
   )
+
+  // B16: Notification when invited members join my rooms
+  client.on(RoomMemberEvent.Membership, (event: MatrixEvent, member: RoomMember) => {
+    if (!initialSyncDone) return
+    if (member.userId === client.getUserId()) return // not our own changes
+
+    const prev = event.getPrevContent()?.membership
+    const curr = member.membership
+    if (prev !== 'invite' || curr !== 'join') return
+
+    const room = client.getRoom(event.getRoomId()!)
+    if (!room) return
+
+    const myMembership = room.getMyMembership()
+    if (myMembership !== 'join') return // we're not in this room
+
+    const name = member.name || member.userId
+    const roomName = room.name || 'комната'
+    showDesktopNotification(roomName, `${name} присоединился к комнате`, room.roomId)
+  })
 }
 
 export type NotificationLevel = 'all' | 'mentions' | 'mute'

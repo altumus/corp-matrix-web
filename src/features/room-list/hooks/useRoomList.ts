@@ -144,6 +144,14 @@ export function useRoomList() {
     }
   }
 
+  // Tab filter
+  const activeTab = useRoomListStore((s) => s.activeTab)
+  if (activeTab === 'unread') {
+    filteredRooms = filteredRooms.filter((r) => r.unreadCount > 0 || r.highlightCount > 0)
+  } else if (activeTab === 'dms') {
+    filteredRooms = filteredRooms.filter((r) => r.isDirect)
+  }
+
   if (searchQuery) {
     filteredRooms = filteredRooms.filter((r) =>
       r.name.toLowerCase().includes(searchQuery.toLowerCase()),

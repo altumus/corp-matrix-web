@@ -7,6 +7,7 @@ import { useMentions, type MentionCandidate } from '../hooks/useMentions.js'
 import { ImagePreviewDialog } from '../../media/components/ImagePreviewDialog.js'
 import { VoiceRecorder } from './VoiceRecorder.js'
 import { MentionPopup } from './MentionPopup.js'
+import { EmojiAutocomplete, searchEmoji, type EmojiCandidate } from './EmojiAutocomplete.js'
 import { AttachMenu } from './AttachMenu.jsx'
 import { CreatePollDialog } from './CreatePollDialog.js'
 import { ForwardDialog } from './ForwardDialog.js'
@@ -24,6 +25,14 @@ interface MessageComposerProps {
 function getMentionContext(text: string, cursorPos: number): { query: string; start: number } | null {
   const before = text.slice(0, cursorPos)
   const match = before.match(/@([^\s@]*)$/)
+  if (!match) return null
+  return { query: match[1], start: before.length - match[0].length }
+}
+
+function getEmojiContext(text: string, cursorPos: number): { query: string; start: number } | null {
+  const before = text.slice(0, cursorPos)
+  // :word with at least 2 chars to trigger
+  const match = before.match(/:([a-zA-Z0-9_+-]{2,})$/)
   if (!match) return null
   return { query: match[1], start: before.length - match[0].length }
 }
@@ -54,6 +63,10 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
   const [recordingVoice, setRecordingVoice] = useState(false)
   const [mentionIndex, setMentionIndex] = useState(0)
   const mentionStartRef = useRef<number>(-1)
+  // Emoji autocomplete
+  const [emojiCandidates, setEmojiCandidates] = useState<EmojiCandidate[]>([])
+  const [emojiIndex, setEmojiIndex] = useState(0)
+  const emojiStartRef = useRef<number>(-1)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -100,6 +113,28 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
     })
   }, [text, closeMention])
 
+  const insertEmoji = useCallback((emoji: EmojiCandidate) => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    const start = emojiStartRef.current
+    if (start === -1) return
+
+    const before = text.slice(0, start)
+    const after = text.slice(textarea.selectionStart)
+    const insert = `${emoji.native} `
+    const newText = before + insert + after
+    setText(newText)
+    setEmojiCandidates([])
+    setEmojiIndex(0)
+    emojiStartRef.current = -1
+
+    requestAnimationFrame(() => {
+      const pos = before.length + insert.length
+      textarea.setSelectionRange(pos, pos)
+      textarea.focus()
+    })
+  }, [text])
+
   const handleTextChange = useCallback((value: string) => {
     setText(value)
     setDraft(roomId, value)
@@ -113,11 +148,26 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
       mentionStartRef.current = ctx.start
       openMention(ctx.query)
       setMentionIndex(0)
+      // Close emoji autocomplete if active
+      setEmojiCandidates([])
+      emojiStartRef.current = -1
     } else {
       closeMention()
       mentionStartRef.current = -1
+
+      // Check for emoji autocomplete
+      const emojiCtx = getEmojiContext(value, cursorPos)
+      if (emojiCtx) {
+        const results = searchEmoji(emojiCtx.query, 8)
+        setEmojiCandidates(results)
+        setEmojiIndex(0)
+        emojiStartRef.current = emojiCtx.start
+      } else {
+        setEmojiCandidates([])
+        emojiStartRef.current = -1
+      }
     }
-  }, [openMention, closeMention])
+  }, [openMention, closeMention, roomId, setDraft])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -168,6 +218,31 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
       if (e.key === 'Escape') {
         e.preventDefault()
         closeMention()
+        return
+      }
+    }
+
+    // Emoji autocomplete navigation
+    if (emojiCandidates.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setEmojiIndex((i) => (i + 1) % emojiCandidates.length)
+        return
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setEmojiIndex((i) => (i - 1 + emojiCandidates.length) % emojiCandidates.length)
+        return
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault()
+        insertEmoji(emojiCandidates[emojiIndex])
+        return
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setEmojiCandidates([])
+        emojiStartRef.current = -1
         return
       }
     }
@@ -223,15 +298,26 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
     setPendingFile(null)
   }, [])
 
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files?.length) return
 
-    const file = files[0]
-    if (file.type.startsWith('image/')) {
-      setPendingFile(file)
-    } else {
-      upload(file)
+    const fileArr = Array.from(files)
+
+    // Single image → preview dialog with caption
+    if (fileArr.length === 1 && fileArr[0].type.startsWith('image/')) {
+      setPendingFile(fileArr[0])
+      e.target.value = ''
+      return
+    }
+
+    // Multiple files or non-image → upload sequentially
+    for (const file of fileArr) {
+      try {
+        await upload(file)
+      } catch {
+        // continue with next file
+      }
     }
 
     e.target.value = ''
@@ -388,6 +474,14 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
           />
         )}
 
+        {emojiCandidates.length > 0 && (
+          <EmojiAutocomplete
+            candidates={emojiCandidates}
+            selectedIndex={emojiIndex}
+            onSelect={insertEmoji}
+          />
+        )}
+
         <div className={styles.inputArea}>
           <div className={styles.attachWrap}>
             <button
@@ -455,6 +549,7 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
         <input
           ref={fileInputRef}
           type="file"
+          multiple
           className={styles.hiddenInput}
           accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt,.zip"
           onChange={handleFileChange}

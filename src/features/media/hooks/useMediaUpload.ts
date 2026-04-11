@@ -23,8 +23,17 @@ export function useMediaUpload(roomId: string) {
 
   const uploadFiles = useCallback(
     async (files: FileList | File[]) => {
+      const failed: File[] = []
       for (const file of Array.from(files)) {
-        await upload(file)
+        try {
+          await upload(file)
+        } catch {
+          failed.push(file)
+        }
+      }
+      if (failed.length > 0) {
+        const { toast } = await import('../../../shared/ui/Toast/toastService.js')
+        toast(`${failed.length} файлов не удалось отправить`, 'error')
       }
     },
     [upload],

@@ -113,3 +113,46 @@
   color: var(--color-text-secondary);
   flex-shrink: 0;
 }
+
+.editRow {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+}
+
+.editInput {
+  flex: 1;
+  padding: var(--spacing-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-md);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-accent);
+  }
+}
+
+.editSave {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  cursor: pointer;
+}
+
+.topicText {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  text-align: center;
+  padding: var(--spacing-sm);
+  margin: 0;
+}
+

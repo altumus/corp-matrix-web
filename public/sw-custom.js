@@ -22,8 +22,10 @@ self.addEventListener('push', (event) => {
       icon: '/corp-logo.png',
       badge: '/corp-logo.png',
       tag: roomId || undefined,
-      data: { roomId },
+      data: { roomId, sender, room },
       renotify: !!roomId,
+      vibrate: [200, 100, 200],
+      requireInteraction: false,
     })
   )
 })

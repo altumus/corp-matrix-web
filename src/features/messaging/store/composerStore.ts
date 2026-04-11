@@ -25,6 +25,7 @@ interface ComposerStore {
   getDraft: (roomId: string) => string
   clearDraft: (roomId: string) => void
   loadDraftFromServer: (roomId: string) => void
+  cleanupStaleDrafts: () => void
 }
 
 let syncTimeout: ReturnType<typeof setTimeout> | null = null
@@ -77,5 +78,23 @@ export const useComposerStore = create<ComposerStore>((set, get) => ({
     } catch {
       // no draft saved
     }
+  },
+
+  cleanupStaleDrafts: () => {
+    const client = getMatrixClient()
+    if (!client) return
+
+    const drafts = get().drafts
+    const cleaned: Record<string, string> = {}
+
+    for (const [roomId, text] of Object.entries(drafts)) {
+      const room = client.getRoom(roomId)
+      if (room && room.getMyMembership() === 'join') {
+        cleaned[roomId] = text
+      }
+      // Otherwise drop — room left/deleted
+    }
+
+    set({ drafts: cleaned })
   },
 }))

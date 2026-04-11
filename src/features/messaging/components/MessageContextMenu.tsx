@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Avatar } from '../../../shared/ui/index.js'
 import { useIsMobile } from '../../../shared/hooks/useMediaQuery.js'
+import { useFrequentEmoji, trackEmojiUsage } from '../hooks/useFrequentEmoji.js'
 import styles from './MessageContextMenu.module.scss'
 
 export interface ContextMenuAction {
@@ -19,8 +20,6 @@ export interface ReceiptEntry {
   ts: number
 }
 
-const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏']
-
 interface MessageContextMenuProps {
   x: number
   y: number
@@ -34,6 +33,7 @@ export function MessageContextMenu({ x, y, actions, receipts, onClose, onQuickRe
   const menuRef = useRef<HTMLDivElement>(null)
   const [showReceipts, setShowReceipts] = useState(false)
   const isMobile = useIsMobile()
+  const quickEmojis = useFrequentEmoji()
 
   useEffect(() => {
     const handleOutside = (e: MouseEvent | TouchEvent) => {
@@ -79,11 +79,12 @@ export function MessageContextMenu({ x, y, actions, receipts, onClose, onQuickRe
       >
       {onQuickReact && (
         <div className={styles.quickReactions}>
-          {QUICK_EMOJIS.map((emoji) => (
+          {quickEmojis.map((emoji) => (
             <button
               key={emoji}
               className={styles.quickEmoji}
               onClick={() => {
+                trackEmojiUsage(emoji)
                 onQuickReact(emoji)
                 onClose()
               }}

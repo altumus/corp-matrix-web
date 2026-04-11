@@ -146,6 +146,32 @@ export function RoomListItem({ room }: RoomListItemProps) {
         onClick: () => {},
       },
       {
+        id: 'notify-all',
+        icon: <Bell size={16} />,
+        label: t('rooms.notifyAll', { defaultValue: 'Все сообщения' }),
+        onClick: () => {
+          const c = getMatrixClient()
+          if (!c) return
+          c.deletePushRule('global', 'room' as never, room.roomId).catch(() => {})
+          setMutedLocal(false)
+        },
+      },
+      {
+        id: 'notify-mentions',
+        icon: <Circle size={16} />,
+        label: t('rooms.notifyMentionsOnly', { defaultValue: 'Только упоминания' }),
+        onClick: () => {
+          const c = getMatrixClient()
+          if (!c) return
+          // dont_notify for all events EXCEPT mentions (default mention rules still fire)
+          c.addPushRule('global', 'room' as never, room.roomId, {
+            actions: ['dont_notify' as never],
+            conditions: [{ kind: 'event_match' as never, key: 'room_id', pattern: room.roomId }],
+          } as never).catch((err: Error) => toast(err.message, 'error'))
+          setMutedLocal(true)
+        },
+      },
+      {
         id: 'mute',
         icon: muted ? <Bell size={16} /> : <BellOff size={16} />,
         label: muted ? t('rooms.unmuteNotifications') : t('rooms.muteNotifications'),
@@ -250,6 +276,11 @@ export function RoomListItem({ room }: RoomListItemProps) {
         className={`${styles.item} ${isSelected ? styles.selected : ''}`}
         onClick={handleClick}
         onContextMenu={handleContextMenu}
+        onMouseEnter={() => {
+          // Prefetch: warm SDK cache by accessing room timeline
+          const c = getMatrixClient()
+          c?.getRoom(room.roomId)?.getLiveTimeline().getEvents()
+        }}
         aria-current={isSelected ? 'page' : undefined}
         {...longPressHandlers}
       >

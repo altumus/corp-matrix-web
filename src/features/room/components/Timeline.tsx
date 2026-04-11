@@ -47,9 +47,11 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
   const { events, loading, paginateBack, prependCount } = useTimeline(roomId)
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   const [highlightedEventId, setHighlightedEventId] = useState<string | null>(null)
+  const [announcement, setAnnouncement] = useState('')
   const focusHandledRef = useRef<string | null>(null)
   const paginateBackRef = useRef(paginateBack)
   const isAtBottomRef = useRef(true)
+  const lastEventIdRef = useRef<string | null>(null)
   const replyTarget = useComposerStore((s) => s.replyTarget)
   const editTarget = useComposerStore((s) => s.editTarget)
 
@@ -72,6 +74,18 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
   useEffect(() => {
     paginateBackRef.current = paginateBack
   }, [paginateBack])
+
+  // Announce new messages to screen readers
+  useEffect(() => {
+    if (events.length === 0) return
+    const last = events[events.length - 1]
+    if (lastEventIdRef.current && lastEventIdRef.current !== last.eventId) {
+      const body = (last.content?.body as string) || ''
+      const preview = body.slice(0, 80)
+      setAnnouncement(`Новое сообщение от ${last.senderName}: ${preview}`)
+    }
+    lastEventIdRef.current = last.eventId
+  }, [events])
 
   useEffect(() => {
     focusHandledRef.current = null
@@ -130,7 +144,8 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
   return (
     <TimelineScrollContext.Provider value={scrollToEvent}>
       <PinnedMessageBar roomId={roomId} />
-      <div className={styles.container} role="log" aria-live="polite">
+      <span className="sr-only" aria-live="polite" aria-atomic="true">{announcement}</span>
+      <div className={styles.container} role="log">
         <Virtuoso
           key={roomId}
           ref={virtuosoRef}

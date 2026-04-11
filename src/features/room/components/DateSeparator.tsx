@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import styles from './DateSeparator.module.scss'
 
 interface DateSeparatorProps {
@@ -5,6 +6,7 @@ interface DateSeparatorProps {
 }
 
 export function DateSeparator({ timestamp }: DateSeparatorProps) {
+  const { t } = useTranslation()
   const date = new Date(timestamp)
   const today = new Date()
   const yesterday = new Date(today)
@@ -12,9 +14,9 @@ export function DateSeparator({ timestamp }: DateSeparatorProps) {
 
   let label: string
   if (isSameDay(date, today)) {
-    label = 'Сегодня'
+    label = t('common.today', { defaultValue: 'Сегодня' })
   } else if (isSameDay(date, yesterday)) {
-    label = 'Вчера'
+    label = t('common.yesterday', { defaultValue: 'Вчера' })
   } else {
     label = date.toLocaleDateString(undefined, {
       day: 'numeric',

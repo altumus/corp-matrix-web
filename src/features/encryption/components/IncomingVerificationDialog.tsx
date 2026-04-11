@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ShieldCheck } from 'lucide-react'
 import type { VerificationRequest } from 'matrix-js-sdk/lib/crypto-api/index.js'
 import { VerifierEvent } from 'matrix-js-sdk/lib/crypto-api/verification.js'
@@ -15,6 +16,7 @@ interface IncomingVerificationDialogProps {
 type Phase = 'pending' | 'waiting' | 'emoji' | 'done'
 
 export function IncomingVerificationDialog({ request, onClose }: IncomingVerificationDialogProps) {
+  const { t } = useTranslation()
   const [loading, setLoading] = useState(false)
   const [phase, setPhase] = useState<Phase>('pending')
   const [emojis, setEmojis] = useState<EmojiMapping[]>([])
@@ -79,7 +81,7 @@ export function IncomingVerificationDialog({ request, onClose }: IncomingVerific
   }
 
   return (
-    <Modal open onClose={handleDecline} title="Запрос верификации">
+    <Modal open onClose={handleDecline} title={t('verification.title', { defaultValue: 'Запрос верификации' })}>
       <div className={styles.content}>
         {phase === 'pending' && (
           <>
@@ -87,18 +89,17 @@ export function IncomingVerificationDialog({ request, onClose }: IncomingVerific
               <ShieldCheck size={48} />
             </div>
             <p className={styles.text}>
-              Другое устройство запрашивает верификацию.
-              Подтвердите, чтобы установить доверие между устройствами.
+              {t('verification.description', { defaultValue: 'Другое устройство запрашивает верификацию. Подтвердите, чтобы установить доверие между устройствами.' })}
             </p>
             <div className={styles.info}>
-              <span>От: {request.otherUserId}</span>
+              <span>{t('verification.from', { defaultValue: 'От' })}: {request.otherUserId}</span>
             </div>
             <div className={styles.actions}>
               <Button variant="secondary" onClick={handleDecline}>
-                Отклонить
+                {t('verification.decline', { defaultValue: 'Отклонить' })}
               </Button>
               <Button onClick={handleAccept} loading={loading}>
-                Подтвердить
+                {t('verification.accept', { defaultValue: 'Подтвердить' })}
               </Button>
             </div>
           </>
@@ -109,13 +110,13 @@ export function IncomingVerificationDialog({ request, onClose }: IncomingVerific
             <div className={styles.icon}>
               <ShieldCheck size={48} />
             </div>
-            <p className={styles.text}>Ожидание ответа от другого устройства...</p>
+            <p className={styles.text}>{t('verification.waiting', { defaultValue: 'Ожидание ответа от другого устройства...' })}</p>
           </>
         )}
 
         {phase === 'emoji' && (
           <>
-            <p className={styles.emojiTitle}>Сравните эмодзи</p>
+            <p className={styles.emojiTitle}>{t('verification.compareEmoji', { defaultValue: 'Сравните эмодзи' })}</p>
             <div className={styles.emojiGrid}>
               {emojis.map(([emoji, name], i) => (
                 <div key={i} className={styles.emojiItem}>
@@ -126,17 +127,17 @@ export function IncomingVerificationDialog({ request, onClose }: IncomingVerific
             </div>
             <div className={styles.actions}>
               <Button variant="secondary" onClick={handleMismatch}>
-                Не совпадают
+                {t('verification.mismatch', { defaultValue: 'Не совпадают' })}
               </Button>
               <Button onClick={handleConfirmEmoji} loading={loading}>
-                Совпадают
+                {t('verification.match', { defaultValue: 'Совпадают' })}
               </Button>
             </div>
           </>
         )}
 
         {phase === 'done' && (
-          <p className={styles.textSuccess}>Устройство успешно подтверждено!</p>
+          <p className={styles.textSuccess}>{t('verification.success', { defaultValue: 'Устройство успешно подтверждено!' })}</p>
         )}
       </div>
     </Modal>

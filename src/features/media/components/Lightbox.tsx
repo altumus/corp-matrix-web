@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Download, ExternalLink } from 'lucide-react'
+import { X, Download, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Spinner } from '../../../shared/ui/index.js'
 import { useAuthenticatedMedia } from '../../../shared/hooks/useAuthenticatedMedia.js'
 import styles from './Lightbox.module.scss'
@@ -12,18 +12,26 @@ interface LightboxProps {
   filename: string
   mediaType: MediaType
   onClose: () => void
+  onPrev?: () => void
+  onNext?: () => void
+  currentIndex?: number
+  total?: number
 }
 
-export function Lightbox({ mxcUrl, filename, mediaType, onClose }: LightboxProps) {
+export function Lightbox({
+  mxcUrl, filename, mediaType, onClose, onPrev, onNext, currentIndex, total,
+}: LightboxProps) {
   const src = useAuthenticatedMedia(mxcUrl)
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
+      if (e.key === 'ArrowLeft' && onPrev) onPrev()
+      if (e.key === 'ArrowRight' && onNext) onNext()
     }
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
-  }, [onClose])
+  }, [onClose, onPrev, onNext])
 
   const handleDownload = () => {
     if (!src) return
@@ -38,7 +46,12 @@ export function Lightbox({ mxcUrl, filename, mediaType, onClose }: LightboxProps
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.container} onClick={(e) => e.stopPropagation()}>
         <div className={styles.toolbar}>
-          <span className={styles.filename}>{filename}</span>
+          <span className={styles.filename}>
+            {filename}
+            {typeof currentIndex === 'number' && total && total > 1 && (
+              <span className={styles.counter}> ({currentIndex + 1} / {total})</span>
+            )}
+          </span>
           <div className={styles.actions}>
             <button className={styles.toolBtn} onClick={handleDownload} title="Скачать">
               <Download size={18} />
@@ -53,6 +66,27 @@ export function Lightbox({ mxcUrl, filename, mediaType, onClose }: LightboxProps
             </button>
           </div>
         </div>
+
+        {onPrev && (
+          <button
+            className={`${styles.toolBtn} ${styles.navPrev}`}
+            onClick={onPrev}
+            title="Предыдущее"
+            aria-label="Предыдущее"
+          >
+            <ChevronLeft size={24} />
+          </button>
+        )}
+        {onNext && (
+          <button
+            className={`${styles.toolBtn} ${styles.navNext}`}
+            onClick={onNext}
+            title="Следующее"
+            aria-label="Следующее"
+          >
+            <ChevronRight size={24} />
+          </button>
+        )}
 
         <div className={styles.content}>
           {!src ? (

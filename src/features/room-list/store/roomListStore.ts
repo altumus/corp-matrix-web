@@ -1,16 +1,20 @@
 import { create } from 'zustand'
 import type { RoomListEntry } from '../types.js'
 
+export type RoomListTab = 'all' | 'unread' | 'dms'
+
 interface RoomListState {
   rooms: RoomListEntry[]
   searchQuery: string
   selectedRoomId: string | null
   initialLoading: boolean
+  activeTab: RoomListTab
 
   setRooms: (rooms: RoomListEntry[]) => void
   setSearchQuery: (query: string) => void
   setSelectedRoom: (roomId: string | null) => void
   setInitialLoading: (loading: boolean) => void
+  setActiveTab: (tab: RoomListTab) => void
   updateRoom: (roomId: string, partial: Partial<RoomListEntry>) => void
 }
 
@@ -19,6 +23,7 @@ export const useRoomListStore = create<RoomListState>((set) => ({
   searchQuery: '',
   selectedRoomId: null,
   initialLoading: true,
+  activeTab: 'all',
 
   setRooms: (rooms) => set({ rooms }),
 
@@ -27,6 +32,8 @@ export const useRoomListStore = create<RoomListState>((set) => ({
   setSelectedRoom: (roomId) => set({ selectedRoomId: roomId }),
 
   setInitialLoading: (loading) => set({ initialLoading: loading }),
+
+  setActiveTab: (tab) => set({ activeTab: tab }),
 
   updateRoom: (roomId, partial) =>
     set((state) => ({
