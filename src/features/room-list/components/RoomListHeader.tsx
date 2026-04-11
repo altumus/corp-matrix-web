@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { Bookmark, Plus, Settings, LayoutGrid } from 'lucide-react'
-import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { useRoomListStore } from '../store/roomListStore.js'
 import { useIsMobile } from '../../../shared/hooks/useMediaQuery.js'
 import { CreateRoomDialog } from './CreateRoomDialog.js'
@@ -11,6 +11,7 @@ import styles from './RoomListHeader.module.scss'
 
 export function RoomListHeader() {
   const { t } = useTranslation()
+  const client = useMatrixClient()
   const navigate = useNavigate()
   const isMobile = useIsMobile()
   const [showCreate, setShowCreate] = useState(false)
@@ -19,7 +20,6 @@ export function RoomListHeader() {
   const setSelectedRoom = useRoomListStore((s) => s.setSelectedRoom)
 
   const openSavedMessages = useCallback(async () => {
-    const client = getMatrixClient()
     if (!client) return
     const myUserId = client.getUserId()!
 
@@ -80,7 +80,7 @@ export function RoomListHeader() {
       setSelectedRoom(room_id)
       navigate(`/rooms/${encodeURIComponent(room_id)}`)
     } catch { /* ignore */ }
-  }, [rooms, navigate, setSelectedRoom])
+  }, [rooms, navigate, setSelectedRoom, client])
 
   return (
     <div className={styles.header}>

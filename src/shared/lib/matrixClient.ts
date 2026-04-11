@@ -1,4 +1,5 @@
 import * as sdk from 'matrix-js-sdk'
+import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb.js'
 import { openDB, type IDBPDatabase } from 'idb'
 
 const DB_NAME = 'corp-matrix-web'
@@ -21,6 +22,7 @@ const CRYPTO_DB_NAMES = [
 let clientInstance: sdk.MatrixClient | null = null
 let dbInstance: IDBPDatabase | null = null
 let cachedSecretStorageKey: Uint8Array | null = null
+let storeInstance: IndexedDBStore | null = null
 
 export function setSecretStorageKey(key: Uint8Array | null): void {
   cachedSecretStorageKey = key
@@ -159,12 +161,19 @@ export function createMatrixClient(opts: {
   userId?: string
   deviceId?: string
 }): sdk.MatrixClient {
+  // Persistent sync store — survives reloads, enables incremental sync
+  storeInstance = new IndexedDBStore({
+    indexedDB: window.indexedDB,
+    dbName: 'corp-matrix-sync',
+  } as never)
+
   clientInstance = sdk.createClient({
     baseUrl: opts.baseUrl,
     accessToken: opts.accessToken,
     userId: opts.userId,
     deviceId: opts.deviceId,
     useAuthorizationHeader: true,
+    store: storeInstance,
     cryptoCallbacks: {
       getSecretStorageKey: async ({ keys }: { keys: Record<string, unknown> }) => {
         if (!cachedSecretStorageKey) return null
@@ -221,6 +230,18 @@ export async function startClient(): Promise<void> {
 
   cryptoInitialized = false
 
+  // Load persisted sync state from IndexedDB (incremental sync after reload)
+  if (storeInstance) {
+    try {
+      await withTimeout(storeInstance.startup(), 10_000, 'IndexedDBStore.startup')
+    } catch (err) {
+      if (import.meta.env.DEV) {
+        console.warn('[store] IndexedDBStore startup failed, continuing with memory store:', err)
+      }
+      // Fallback: continue without persistent store — sync will be full but work
+    }
+  }
+
   try {
     await withTimeout(clientInstance.initRustCrypto(), 15_000, 'initRustCrypto')
     cryptoInitialized = true
@@ -246,6 +267,13 @@ export async function stopClient(): Promise<void> {
   if (clientInstance) {
     clientInstance.stopClient()
     clientInstance = null
+  }
+  if (storeInstance) {
+    try {
+      await storeInstance.save(true)
+      // Don't destroy — keep data for next session
+    } catch { /* ignore */ }
+    storeInstance = null
   }
 }
 

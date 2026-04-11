@@ -13,7 +13,7 @@ import { CreatePollDialog } from './CreatePollDialog.js'
 import { ForwardDialog } from './ForwardDialog.js'
 import { useComposerStore } from '../store/composerStore.js'
 import { useSelectionStore } from '../store/selectionStore.js'
-import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { redactMessage, editMessage } from '../services/messageService.js'
 import { toast } from '../../../shared/ui/Toast/toastService.js'
 import styles from './MessageComposer.module.scss'
@@ -39,6 +39,7 @@ function getEmojiContext(text: string, cursorPos: number): { query: string; star
 
 export function MessageComposer({ roomId }: MessageComposerProps) {
   const { t } = useTranslation()
+  const client = useMatrixClient()
   const { send, onTyping } = useSendMessage(roomId)
   const { upload, uploading } = useMediaUpload(roomId)
   const { candidates, active: mentionActive, open: openMention, close: closeMention } = useMentions(roomId)
@@ -331,7 +332,6 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
   const [showForwardSelected, setShowForwardSelected] = useState(false)
 
   const getSortedSelectedIds = () => {
-    const client = getMatrixClient()
     if (!client) return [...selectedIds]
     const room = client.getRoom(roomId)
     if (!room) return [...selectedIds]
@@ -356,7 +356,6 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
   }
 
   const handleCopySelected = () => {
-    const client = getMatrixClient()
     if (!client) return
     const room = client.getRoom(roomId)
     if (!room) return
@@ -374,7 +373,6 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
   }
 
   const handlePinSelected = async () => {
-    const client = getMatrixClient()
     if (!client) return
     const room = client.getRoom(roomId)
     if (!room) return

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { RoomEvent, RelationType, EventType, MatrixEventEvent } from 'matrix-js-sdk'
 import { Direction } from 'matrix-js-sdk/lib/models/event-timeline.js'
 import type { MatrixEvent, Room } from 'matrix-js-sdk'
@@ -167,6 +168,7 @@ function collectEvents(room: Room): TimelineEvent[] {
 }
 
 export function useTimeline(roomId: string) {
+  const client = useMatrixClient()
   const [events, setEvents] = useState<TimelineEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [paginating, setPaginating] = useState(false)
@@ -229,7 +231,6 @@ export function useTimeline(roomId: string) {
     setPrependCount(0)
     paginatingRef.current = false
 
-    const client = getMatrixClient()
     if (!client) return
 
     const room = client.getRoom(roomId)
@@ -279,11 +280,10 @@ export function useTimeline(roomId: string) {
       client.removeListener(RoomEvent.Redaction, onRedaction)
       client.removeListener(MatrixEventEvent.Decrypted, onDecrypted)
     }
-  }, [roomId, refreshEvents, sendReadReceipt])
+  }, [roomId, refreshEvents, sendReadReceipt, client])
 
   const paginateBack = useCallback(async () => {
     if (paginatingRef.current) return
-    const client = getMatrixClient()
     const room = roomRef.current
     if (!client || !room) return
 
@@ -304,7 +304,7 @@ export function useTimeline(roomId: string) {
       paginatingRef.current = false
       setPaginating(false)
     }
-  }, [])
+  }, [client])
 
   return { events, loading, paginating, paginateBack, prependCount }
 }

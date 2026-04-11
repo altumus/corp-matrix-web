@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 
 interface ProfileData {
   displayName: string
@@ -8,11 +8,11 @@ interface ProfileData {
 }
 
 export function useProfile() {
+  const client = useMatrixClient()
   const [profile, setProfile] = useState<ProfileData | null>(null)
   const [loading, setLoading] = useState(true)
 
   const refresh = useCallback(async () => {
-    const client = getMatrixClient()
     if (!client) return
 
     const userId = client.getUserId()
@@ -28,21 +28,19 @@ export function useProfile() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [client])
 
   useEffect(() => {
     refresh()
   }, [refresh])
 
   const updateDisplayName = useCallback(async (name: string) => {
-    const client = getMatrixClient()
     if (!client) return
     await client.setDisplayName(name)
     setProfile((prev) => prev ? { ...prev, displayName: name } : null)
-  }, [])
+  }, [client])
 
   const updateAvatar = useCallback(async (file: File) => {
-    const client = getMatrixClient()
     if (!client) return
 
     const response = await client.uploadContent(file)
@@ -50,7 +48,7 @@ export function useProfile() {
     setProfile((prev) =>
       prev ? { ...prev, avatarUrl: response.content_uri } : null,
     )
-  }, [])
+  }, [client])
 
   return { profile, loading, updateDisplayName, updateAvatar }
 }

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Plus, X } from 'lucide-react'
-import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { Modal, Input, Button } from '../../../shared/ui/index.js'
 import { toast } from '../../../shared/ui/Toast/toastService.js'
 import styles from './CreatePollDialog.module.scss'
@@ -13,6 +13,7 @@ interface CreatePollDialogProps {
 
 export function CreatePollDialog({ roomId, onClose }: CreatePollDialogProps) {
   const { t } = useTranslation()
+  const client = useMatrixClient()
   const [question, setQuestion] = useState('')
   const [options, setOptions] = useState(['', ''])
   const [disclosed, setDisclosed] = useState(true)
@@ -34,7 +35,6 @@ export function CreatePollDialog({ roomId, onClose }: CreatePollDialogProps) {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    const client = getMatrixClient()
     if (!client) return
 
     const validOptions = options.filter((o) => o.trim())

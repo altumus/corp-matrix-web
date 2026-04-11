@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { toast } from '../../../shared/ui/Toast/toastService.js'
 import styles from './PermissionsSettings.module.scss'
 
@@ -36,14 +36,14 @@ const PERM_FIELDS: PermField[] = [
 
 export function PermissionsSettings({ roomId }: PermissionsSettingsProps) {
   const { t } = useTranslation()
+  const client = useMatrixClient()
   const [saving, setSaving] = useState(false)
 
   const powerLevels = useMemo(() => {
-    const client = getMatrixClient()
     const room = client?.getRoom(roomId)
     if (!room) return {}
     return room.currentState.getStateEvents('m.room.power_levels', '')?.getContent() || {}
-  }, [roomId])
+  }, [roomId, client])
 
   const getValue = (field: PermField): number => {
     if (field.eventKey) {
@@ -54,7 +54,6 @@ export function PermissionsSettings({ roomId }: PermissionsSettingsProps) {
   }
 
   const handleChange = async (field: PermField, value: number) => {
-    const client = getMatrixClient()
     if (!client || saving) return
 
     setSaving(true)

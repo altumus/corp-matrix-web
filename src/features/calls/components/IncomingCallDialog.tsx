@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Phone, PhoneOff, Video } from 'lucide-react'
 import type { MatrixCall } from 'matrix-js-sdk'
 import { Avatar } from '../../../shared/ui/index.js'
-import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import styles from './IncomingCallDialog.module.scss'
 
 interface IncomingCallDialogProps {
@@ -12,12 +12,12 @@ interface IncomingCallDialogProps {
 }
 
 export function IncomingCallDialog({ call, onAccept, onReject }: IncomingCallDialogProps) {
+  const client = useMatrixClient()
   const [callerName, setCallerName] = useState('Звонок')
   const [callerAvatar, setCallerAvatar] = useState<string | null>(null)
   const isVideoOffer = call.type === 'video' || call.type === 'voice' ? false : false
 
   useEffect(() => {
-    const client = getMatrixClient()
     if (!client) return
     const opponent = call.getOpponentMember()
     if (opponent) {
@@ -26,7 +26,7 @@ export function IncomingCallDialog({ call, onAccept, onReject }: IncomingCallDia
     } else if (call.invitee) {
       setCallerName(call.invitee)
     }
-  }, [call])
+  }, [call, client])
 
   return (
     <div className={styles.overlay}>

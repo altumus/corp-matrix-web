@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { Avatar } from '../../../shared/ui/index.js'
 import styles from './ReadReceipts.module.scss'
 
@@ -16,10 +16,10 @@ interface ReceiptUser {
 }
 
 export function ReadReceipts({ eventId, roomId }: ReadReceiptsProps) {
+  const client = useMatrixClient()
   const [showPopup, setShowPopup] = useState(false)
 
   const users = useMemo<ReceiptUser[]>(() => {
-    const client = getMatrixClient()
     if (!client) return []
 
     const room = client.getRoom(roomId)
@@ -43,7 +43,7 @@ export function ReadReceipts({ eventId, roomId }: ReadReceiptsProps) {
         }
       })
       .sort((a, b) => b.ts - a.ts)
-  }, [eventId, roomId])
+  }, [eventId, roomId, client])
 
   if (users.length === 0) return null
 

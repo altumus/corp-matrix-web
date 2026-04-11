@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { Modal, Avatar } from '../../../shared/ui/index.js'
 import styles from './ReactionDetailsDialog.module.scss'
 
@@ -19,9 +19,9 @@ interface ReactionDetail {
 
 export function ReactionDetailsDialog({ roomId, reactions, onClose }: ReactionDetailsDialogProps) {
   const { t } = useTranslation()
+  const client = useMatrixClient()
 
   const details = useMemo<ReactionDetail[]>(() => {
-    const client = getMatrixClient()
     if (!client) return []
     const room = client.getRoom(roomId)
     if (!room) return []
@@ -39,7 +39,7 @@ export function ReactionDetailsDialog({ roomId, reactions, onClose }: ReactionDe
       }
     }
     return result
-  }, [roomId, reactions])
+  }, [roomId, reactions, client])
 
   const grouped = useMemo(() => {
     const map = new Map<string, ReactionDetail[]>()

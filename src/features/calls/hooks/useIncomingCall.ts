@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react'
 import { CallEventHandlerEvent, type MatrixCall } from 'matrix-js-sdk'
-import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 
 export function useIncomingCall(): {
   incoming: MatrixCall | null
   dismiss: () => void
 } {
+  const client = useMatrixClient()
   const [incoming, setIncoming] = useState<MatrixCall | null>(null)
 
   useEffect(() => {
-    const client = getMatrixClient()
     if (!client) return
 
     const handler = (call: MatrixCall) => {
@@ -21,7 +21,7 @@ export function useIncomingCall(): {
     return () => {
       client.removeListener(CallEventHandlerEvent.Incoming, handler)
     }
-  }, [])
+  }, [client])
 
   const dismiss = () => setIncoming(null)
 

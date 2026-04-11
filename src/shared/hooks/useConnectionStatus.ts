@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react'
-import { getMatrixClient } from '../lib/matrixClient.js'
+import { useMatrixClient } from '../contexts/MatrixClientContext.js'
 import { ClientEvent, SyncState } from 'matrix-js-sdk'
 
 export type ConnectionState = 'connected' | 'reconnecting' | 'error'
 
 export function useConnectionStatus(): ConnectionState {
+  const client = useMatrixClient()
   const [status, setStatus] = useState<ConnectionState>('connected')
 
   useEffect(() => {
-    const client = getMatrixClient()
     if (!client) return
 
     const onSync = (state: SyncState, _prev: SyncState | null) => {
@@ -25,7 +25,7 @@ export function useConnectionStatus(): ConnectionState {
     return () => {
       client.removeListener(ClientEvent.Sync, onSync)
     }
-  }, [])
+  }, [client])
 
   return status
 }

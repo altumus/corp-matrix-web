@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { redactMessage, sendReaction } from '../services/messageService.js'
 import { useComposerStore } from '../store/composerStore.js'
 import { EmojiPicker } from './EmojiPicker.js'
@@ -16,7 +16,7 @@ interface MessageActionsProps {
 
 export function MessageActions({ eventId, roomId, sender, senderName, body }: MessageActionsProps) {
   const { t } = useTranslation()
-  const client = getMatrixClient()
+  const client = useMatrixClient()
   const isOwnMessage = client?.getUserId() === sender
   const setReplyTarget = useComposerStore((s) => s.setReplyTarget)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)

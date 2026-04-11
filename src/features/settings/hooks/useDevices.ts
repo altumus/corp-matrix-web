@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 
 interface DeviceEntry {
   deviceId: string
@@ -10,11 +10,11 @@ interface DeviceEntry {
 }
 
 export function useDevices() {
+  const client = useMatrixClient()
   const [devices, setDevices] = useState<DeviceEntry[]>([])
   const [loading, setLoading] = useState(true)
 
   const refresh = useCallback(async () => {
-    const client = getMatrixClient()
     if (!client) return
 
     try {
@@ -33,18 +33,17 @@ export function useDevices() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [client])
 
   useEffect(() => {
     refresh()
   }, [refresh])
 
   const removeDevice = useCallback(async (deviceId: string) => {
-    const client = getMatrixClient()
     if (!client) return
     await client.deleteDevice(deviceId)
     setDevices((prev) => prev.filter((d) => d.deviceId !== deviceId))
-  }, [])
+  }, [client])
 
   return { devices, loading, removeDevice, refresh }
 }

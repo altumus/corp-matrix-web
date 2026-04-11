@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MoreVertical } from 'lucide-react'
-import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { Avatar } from '../../../shared/ui/index.js'
 import { toast } from '../../../shared/ui/Toast/toastService.js'
 import { usePresence } from '../../../shared/hooks/usePresence.js'
@@ -32,10 +32,10 @@ function getRoleName(level: number, t: (key: string) => string): string {
 
 export function MemberList({ roomId }: MemberListProps) {
   const { t } = useTranslation()
+  const client = useMatrixClient()
   const [actionsFor, setActionsFor] = useState<string | null>(null)
 
   const { members, myPL, refresh } = useMemo(() => {
-    const client = getMatrixClient()
     if (!client) return { members: [], myPL: 0, refresh: 0 }
     const room = client.getRoom(roomId)
     if (!room) return { members: [], myPL: 0, refresh: 0 }
@@ -58,9 +58,8 @@ export function MemberList({ roomId }: MemberListProps) {
     }).sort((a, b) => b.powerLevel - a.powerLevel)
 
     return { members: list, myPL: myLevel, refresh: 0 }
-  }, [roomId, t])
+  }, [roomId, t, client])
 
-  const client = getMatrixClient()
   const myUserId = client?.getUserId()
   const canKick = myPL >= 50
   const canBan = myPL >= 50

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 
 /**
  * Returns true if all devices of all room members are verified.
  * Returns null while loading.
  */
 export function useRoomTrust(roomId: string, isEncrypted: boolean): boolean | null {
+  const client = useMatrixClient()
   const [trusted, setTrusted] = useState<boolean | null>(null)
 
   useEffect(() => {
@@ -16,7 +17,6 @@ export function useRoomTrust(roomId: string, isEncrypted: boolean): boolean | nu
 
     let cancelled = false
     const check = async () => {
-      const client = getMatrixClient()
       const crypto = client?.getCrypto()
       if (!client || !crypto) {
         if (!cancelled) setTrusted(null)
@@ -49,7 +49,7 @@ export function useRoomTrust(roomId: string, isEncrypted: boolean): boolean | nu
 
     check()
     return () => { cancelled = true }
-  }, [roomId, isEncrypted])
+  }, [roomId, isEncrypted, client])
 
   return trusted
 }

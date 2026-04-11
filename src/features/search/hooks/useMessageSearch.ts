@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import type { ISearchRequestBody, ISearchResult } from 'matrix-js-sdk/lib/@types/search.js'
 import { SearchOrderBy } from 'matrix-js-sdk/lib/@types/search.js'
 
@@ -14,13 +14,13 @@ export interface SearchResult {
 }
 
 export function useMessageSearch() {
+  const client = useMatrixClient()
   const [results, setResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
   const [hasMore, setHasMore] = useState(false)
   const [nextBatch, setNextBatch] = useState<string | null>(null)
 
   const search = useCallback(async (query: string, roomId?: string) => {
-    const client = getMatrixClient()
     if (!client || !query.trim()) {
       setResults([])
       return
@@ -65,7 +65,7 @@ export function useMessageSearch() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [client])
 
   return { results, loading, hasMore, nextBatch, search }
 }

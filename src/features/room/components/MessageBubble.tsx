@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import {
@@ -21,12 +21,15 @@ import {
 	type ContextMenuAction,
 	type ReceiptEntry,
 } from '../../messaging/components/MessageContextMenu.js';
-import { EmojiPicker } from '../../messaging/components/EmojiPicker.js';
+// Lazy-load heavy emoji-mart bundle (~500kb)
+const EmojiPicker = lazy(() =>
+  import('../../messaging/components/EmojiPicker.js').then((m) => ({ default: m.EmojiPicker })),
+);
 import { ForwardDialog } from '../../messaging/components/ForwardDialog.js';
 import { useComposerStore } from '../../messaging/store/composerStore.js';
 import { useRoomListStore } from '../../room-list/store/roomListStore.js';
 import { useTimelineScroll } from '../context/TimelineScrollContext.js';
-import { getMatrixClient } from '../../../shared/lib/matrixClient.js';
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js';
 import {
 	redactMessage,
 	sendReaction,
@@ -34,7 +37,12 @@ import {
 import { useSelectionStore } from '../../messaging/store/selectionStore.js';
 import { useRightPanel } from '../context/RightPanelContext.js';
 import { ReactionDetailsDialog } from './ReactionDetailsDialog.js';
-import { Lightbox, type MediaType } from '../../media/components/Lightbox.js';
+import type { MediaType } from '../../media/components/Lightbox.js';
+
+// Lazy-load heavy Lightbox — only loads when user clicks media
+const Lightbox = lazy(() =>
+  import('../../media/components/Lightbox.js').then((m) => ({ default: m.Lightbox })),
+);
 import { ReadReceipts } from './ReadReceipts.js';
 import { PollMessage } from './PollMessage.js';
 import { useLongPress } from '../../../shared/hooks/useLongPress.js';
@@ -131,7 +139,70 @@ export function MessageBubble({
 		return () => el.removeEventListener('click', handleLinkClick, true);
 	}, [navigate, scrollToEvent, setSelectedRoom, event.roomId]);
 
-	const client = getMatrixClient();
+	// Swipe-right-to-reply on mobile
+	useEffect(() => {
+		const el = bubbleRef.current;
+		if (!el) return;
+		if (event.isRedacted) return;
+
+		let startX = 0;
+		let startY = 0;
+		let moved = false;
+		let currentDx = 0;
+
+		const onTouchStart = (e: TouchEvent) => {
+			const t = e.touches[0];
+			if (!t) return;
+			startX = t.clientX;
+			startY = t.clientY;
+			moved = false;
+			currentDx = 0;
+		};
+
+		const onTouchMove = (e: TouchEvent) => {
+			const t = e.touches[0];
+			if (!t) return;
+			const dx = t.clientX - startX;
+			const dy = Math.abs(t.clientY - startY);
+			// Only horizontal right swipes, ignore vertical scroll
+			if (dx > 10 && dy < 30) {
+				moved = true;
+				currentDx = Math.min(dx, 100);
+				el.style.transform = `translateX(${currentDx}px)`;
+				el.style.transition = 'none';
+			}
+		};
+
+		const onTouchEnd = () => {
+			if (moved && currentDx > 60) {
+				const bodyText = (event.content?.body as string) || '';
+				setReplyTarget({
+					eventId: event.eventId,
+					sender: event.senderName,
+					body: bodyText,
+				});
+			}
+			// Animate back
+			el.style.transition = 'transform 200ms ease';
+			el.style.transform = 'translateX(0)';
+			currentDx = 0;
+			moved = false;
+		};
+
+		el.addEventListener('touchstart', onTouchStart, { passive: true });
+		el.addEventListener('touchmove', onTouchMove, { passive: true });
+		el.addEventListener('touchend', onTouchEnd);
+		el.addEventListener('touchcancel', onTouchEnd);
+
+		return () => {
+			el.removeEventListener('touchstart', onTouchStart);
+			el.removeEventListener('touchmove', onTouchMove);
+			el.removeEventListener('touchend', onTouchEnd);
+			el.removeEventListener('touchcancel', onTouchEnd);
+		};
+	}, [event.eventId, event.senderName, event.content, event.isRedacted, setReplyTarget]);
+
+	const client = useMatrixClient();
 	const myUserId = client?.getUserId();
 	const isOwnMessage = event.sender === myUserId;
 
@@ -281,7 +352,7 @@ export function MessageBubble({
 
 	const receipts = useMemo<ReceiptEntry[]>(() => {
 		if (!contextMenu) return [];
-		const c = getMatrixClient();
+		const c = client;
 		if (!c) return [];
 		const room = c.getRoom(event.roomId);
 		if (!room) return [];
@@ -303,7 +374,7 @@ export function MessageBubble({
 		}
 
 		return result.sort((a, b) => b.ts - a.ts);
-	}, [contextMenu, event.roomId, event.eventId, myUserId]);
+	}, [contextMenu, event.roomId, event.eventId, myUserId, client]);
 
 	const timeEl = (
 		<time
@@ -623,21 +694,25 @@ export function MessageBubble({
 			)}
 
 			{showReactionPicker && (
-				<EmojiPicker
-					anchorRef={bubbleRef}
-					onSelect={(emoji) => {
-						sendReaction(event.roomId, event.eventId, emoji);
-					}}
-					onClose={() => setShowReactionPicker(false)}
-				/>
+				<Suspense fallback={null}>
+					<EmojiPicker
+						anchorRef={bubbleRef}
+						onSelect={(emoji) => {
+							sendReaction(event.roomId, event.eventId, emoji);
+						}}
+						onClose={() => setShowReactionPicker(false)}
+					/>
+				</Suspense>
 			)}
 		{lightbox && (
-				<Lightbox
-					mxcUrl={lightbox.mxcUrl}
-					filename={lightbox.filename}
-					mediaType={lightbox.mediaType}
-					onClose={() => setLightbox(null)}
-				/>
+				<Suspense fallback={null}>
+					<Lightbox
+						mxcUrl={lightbox.mxcUrl}
+						filename={lightbox.filename}
+						mediaType={lightbox.mediaType}
+						onClose={() => setLightbox(null)}
+					/>
+				</Suspense>
 			)}
 		</div>
 	);

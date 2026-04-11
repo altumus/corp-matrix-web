@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { ClientEvent } from 'matrix-js-sdk'
 import type { RoomSummary } from '../types.js'
 
@@ -33,6 +34,7 @@ function resolveRoom(roomId: string | undefined): RoomSummary | null {
 }
 
 export function useRoom(roomId: string | undefined) {
+  const client = useMatrixClient()
   const [state, setState] = useState(() => {
     const r = resolveRoom(roomId)
     return { room: r, loading: !r, trackedRoomId: roomId }
@@ -45,8 +47,6 @@ export function useRoom(roomId: string | undefined) {
 
   useEffect(() => {
     if (state.room) return
-
-    const client = getMatrixClient()
     if (!client) return
 
     const onSync = () => {
@@ -60,7 +60,7 @@ export function useRoom(roomId: string | undefined) {
     return () => {
       client.removeListener(ClientEvent.Sync, onSync)
     }
-  }, [roomId, state.room])
+  }, [roomId, state.room, client])
 
   return { room: state.room, loading: state.loading }
 }

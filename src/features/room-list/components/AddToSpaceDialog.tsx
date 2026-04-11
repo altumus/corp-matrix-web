@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Modal, Avatar } from '../../../shared/ui/index.js'
 import { useSpacesStore } from '../../spaces/store/spacesStore.js'
-import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import styles from './AddToSpaceDialog.module.scss'
 
 interface AddToSpaceDialogProps {
@@ -12,11 +12,11 @@ interface AddToSpaceDialogProps {
 
 export function AddToSpaceDialog({ roomId, onClose }: AddToSpaceDialogProps) {
   const { t } = useTranslation()
+  const client = useMatrixClient()
   const spaces = useSpacesStore((s) => s.spaces)
   const [adding, setAdding] = useState<string | null>(null)
 
   const handleAdd = async (spaceId: string) => {
-    const client = getMatrixClient()
     if (!client || adding) return
 
     setAdding(spaceId)

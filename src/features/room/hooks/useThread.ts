@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { RoomEvent } from 'matrix-js-sdk'
 import type { TimelineEvent } from '../types.js'
 
@@ -51,6 +52,7 @@ function collectThreadEvents(roomId: string, threadRootId: string): TimelineEven
 }
 
 export function useThread(roomId: string, threadRootId: string) {
+  const client = useMatrixClient()
   const [events, setEvents] = useState<TimelineEvent[]>([])
 
   const refresh = useCallback(() => {
@@ -59,8 +61,6 @@ export function useThread(roomId: string, threadRootId: string) {
 
   useEffect(() => {
     refresh()
-
-    const client = getMatrixClient()
     if (!client) return
 
     const onTimeline = () => refresh()
@@ -68,7 +68,7 @@ export function useThread(roomId: string, threadRootId: string) {
     return () => {
       client.removeListener(RoomEvent.Timeline, onTimeline)
     }
-  }, [refresh])
+  }, [refresh, client])
 
   const rootEvent = events.length > 0 ? events[0] : null
   const replies = events.slice(1)

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import type { RoomListEntry } from '../types.js'
 import { Avatar, Button } from '../../../shared/ui/index.js'
 import { toast } from '../../../shared/ui/Toast/toastService.js'
@@ -27,10 +27,10 @@ export function InvitesList({ invites }: InvitesListProps) {
 
 function InviteItem({ invite }: { invite: RoomListEntry }) {
   const { t } = useTranslation()
+  const client = useMatrixClient()
   const [loading, setLoading] = useState(false)
 
   const handleAction = async (accept: boolean) => {
-    const client = getMatrixClient()
     if (!client) return
 
     setLoading(true)

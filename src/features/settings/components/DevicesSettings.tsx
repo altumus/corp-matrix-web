@@ -4,13 +4,14 @@ import { ShieldCheck, ShieldAlert } from 'lucide-react'
 import { getDeviceList } from '../../encryption/services/cryptoService.js'
 import { VerifyDeviceDialog } from '../../encryption/components/VerifyDeviceDialog.js'
 import type { DeviceInfo } from '../../encryption/types.js'
-import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { Button, Spinner } from '../../../shared/ui/index.js'
 import { toast } from '../../../shared/ui/Toast/toastService.js'
 import styles from './DevicesSettings.module.scss'
 
 export function DevicesSettings() {
   const { t } = useTranslation()
+  const client = useMatrixClient()
   const [devices, setDevices] = useState<DeviceInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [verifyDevice, setVerifyDevice] = useState<DeviceInfo | null>(null)
@@ -28,7 +29,6 @@ export function DevicesSettings() {
   const handleRemove = async (deviceId: string) => {
     if (!confirm('Удалить это устройство?')) return
     try {
-      const client = getMatrixClient()
       if (!client) return
       await client.deleteDevice(deviceId)
       setDevices((prev) => prev.filter((d) => d.deviceId !== deviceId))
@@ -38,7 +38,7 @@ export function DevicesSettings() {
     }
   }
 
-  const userId = getMatrixClient()?.getUserId() || ''
+  const userId = client?.getUserId() || ''
 
   if (loading) return <Spinner />
 

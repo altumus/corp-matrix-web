@@ -1,7 +1,8 @@
 import { useState, useCallback, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { KeyRound, Smartphone, LogOut } from 'lucide-react'
-import { getMatrixClient, setSecretStorageKey } from '../../../shared/lib/matrixClient.js'
+import { setSecretStorageKey } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { decodeRecoveryKey } from 'matrix-js-sdk/lib/crypto-api/recovery-key.js'
 import { useAuthStore } from '../../auth/store/authStore.js'
 import { Button, Input } from '../../../shared/ui/index.js'
@@ -12,6 +13,7 @@ type Mode = 'choose' | 'key' | 'verify'
 
 export function KeyRestoreScreen() {
   const { t } = useTranslation()
+  const client = useMatrixClient()
   const completeKeyRestore = useAuthStore((s) => s.completeKeyRestore)
   const logout = useAuthStore((s) => s.logout)
   const [mode, setMode] = useState<Mode>('choose')
@@ -21,7 +23,6 @@ export function KeyRestoreScreen() {
 
   const handleSubmit = useCallback(async (e: FormEvent) => {
     e.preventDefault()
-    const client = getMatrixClient()
     const crypto = client?.getCrypto()
     if (!crypto || !recoveryKey.trim()) return
 
@@ -66,7 +67,7 @@ export function KeyRestoreScreen() {
     } finally {
       setLoading(false)
     }
-  }, [recoveryKey, completeKeyRestore, t])
+  }, [recoveryKey, completeKeyRestore, t, client])
 
   const handleBack = useCallback(() => {
     setMode('choose')

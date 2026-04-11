@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { Preset } from 'matrix-js-sdk/lib/@types/partials.js'
 import type { ICreateRoomOpts } from 'matrix-js-sdk/lib/@types/requests.js'
 import { Modal, Input, Button } from '../../../shared/ui/index.js'
@@ -13,6 +13,7 @@ interface CreateRoomDialogProps {
 
 export function CreateRoomDialog({ onClose }: CreateRoomDialogProps) {
   const { t } = useTranslation()
+  const client = useMatrixClient()
   const [name, setName] = useState('')
   const [topic, setTopic] = useState('')
   const [isDirect, setIsDirect] = useState(false)
@@ -21,7 +22,6 @@ export function CreateRoomDialog({ onClose }: CreateRoomDialogProps) {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    const client = getMatrixClient()
     if (!client) return
 
     setLoading(true)

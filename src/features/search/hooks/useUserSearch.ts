@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 
 export interface UserResult {
   userId: string
@@ -8,11 +8,11 @@ export interface UserResult {
 }
 
 export function useUserSearch() {
+  const client = useMatrixClient()
   const [users, setUsers] = useState<UserResult[]>([])
   const [loading, setLoading] = useState(false)
 
   const search = useCallback(async (query: string) => {
-    const client = getMatrixClient()
     if (!client || !query.trim()) {
       setUsers([])
       return
@@ -32,7 +32,7 @@ export function useUserSearch() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [client])
 
   return { users, loading, search }
 }

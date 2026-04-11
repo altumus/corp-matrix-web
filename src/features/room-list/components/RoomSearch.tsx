@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router'
 import { Preset } from 'matrix-js-sdk/lib/@types/partials.js'
 import { useCombinedSearch } from '../hooks/useCombinedSearch.js'
 import { useRoomListStore } from '../store/roomListStore.js'
-import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { Avatar, Spinner } from '../../../shared/ui/index.js'
 import styles from './RoomSearch.module.scss'
 
@@ -30,6 +30,7 @@ function formatDate(ts: number): string {
 
 export function RoomSearch() {
   const { t } = useTranslation()
+  const client = useMatrixClient()
   const navigate = useNavigate()
   const setSelectedRoom = useRoomListStore((s) => s.setSelectedRoom)
   const setSearchQuery = useRoomListStore((s) => s.setSearchQuery)
@@ -124,7 +125,6 @@ export function RoomSearch() {
                   key={user.userId}
                   className={styles.resultItem}
                   onClick={async () => {
-                    const client = getMatrixClient()
                     if (!client) return
                     try {
                       const { room_id } = await client.createRoom({

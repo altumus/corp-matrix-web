@@ -1,13 +1,13 @@
 import { useCallback, useEffect } from 'react'
-import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { ClientEvent } from 'matrix-js-sdk'
 import { useSpacesStore, type SpaceEntry } from '../store/spacesStore.js'
 
 export function useSpaces() {
+  const client = useMatrixClient()
   const { spaces, activeSpaceId, setSpaces, setActiveSpace } = useSpacesStore()
 
   const refresh = useCallback(() => {
-    const client = getMatrixClient()
     if (!client) return
 
     const allRooms = client.getRooms()
@@ -32,10 +32,9 @@ export function useSpaces() {
     })
 
     setSpaces(entries)
-  }, [setSpaces])
+  }, [setSpaces, client])
 
   useEffect(() => {
-    const client = getMatrixClient()
     if (!client) return
 
     refresh()
@@ -43,7 +42,7 @@ export function useSpaces() {
     return () => {
       client.removeListener(ClientEvent.Sync, refresh)
     }
-  }, [refresh])
+  }, [refresh, client])
 
   return { spaces, activeSpaceId, setActiveSpace, refresh }
 }

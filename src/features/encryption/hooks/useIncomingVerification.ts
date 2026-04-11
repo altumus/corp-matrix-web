@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
-import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { CryptoEvent } from 'matrix-js-sdk/lib/crypto-api/CryptoEvent.js'
 import type { VerificationRequest } from 'matrix-js-sdk/lib/crypto-api/index.js'
 
 export function useIncomingVerification() {
+  const client = useMatrixClient()
   const [request, setRequest] = useState<VerificationRequest | null>(null)
 
   useEffect(() => {
-    const client = getMatrixClient()
     if (!client) return
 
     const crypto = client.getCrypto()
@@ -26,7 +26,7 @@ export function useIncomingVerification() {
     return () => {
       emitter.removeListener(CryptoEvent.VerificationRequestReceived, onRequest as never)
     }
-  }, [])
+  }, [client])
 
   const dismiss = () => setRequest(null)
 

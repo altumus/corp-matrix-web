@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { getMatrixClient } from '../lib/matrixClient.js'
+import { useMatrixClient } from '../contexts/MatrixClientContext.js'
 
 const blobCache = new Map<string, string>()
 
 export function useAuthenticatedMedia(mxcUrl: string | null | undefined): string | null {
+  const client = useMatrixClient()
   const cached = useMemo(() => (mxcUrl ? blobCache.get(mxcUrl) ?? null : null), [mxcUrl])
   const [blobUrl, setBlobUrl] = useState<string | null>(cached)
 
@@ -13,7 +14,6 @@ export function useAuthenticatedMedia(mxcUrl: string | null | undefined): string
     }
 
     let cancelled = false
-    const client = getMatrixClient()
     if (!client) return
 
     const httpUrl = client.mxcUrlToHttp(mxcUrl, undefined, undefined, undefined, false, true, true)
@@ -37,7 +37,7 @@ export function useAuthenticatedMedia(mxcUrl: string | null | undefined): string
       .catch(() => {})
 
     return () => { cancelled = true }
-  }, [mxcUrl])
+  }, [mxcUrl, client])
 
   return cached ?? blobUrl
 }

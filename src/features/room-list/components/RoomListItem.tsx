@@ -5,6 +5,7 @@ import { Bookmark, BellOff, Bell, Circle, Pin, ArrowDown, Home, Archive, LogOut,
 import type { RoomListEntry } from '../types.js'
 import { useRoomListStore } from '../store/roomListStore.js'
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { Avatar, Badge, toast } from '../../../shared/ui/index.js'
 import {
   MessageContextMenu,
@@ -75,6 +76,7 @@ function isMarkedUnread(roomId: string): boolean {
 
 export function RoomListItem({ room }: RoomListItemProps) {
   const { t } = useTranslation()
+  const client = useMatrixClient()
   const navigate = useNavigate()
   const selectedRoomId = useRoomListStore((s) => s.selectedRoomId)
   const setSelectedRoom = useRoomListStore((s) => s.setSelectedRoom)
@@ -85,7 +87,6 @@ export function RoomListItem({ room }: RoomListItemProps) {
   const [unreadLocal, setUnreadLocal] = useState(() => isMarkedUnread(room.roomId))
   const [lowPriorityLocal, setLowPriorityLocal] = useState(() => hasTag(room.roomId, 'm.lowpriority'))
 
-  const client = getMatrixClient()
   const myUserId = client?.getUserId() ?? null
   const dmPartnerId = room.isDirect && !room.isSavedMessages ? getDmPartnerId(room.roomId) : null
   const presence = usePresence(dmPartnerId)
@@ -150,9 +151,8 @@ export function RoomListItem({ room }: RoomListItemProps) {
         icon: <Bell size={16} />,
         label: t('rooms.notifyAll', { defaultValue: 'Все сообщения' }),
         onClick: () => {
-          const c = getMatrixClient()
-          if (!c) return
-          c.deletePushRule('global', 'room' as never, room.roomId).catch(() => {})
+          if (!client) return
+          client.deletePushRule('global', 'room' as never, room.roomId).catch(() => {})
           setMutedLocal(false)
         },
       },
@@ -161,10 +161,9 @@ export function RoomListItem({ room }: RoomListItemProps) {
         icon: <Circle size={16} />,
         label: t('rooms.notifyMentionsOnly', { defaultValue: 'Только упоминания' }),
         onClick: () => {
-          const c = getMatrixClient()
-          if (!c) return
+          if (!client) return
           // dont_notify for all events EXCEPT mentions (default mention rules still fire)
-          c.addPushRule('global', 'room' as never, room.roomId, {
+          client.addPushRule('global', 'room' as never, room.roomId, {
             actions: ['dont_notify' as never],
             conditions: [{ kind: 'event_match' as never, key: 'room_id', pattern: room.roomId }],
           } as never).catch((err: Error) => toast(err.message, 'error'))
@@ -176,12 +175,11 @@ export function RoomListItem({ room }: RoomListItemProps) {
         icon: muted ? <Bell size={16} /> : <BellOff size={16} />,
         label: muted ? t('rooms.unmuteNotifications') : t('rooms.muteNotifications'),
         onClick: () => {
-          const c = getMatrixClient()
-          if (!c) return
+          if (!client) return
           if (muted) {
-            c.deletePushRule('global', 'room' as never, room.roomId).catch((err: Error) => toast(err.message, 'error'))
+            client.deletePushRule('global', 'room' as never, room.roomId).catch((err: Error) => toast(err.message, 'error'))
           } else {
-            c.addPushRule('global', 'room' as never, room.roomId, {
+            client.addPushRule('global', 'room' as never, room.roomId, {
               actions: ['dont_notify' as never],
               conditions: [{ kind: 'event_match' as never, key: 'room_id', pattern: room.roomId }],
             } as never).catch((err: Error) => toast(err.message, 'error'))
@@ -194,9 +192,8 @@ export function RoomListItem({ room }: RoomListItemProps) {
         icon: <Circle size={16} />,
         label: markedUnread ? t('rooms.markRead') : t('rooms.markUnread'),
         onClick: () => {
-          const c = getMatrixClient()
-          if (!c) return
-          c.setRoomAccountData(room.roomId, 'com.famedly.marked_unread' as never, { unread: !markedUnread } as never).catch((err: Error) => toast(err.message, 'error'))
+          if (!client) return
+          client.setRoomAccountData(room.roomId, 'com.famedly.marked_unread' as never, { unread: !markedUnread } as never).catch((err: Error) => toast(err.message, 'error'))
           setUnreadLocal(!markedUnread)
         },
       },
@@ -205,12 +202,11 @@ export function RoomListItem({ room }: RoomListItemProps) {
         icon: <Pin size={16} />,
         label: isPinned ? t('rooms.unpin') : t('rooms.pin'),
         onClick: () => {
-          const c = getMatrixClient()
-          if (!c) return
+          if (!client) return
           if (isPinned) {
-            c.deleteRoomTag(room.roomId, 'm.favourite').catch((err: Error) => toast(err.message, 'error'))
+            client.deleteRoomTag(room.roomId, 'm.favourite').catch((err: Error) => toast(err.message, 'error'))
           } else {
-            c.setRoomTag(room.roomId, 'm.favourite', { order: 0.5 }).catch((err: Error) => toast(err.message, 'error'))
+            client.setRoomTag(room.roomId, 'm.favourite', { order: 0.5 }).catch((err: Error) => toast(err.message, 'error'))
           }
         },
       },
@@ -219,12 +215,11 @@ export function RoomListItem({ room }: RoomListItemProps) {
         icon: <ArrowDown size={16} />,
         label: isLowPriority ? t('rooms.removeLowPriority') : t('rooms.lowPriority'),
         onClick: () => {
-          const c = getMatrixClient()
-          if (!c) return
+          if (!client) return
           if (isLowPriority) {
-            c.deleteRoomTag(room.roomId, 'm.lowpriority').catch((err: Error) => toast(err.message, 'error'))
+            client.deleteRoomTag(room.roomId, 'm.lowpriority').catch((err: Error) => toast(err.message, 'error'))
           } else {
-            c.setRoomTag(room.roomId, 'm.lowpriority', { order: 0.5 }).catch((err: Error) => toast(err.message, 'error'))
+            client.setRoomTag(room.roomId, 'm.lowpriority', { order: 0.5 }).catch((err: Error) => toast(err.message, 'error'))
           }
           setLowPriorityLocal(!isLowPriority)
         },
@@ -242,12 +237,11 @@ export function RoomListItem({ room }: RoomListItemProps) {
         icon: <Archive size={16} />,
         label: hasTag(room.roomId, 'm.archive') ? t('rooms.unarchive') : t('rooms.archive'),
         onClick: () => {
-          const c = getMatrixClient()
-          if (!c) return
+          if (!client) return
           if (hasTag(room.roomId, 'm.archive')) {
-            c.deleteRoomTag(room.roomId, 'm.archive').catch((err: Error) => toast(err.message, 'error'))
+            client.deleteRoomTag(room.roomId, 'm.archive').catch((err: Error) => toast(err.message, 'error'))
           } else {
-            c.setRoomTag(room.roomId, 'm.archive', { order: 0 }).catch((err: Error) => toast(err.message, 'error'))
+            client.setRoomTag(room.roomId, 'm.archive', { order: 0 }).catch((err: Error) => toast(err.message, 'error'))
           }
         },
       },
@@ -258,14 +252,13 @@ export function RoomListItem({ room }: RoomListItemProps) {
         danger: true,
         onClick: () => {
           if (!confirm(t('rooms.leaveConfirm'))) return
-          const c = getMatrixClient()
-          if (!c) return
-          c.leave(room.roomId).catch((err: Error) => toast(err.message, 'error'))
+          if (!client) return
+          client.leave(room.roomId).catch((err: Error) => toast(err.message, 'error'))
         },
       },
     ]
     return actions
-  }, [room, isPinned, isLowPriority, muted, markedUnread, t])
+  }, [room, isPinned, isLowPriority, muted, markedUnread, t, client])
 
   const displayName = room.isSavedMessages ? t('rooms.savedMessages') : room.name
   const messagePreview = getMessagePreview(room, myUserId, t('rooms.you'))
@@ -278,8 +271,7 @@ export function RoomListItem({ room }: RoomListItemProps) {
         onContextMenu={handleContextMenu}
         onMouseEnter={() => {
           // Prefetch: warm SDK cache by accessing room timeline
-          const c = getMatrixClient()
-          c?.getRoom(room.roomId)?.getLiveTimeline().getEvents()
+          client?.getRoom(room.roomId)?.getLiveTimeline().getEvents()
         }}
         aria-current={isSelected ? 'page' : undefined}
         {...longPressHandlers}

@@ -1,6 +1,6 @@
 import { useRef, useState, useCallback, type FormEvent, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { X, Send } from 'lucide-react'
+import { X, Send, ArrowLeft } from 'lucide-react'
 import { useThread } from '../hooks/useThread.js'
 import { Avatar } from '../../../shared/ui/index.js'
 import { sendTextMessage } from '../../messaging/services/messageService.js'
@@ -48,10 +48,17 @@ export function ThreadPanel({ roomId, threadRootId, onClose }: ThreadPanelProps)
   return (
     <div className={`${styles.panel} ${isMobile ? styles.panelMobile : ''}`}>
       <div className={styles.header}>
+        {isMobile && (
+          <button className={styles.closeBtn} onClick={onClose} aria-label="Назад">
+            <ArrowLeft size={18} />
+          </button>
+        )}
         <span className={styles.title}>{t('messages.thread')}</span>
-        <button className={styles.closeBtn} onClick={onClose}>
-          <X size={18} />
-        </button>
+        {!isMobile && (
+          <button className={styles.closeBtn} onClick={onClose} aria-label="Закрыть">
+            <X size={18} />
+          </button>
+        )}
       </div>
 
       {rootEvent && (

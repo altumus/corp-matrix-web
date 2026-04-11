@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { RoomMemberEvent } from 'matrix-js-sdk'
 import type { MatrixEvent, RoomMember } from 'matrix-js-sdk'
 import styles from './TypingIndicator.module.scss'
@@ -9,10 +9,10 @@ interface TypingIndicatorProps {
 }
 
 export function TypingIndicator({ roomId }: TypingIndicatorProps) {
+  const client = useMatrixClient()
   const [typingUsers, setTypingUsers] = useState<string[]>([])
 
   useEffect(() => {
-    const client = getMatrixClient()
     if (!client) return
 
     const onTyping = (_event: MatrixEvent, member: RoomMember) => {
@@ -31,7 +31,7 @@ export function TypingIndicator({ roomId }: TypingIndicatorProps) {
     return () => {
       client.removeListener(RoomMemberEvent.Typing, onTyping)
     }
-  }, [roomId])
+  }, [roomId, client])
 
   if (typingUsers.length === 0) return null
 

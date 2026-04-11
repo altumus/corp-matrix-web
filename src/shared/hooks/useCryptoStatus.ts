@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
-import { isCryptoReady, getMatrixClient } from '../lib/matrixClient.js'
+import { isCryptoReady } from '../lib/matrixClient.js'
+import { useMatrixClient } from '../contexts/MatrixClientContext.js'
 import { ClientEvent, SyncState } from 'matrix-js-sdk'
 
 export function useCryptoStatus(): boolean {
+  const client = useMatrixClient()
   const [ready, setReady] = useState(isCryptoReady())
 
   useEffect(() => {
-    const client = getMatrixClient()
     if (!client) return
 
     // Re-check after initial sync completes
@@ -18,7 +19,7 @@ export function useCryptoStatus(): boolean {
 
     client.on(ClientEvent.Sync, onSync)
     return () => { client.removeListener(ClientEvent.Sync, onSync) }
-  }, [])
+  }, [client])
 
   return ready
 }

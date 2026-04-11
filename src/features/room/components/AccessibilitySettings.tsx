@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Copy } from 'lucide-react'
-import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { toast } from '../../../shared/ui/Toast/toastService.js'
 import styles from './AccessibilitySettings.module.scss'
 
@@ -14,10 +14,10 @@ type JoinRule = 'public' | 'knock' | 'invite'
 
 export function AccessibilitySettings({ roomId }: AccessibilitySettingsProps) {
   const { t } = useTranslation()
+  const client = useMatrixClient()
   const [saving, setSaving] = useState(false)
 
   const { historyVisibility, joinRule, roomVersion } = useMemo(() => {
-    const client = getMatrixClient()
     const room = client?.getRoom(roomId)
     if (!room) return { historyVisibility: 'shared' as HistoryVisibility, joinRule: 'invite' as JoinRule, roomVersion: '' }
 
@@ -26,10 +26,9 @@ export function AccessibilitySettings({ roomId }: AccessibilitySettingsProps) {
     const ver = room.currentState.getStateEvents('m.room.create', '')?.getContent()?.room_version as string || ''
 
     return { historyVisibility: hv, joinRule: jr, roomVersion: ver }
-  }, [roomId])
+  }, [roomId, client])
 
   const handleHistoryChange = async (value: HistoryVisibility) => {
-    const client = getMatrixClient()
     if (!client || saving) return
     setSaving(true)
     try {
@@ -43,7 +42,6 @@ export function AccessibilitySettings({ roomId }: AccessibilitySettingsProps) {
   }
 
   const handleJoinRuleChange = async (value: JoinRule) => {
-    const client = getMatrixClient()
     if (!client || saving) return
     setSaving(true)
     try {

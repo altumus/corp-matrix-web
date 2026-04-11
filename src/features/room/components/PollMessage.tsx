@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BarChart3, Check } from 'lucide-react'
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { Modal, Avatar } from '../../../shared/ui/index.js'
 import styles from './PollMessage.module.scss'
 
@@ -82,6 +83,7 @@ function collectVotes(roomId: string, pollEventId: string): VoteInfo[] {
 
 export function PollMessage({ eventId, roomId, content }: PollMessageProps) {
   const { t } = useTranslation()
+  const client = useMatrixClient()
   const [myVotes, setMyVotes] = useState<string[]>([])
   const [allVotes, setAllVotes] = useState<VoteInfo[]>([])
   const [showStats, setShowStats] = useState(false)
@@ -108,14 +110,13 @@ export function PollMessage({ eventId, roomId, content }: PollMessageProps) {
       const votes = collectVotes(roomId, eventId)
       setAllVotes(votes)
 
-      const client = getMatrixClient()
       const myUserId = client?.getUserId()
       if (myUserId) {
         const mine = votes.filter((v) => v.userId === myUserId).map((v) => v.answerId)
         setMyVotes(mine)
       }
     })
-  }, [roomId, eventId])
+  }, [roomId, eventId, client])
 
   const totalVotes = useMemo(() => {
     const voters = new Set(allVotes.map((v) => v.userId))
@@ -123,11 +124,10 @@ export function PollMessage({ eventId, roomId, content }: PollMessageProps) {
   }, [allVotes])
 
   const totalMembers = useMemo(() => {
-    const client = getMatrixClient()
     if (!client) return 0
     const room = client.getRoom(roomId)
     return room?.getJoinedMemberCount() || 0
-  }, [roomId])
+  }, [roomId, client])
 
   const votesPerAnswer = useMemo(() => {
     const map = new Map<string, VoteInfo[]>()
@@ -139,7 +139,6 @@ export function PollMessage({ eventId, roomId, content }: PollMessageProps) {
   }, [allVotes])
 
   const handleVote = async (answerId: string) => {
-    const client = getMatrixClient()
     if (!client) return
 
     let nextVoted: string[]

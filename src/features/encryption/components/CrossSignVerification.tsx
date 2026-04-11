@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import QRCode from 'qrcode'
 import { VerificationRequestEvent } from 'matrix-js-sdk/lib/crypto-api/verification.js'
 import type { VerificationRequest } from 'matrix-js-sdk/lib/crypto-api/index.js'
-import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { requestOwnUserVerification } from '../services/cryptoService.js'
 import { useAuthStore } from '../../auth/store/authStore.js'
 import { Button, Spinner } from '../../../shared/ui/index.js'
@@ -17,6 +17,7 @@ type Phase = 'waiting' | 'qr' | 'done' | 'error'
 
 export function CrossSignVerification({ onBack }: CrossSignVerificationProps) {
   const { t } = useTranslation()
+  const client = useMatrixClient()
   const completeKeyRestore = useAuthStore((s) => s.completeKeyRestore)
   const [phase, setPhase] = useState<Phase>('waiting')
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
@@ -30,7 +31,6 @@ export function CrossSignVerification({ onBack }: CrossSignVerificationProps) {
 
     async function start() {
       try {
-        const client = getMatrixClient()
         const crypto = client?.getCrypto()
         if (!crypto || !client) {
           setErrorMsg(t('encryption.verificationFailed'))
@@ -73,7 +73,7 @@ export function CrossSignVerification({ onBack }: CrossSignVerificationProps) {
 
           // Done = 4
           if (request.phase === 4) {
-            const crypto2 = getMatrixClient()?.getCrypto()
+            const crypto2 = client?.getCrypto()
             if (crypto2) {
               try { await crypto2.checkKeyBackupAndEnable() } catch { /* best-effort */ }
             }
@@ -94,7 +94,7 @@ export function CrossSignVerification({ onBack }: CrossSignVerificationProps) {
     }
 
     start()
-  }, [t, completeKeyRestore])
+  }, [t, completeKeyRestore, client])
 
   const handleBack = useCallback(() => {
     try { requestRef.current?.cancel() } catch { /* best-effort */ }

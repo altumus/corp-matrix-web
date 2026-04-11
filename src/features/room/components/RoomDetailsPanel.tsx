@@ -7,7 +7,7 @@ import { MemberList } from './MemberList.js'
 import { AccessibilitySettings } from './AccessibilitySettings.js'
 import { PermissionsSettings } from './PermissionsSettings.js'
 import { useIsMobile } from '../../../shared/hooks/useMediaQuery.js'
-import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { toast } from '../../../shared/ui/Toast/toastService.js'
 import styles from './RoomDetailsPanel.module.scss'
 
@@ -29,7 +29,7 @@ export function RoomDetailsPanel({ room, onClose }: RoomDetailsPanelProps) {
   const panelCls = `${styles.panel} ${isMobile ? styles.panelMobile : ''}`
 
   // Check if user can edit room name/topic (PL ≥ 50 by default)
-  const client = getMatrixClient()
+  const client = useMatrixClient()
   const matrixRoom = client?.getRoom(room.roomId)
   const myUserId = client?.getUserId()
   const canEdit = !!matrixRoom && !!myUserId && (() => {

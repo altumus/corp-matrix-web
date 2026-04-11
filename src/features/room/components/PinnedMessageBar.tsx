@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { Pin, ChevronUp, ChevronDown, X } from 'lucide-react'
 import { RoomStateEvent } from 'matrix-js-sdk'
 import type { MatrixEvent } from 'matrix-js-sdk'
-import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { useTimelineScroll } from '../context/TimelineScrollContext.js'
 import styles from './PinnedMessageBar.module.scss'
 
@@ -17,13 +17,13 @@ interface PinnedMsg {
 }
 
 export function PinnedMessageBar({ roomId }: PinnedMessageBarProps) {
+  const client = useMatrixClient()
   const scrollToEvent = useTimelineScroll()
   const [currentIndex, setCurrentIndex] = useState(0)
   const [dismissed, setDismissed] = useState(false)
   const [pinnedMessages, setPinnedMessages] = useState<PinnedMsg[]>([])
 
   const loadPinned = useCallback(async () => {
-    const client = getMatrixClient()
     if (!client) return
 
     const room = client.getRoom(roomId)
@@ -66,14 +66,13 @@ export function PinnedMessageBar({ roomId }: PinnedMessageBarProps) {
       }
     }
     setPinnedMessages(msgs)
-  }, [roomId])
+  }, [roomId, client])
 
   useEffect(() => {
     setDismissed(false)
     setCurrentIndex(0)
     loadPinned()
 
-    const client = getMatrixClient()
     if (!client) return
     const room = client.getRoom(roomId)
     if (!room) return
@@ -89,7 +88,7 @@ export function PinnedMessageBar({ roomId }: PinnedMessageBarProps) {
     return () => {
       room.currentState.removeListener(RoomStateEvent.Events, onStateEvent)
     }
-  }, [roomId, loadPinned])
+  }, [roomId, loadPinned, client])
 
   if (pinnedMessages.length === 0 || dismissed) return null
 

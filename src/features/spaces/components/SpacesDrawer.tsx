@@ -5,7 +5,7 @@ import { useSpaces } from '../hooks/useSpaces.js'
 import { Avatar } from '../../../shared/ui/index.js'
 import { CreateSpaceDialog } from './CreateSpaceDialog.js'
 import { ARCHIVE_ID } from './SpacesSidebar.js'
-import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { toast } from '../../../shared/ui/Toast/toastService.js'
 import styles from './SpacesDrawer.module.scss'
 
@@ -15,6 +15,7 @@ interface SpacesDrawerProps {
 
 export function SpacesDrawer({ onClose }: SpacesDrawerProps) {
   const { t } = useTranslation()
+  const client = useMatrixClient()
   const { spaces, activeSpaceId, setActiveSpace } = useSpaces()
   const [showCreate, setShowCreate] = useState(false)
   const [contextSpaceId, setContextSpaceId] = useState<string | null>(null)
@@ -26,7 +27,6 @@ export function SpacesDrawer({ onClose }: SpacesDrawerProps) {
 
   const handleLeaveSpace = async (spaceId: string) => {
     if (!confirm(t('spaces.leaveConfirm', { defaultValue: 'Покинуть пространство?' }))) return
-    const client = getMatrixClient()
     if (!client) return
     try {
       await client.leave(spaceId)

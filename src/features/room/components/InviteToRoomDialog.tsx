@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { useDebounce } from '../../../shared/hooks/useDebounce.js'
 import { Modal, Avatar } from '../../../shared/ui/index.js'
 import { toast } from '../../../shared/ui/Toast/toastService.js'
@@ -19,6 +19,7 @@ interface InviteToRoomDialogProps {
 
 export function InviteToRoomDialog({ roomId, onClose }: InviteToRoomDialogProps) {
   const { t } = useTranslation()
+  const client = useMatrixClient()
   const [query, setQuery] = useState('')
   const [users, setUsers] = useState<UserResult[]>([])
   const [loading, setLoading] = useState(false)
@@ -26,7 +27,6 @@ export function InviteToRoomDialog({ roomId, onClose }: InviteToRoomDialogProps)
   const debouncedQuery = useDebounce(query, 300)
 
   const searchUsers = useCallback(async (term: string) => {
-    const client = getMatrixClient()
     if (!client || !term.trim()) {
       setUsers([])
       return
@@ -46,7 +46,7 @@ export function InviteToRoomDialog({ roomId, onClose }: InviteToRoomDialogProps)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [client])
 
   useState(() => {
     if (debouncedQuery.length >= 2) searchUsers(debouncedQuery)
@@ -62,7 +62,6 @@ export function InviteToRoomDialog({ roomId, onClose }: InviteToRoomDialogProps)
   }
 
   const handleInvite = async (userId: string) => {
-    const client = getMatrixClient()
     if (!client || inviting) return
     setInviting(userId)
     try {

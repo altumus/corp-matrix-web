@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '../../../shared/ui/index.js'
 import { toast } from '../../../shared/ui/Toast/toastService.js'
-import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { useAuthStore } from '../../auth/store/authStore.js'
 import { getIdleTimeout, setIdleTimeout } from '../../../shared/hooks/useIdleLogout.js'
 import styles from './PrivacySettings.module.scss'
@@ -20,6 +20,7 @@ export function getSendTyping(): boolean {
 
 export function PrivacySettings() {
   const { t } = useTranslation()
+  const client = useMatrixClient()
   const logout = useAuthStore((s) => s.logout)
   const [readReceipts, setReadReceipts] = useState(getSendReadReceipts())
   const [typing, setTyping] = useState(getSendTyping())
@@ -49,7 +50,6 @@ export function PrivacySettings() {
   const handleDeactivate = async () => {
     setDeactivating(true)
     try {
-      const client = getMatrixClient()
       if (!client) throw new Error('Client not initialized')
       await client.deactivateAccount({
         type: 'm.login.dummy' as never,

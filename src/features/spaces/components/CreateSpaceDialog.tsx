@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { Preset } from 'matrix-js-sdk/lib/@types/partials.js'
 import { Modal, Input, Button } from '../../../shared/ui/index.js'
 import { toast } from '../../../shared/ui/Toast/toastService.js'
@@ -11,12 +11,12 @@ interface CreateSpaceDialogProps {
 
 export function CreateSpaceDialog({ onClose }: CreateSpaceDialogProps) {
   const { t } = useTranslation()
+  const client = useMatrixClient()
   const [name, setName] = useState('')
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    const client = getMatrixClient()
     if (!client || !name.trim()) return
 
     setLoading(true)
