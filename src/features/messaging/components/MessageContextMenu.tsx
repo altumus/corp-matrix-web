@@ -19,15 +19,18 @@ export interface ReceiptEntry {
   ts: number
 }
 
+const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏']
+
 interface MessageContextMenuProps {
   x: number
   y: number
   actions: ContextMenuAction[]
   receipts: ReceiptEntry[]
   onClose: () => void
+  onQuickReact?: (emoji: string) => void
 }
 
-export function MessageContextMenu({ x, y, actions, receipts, onClose }: MessageContextMenuProps) {
+export function MessageContextMenu({ x, y, actions, receipts, onClose, onQuickReact }: MessageContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
   const [showReceipts, setShowReceipts] = useState(false)
   const isMobile = useIsMobile()
@@ -74,6 +77,23 @@ export function MessageContextMenu({ x, y, actions, receipts, onClose }: Message
         className={`${styles.menu} ${isMobile ? styles.menuMobile : ''}`}
         style={isMobile ? undefined : { left: x, top: y }}
       >
+      {onQuickReact && (
+        <div className={styles.quickReactions}>
+          {QUICK_EMOJIS.map((emoji) => (
+            <button
+              key={emoji}
+              className={styles.quickEmoji}
+              onClick={() => {
+                onQuickReact(emoji)
+                onClose()
+              }}
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+      )}
+
       {visibleActions.map((action) => (
         <button
           key={action.id}

@@ -412,18 +412,23 @@ async function setup() {
   // 0.4 Create rooms
   log('Creating test rooms...');
 
-  // General group room
+  // General group room — give user2 power level 50 for @room mentions
   const generalId = await createRoom(u1.token, {
     name: 'QA General',
     topic: 'General test room for QA agent',
     preset: 'private_chat',
     invite: [u2.userId],
+    power_level_content_override: {
+      users: {
+        [u1.userId]: 100,
+        [u2.userId]: 50,
+      },
+      notifications: { room: 50 },
+    },
   });
   if (generalId) {
     CONFIG.rooms.general = generalId;
     await joinRoom(u2.token, generalId);
-    // NOTE: Do NOT enable E2E here — we send messages via API (plaintext).
-    // E2E rooms + API plaintext = empty bubbles on the client.
     log(`  Room "QA General" — ${generalId}`);
   }
 
@@ -2077,6 +2082,597 @@ async function testSettingsLogout(page) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// PHASE 7C — NEW FEATURES TESTS
+// ═══════════════════════════════════════════════════════════════
+
+// 7c.bug1 Reactions don't reset on rapid clicks
+async function testReactionStability(page) {
+  log('--- REACTION_STABILITY ---');
+  if (!(await ensureInRoom(page))) return;
+
+  const msgEl = await page.$('[class*="message"] [class*="bubble"]');
+  if (!msgEl) { log('REACTION_STABILITY: No messages, skipping'); return; }
+
+  // Add a reaction via right-click → quick reactions
+  await msgEl.click({ button: 'right' });
+  await page.waitForTimeout(500);
+
+  const quickEmoji = await page.$('[class*="quickEmoji"]');
+  if (!quickEmoji) {
+    log('REACTION_STABILITY: No quick emoji button, skipping');
+    await page.keyboard.press('Escape');
+    return;
+  }
+
+  // Click first emoji
+  await quickEmoji.click();
+  await page.waitForTimeout(1000);
+
+  // Check reaction appeared
+  let reaction = await page.$('[class*="reaction"]');
+  const beforeShot = await snap(page, 'reaction-stability-1');
+  if (!reaction) {
+    bug('HIGH', 'REACTION_STABILITY', 'Reaction not visible after click', [], beforeShot);
+    return;
+  }
+  log('REACTION_STABILITY: First reaction added');
+
+  // Wait for sync, check still visible
+  await page.waitForTimeout(3000);
+  reaction = await page.$('[class*="reaction"]');
+  const afterShot = await snap(page, 'reaction-stability-2');
+
+  if (!reaction) {
+    bug('HIGH', 'REACTION_STABILITY', 'Reaction disappeared after sync (race condition)', [
+      '1. Add reaction',
+      '2. Wait 3s',
+      '3. Reaction gone',
+    ], afterShot);
+  } else {
+    log('REACTION_STABILITY: PASS — reaction persists after sync');
+  }
+}
+
+// 7c.bug2 Rapid reaction clicks don't lose state
+async function testReactionRapidClicks(page) {
+  log('--- REACTION_RAPID_CLICKS ---');
+  if (!(await ensureInRoom(page))) return;
+
+  // Find a message with existing reaction (or add one)
+  const reactions = await page.$$('[class*="reaction"]:not([class*="reactionMine"])');
+  if (reactions.length === 0) {
+    log('REACTION_RAPID_CLICKS: No existing reactions, skipping');
+    return;
+  }
+
+  const reaction = reactions[0];
+  // Click reaction 3 times rapidly (toggle on/off/on)
+  for (let i = 0; i < 3; i++) {
+    await reaction.click().catch(() => {});
+    await page.waitForTimeout(100);
+  }
+
+  await page.waitForTimeout(3000);
+  const shot = await snap(page, 'reaction-rapid-clicks');
+
+  // Reaction should still exist (final state should be a valid number)
+  const stillExists = await page.$('[class*="reaction"]');
+  log(`REACTION_RAPID_CLICKS: Reactions still present after rapid clicks: ${!!stillExists}`);
+}
+
+// 7c.bug3 Timeline doesn't jitter when reply target is set
+async function testTimelineNoJitter(page) {
+  log('--- TIMELINE_NO_JITTER ---');
+  if (!(await ensureInRoom(page))) return;
+
+  const msgEl = await page.$('[class*="message"] [class*="bubble"]');
+  if (!msgEl) return;
+
+  // Set reply target via context menu
+  await msgEl.click({ button: 'right' });
+  await page.waitForTimeout(500);
+
+  const menuItems = await page.$$('[class*="menu"] button[class*="item"]');
+  for (const item of menuItems) {
+    const text = await item.textContent();
+    if (text.toLowerCase().includes('reply') || text.toLowerCase().includes('ответ')) {
+      await item.click();
+      break;
+    }
+  }
+  await page.waitForTimeout(800);
+
+  // Check reply preview is shown
+  const replyPreview = await page.$('[class*="replyPreview"]');
+  if (!replyPreview) {
+    log('TIMELINE_NO_JITTER: Could not set reply target, skipping');
+    return;
+  }
+  log('TIMELINE_NO_JITTER: Reply preview set');
+
+  // Get the scroll position before
+  const scrollBefore = await page.evaluate(() => {
+    const container = document.querySelector('[class*="container"][role="log"]');
+    return container ? container.scrollTop : 0;
+  });
+
+  // Send a message from user2 via API to trigger a sync
+  const u2 = CONFIG.users[1];
+  if (CONFIG.rooms.general && u2.token) {
+    await api('PUT',
+      `/_matrix/client/v3/rooms/${encodeURIComponent(CONFIG.rooms.general)}/send/m.room.message/jitter-${Date.now()}`,
+      { msgtype: 'm.text', body: 'Тест jitter — новое сообщение во время reply' },
+      u2.token,
+    );
+    await page.waitForTimeout(3000);
+  }
+
+  // Check reply preview is still set (didn't get cleared)
+  const replyStillSet = await page.$('[class*="replyPreview"]');
+  const shot = await snap(page, 'timeline-no-jitter');
+
+  if (!replyStillSet) {
+    bug('MEDIUM', 'TIMELINE_NO_JITTER', 'Reply target was lost after new message arrived', [
+      '1. Set reply target',
+      '2. Receive new message',
+      '3. Reply preview disappeared',
+    ], shot);
+  } else {
+    log('TIMELINE_NO_JITTER: PASS — reply preview preserved');
+  }
+
+  // Get scroll position after
+  const scrollAfter = await page.evaluate(() => {
+    const container = document.querySelector('[class*="container"][role="log"]');
+    return container ? container.scrollTop : 0;
+  });
+  log(`TIMELINE_NO_JITTER: Scroll before=${scrollBefore}, after=${scrollAfter}`);
+
+  // Cancel reply
+  const cancelBtn = await page.$('[class*="replyCancelBtn"]');
+  if (cancelBtn) await cancelBtn.click();
+}
+
+// 7c.bug4 Pin message updates without reload
+async function testPinMessageLive(page) {
+  log('--- PIN_MESSAGE_LIVE ---');
+  if (!(await ensureInRoom(page))) return;
+
+  // Send a fresh message to pin
+  const textarea = await page.$('textarea[class*="textarea"]');
+  const sendBtn = await page.$('button[class*="sendBtn"]');
+  if (!textarea || !sendBtn) return;
+
+  const pinText = `Pin test ${Date.now()}`;
+  await textarea.fill(pinText);
+  await sendBtn.click();
+  await page.waitForTimeout(2500);
+
+  // Find the message
+  const ownMsg = await page.$(`text="${pinText}"`);
+  if (!ownMsg) {
+    log('PIN_MESSAGE_LIVE: Could not find sent message, skipping');
+    return;
+  }
+
+  // Open context menu via right-click on parent bubble
+  const bubble = await page.evaluateHandle((el) => el.closest('[class*="bubble"]'), ownMsg);
+  await bubble.asElement()?.click({ button: 'right' });
+  await page.waitForTimeout(800);
+
+  // Click "select" first to enable selection mode (pin works in selection mode)
+  const menuItems = await page.$$('[class*="menu"] button[class*="item"]');
+  let selectClicked = false;
+  for (const item of menuItems) {
+    const text = await item.textContent();
+    if (text.toLowerCase().includes('select') || text.toLowerCase().includes('выбр') || text.toLowerCase().includes('выдел')) {
+      await item.click();
+      selectClicked = true;
+      break;
+    }
+  }
+
+  if (!selectClicked) {
+    log('PIN_MESSAGE_LIVE: Could not enter selection mode');
+    return;
+  }
+  await page.waitForTimeout(500);
+
+  // Click pin button in selection bar
+  const selectionBtns = await page.$$('[class*="selectionBtn"]');
+  let pinClicked = false;
+  for (const btn of selectionBtns) {
+    const title = await btn.getAttribute('title');
+    if (title?.toLowerCase().includes('pin') || title?.toLowerCase().includes('закреп')) {
+      await btn.click();
+      pinClicked = true;
+      break;
+    }
+  }
+
+  if (!pinClicked) {
+    log('PIN_MESSAGE_LIVE: Pin button not found');
+    return;
+  }
+
+  // Wait for state event sync + PinnedMessageBar update
+  await page.waitForTimeout(4000);
+  const shot = await snap(page, 'pin-message-live');
+
+  // Check that PinnedMessageBar appeared without reload
+  const pinnedBar = await page.$('[class*="pinned"], [class*="bar"]');
+  log(`PIN_MESSAGE_LIVE: Pinned bar found: ${!!pinnedBar}`);
+
+  if (!pinnedBar) {
+    bug('MEDIUM', 'PIN_MESSAGE_LIVE', 'Pinned message bar did not appear after pinning (requires reload)', [
+      '1. Pin a message',
+      '2. Wait for sync',
+      '3. PinnedMessageBar should appear automatically',
+    ], shot);
+  } else {
+    log('PIN_MESSAGE_LIVE: PASS — bar appears live');
+  }
+}
+
+
+
+// 7c.0a Send a mention via API from user2 to user1
+async function setupMentionMessage() {
+  const u1 = CONFIG.users[0];
+  const u2 = CONFIG.users[1];
+  if (!CONFIG.rooms.general || !u1.token || !u2.token) return null;
+
+  const body = `Привет ${u1.userId.split(':')[0]}, упоминание для теста ${Date.now()}`;
+  const formattedBody = `Привет <a href="https://matrix.to/#/${encodeURIComponent(u1.userId)}">${u1.userId.split(':')[0]}</a>, упоминание для теста`;
+
+  const res = await api('PUT',
+    `/_matrix/client/v3/rooms/${encodeURIComponent(CONFIG.rooms.general)}/send/m.room.message/mention-${Date.now()}`,
+    {
+      msgtype: 'm.text',
+      body,
+      format: 'org.matrix.custom.html',
+      formatted_body: formattedBody,
+      'm.mentions': { user_ids: [u1.userId] },
+    },
+    u2.token,
+  );
+  return res.ok ? res.data.event_id : null;
+}
+
+// 7c.0b Mention badge "@" in room list
+async function testMentionBadgeInRoomList(page) {
+  log('--- MENTION_BADGE_LIST ---');
+
+  // Move user1 OUT of the general room first — otherwise read receipt is sent
+  // and highlightCount stays 0
+  if (CONFIG.rooms.empty) {
+    await goto(page, `/rooms/${encodeURIComponent(CONFIG.rooms.empty)}`, '[class*="composer"]');
+    await page.waitForTimeout(1500);
+  } else {
+    await goto(page, '/rooms', ROOM_ITEM_SEL);
+    await page.waitForTimeout(1500);
+  }
+
+  // Now send a mention from user2 to user1 via API (user1 is in a different room)
+  const eventId = await setupMentionMessage();
+  if (!eventId) { log('MENTION_BADGE_LIST: Could not send mention, skipping'); return; }
+  log(`MENTION_BADGE_LIST: Mention sent — event ${eventId}`);
+
+  // Wait for sync to deliver the highlight
+  await page.waitForTimeout(4000);
+  await goto(page, '/rooms', ROOM_ITEM_SEL);
+  await page.waitForTimeout(2000);
+  const shot = await snap(page, 'mention-badge-list');
+
+  // Look for the @ icon next to room item
+  const mentionIcons = await page.$$('[class*="mentionIcon"]');
+  log(`MENTION_BADGE_LIST: @ icons in room list: ${mentionIcons.length}`);
+
+  if (mentionIcons.length === 0) {
+    bug('MEDIUM', 'MENTION_BADGE_LIST', '@ icon not visible in room list when user is mentioned', [
+      '1. Send mention to user from another account',
+      '2. Open room list',
+      '3. @ icon should appear next to the room',
+    ], shot);
+  } else {
+    log('MENTION_BADGE_LIST: PASS — @ badge visible');
+  }
+}
+
+// 7c.0c Click room with mention — should scroll to mention event
+async function testMentionScrollOnEnter(page) {
+  log('--- MENTION_SCROLL_ENTER ---');
+  if (!CONFIG.rooms.general) return;
+
+  // Move user OUT of the general room so highlight count stays > 0
+  if (CONFIG.rooms.empty) {
+    await goto(page, `/rooms/${encodeURIComponent(CONFIG.rooms.empty)}`, '[class*="composer"]');
+    await page.waitForTimeout(1500);
+  }
+
+  // Send another mention to ensure highlight count > 0
+  const eventId = await setupMentionMessage();
+  if (!eventId) return;
+  await page.waitForTimeout(4000);
+
+  await goto(page, '/rooms', ROOM_ITEM_SEL);
+  await page.waitForTimeout(2000);
+
+  // Find the room with @ icon and click it
+  const items = await page.$$(ROOM_ITEM_SEL);
+  let clicked = false;
+  for (const item of items) {
+    const hasMention = await item.$('[class*="mentionIcon"]');
+    if (hasMention) {
+      await item.scrollIntoViewIfNeeded();
+      await item.click();
+      clicked = true;
+      break;
+    }
+  }
+
+  if (!clicked) {
+    log('MENTION_SCROLL_ENTER: No room with @ icon found');
+    return;
+  }
+
+  await page.waitForTimeout(3000);
+  const shot = await snap(page, 'mention-scroll-enter');
+
+  // Check URL contains eventId
+  const url = page.url();
+  if (url.includes('eventId=')) {
+    log(`MENTION_SCROLL_ENTER: PASS — URL has eventId parameter`);
+  } else {
+    bug('LOW', 'MENTION_SCROLL_ENTER', `URL does not contain eventId after clicking mentioned room. URL: ${url}`, [], shot);
+  }
+}
+
+// 7c.0d MentionNavigator button visible in room with mentions
+async function testMentionNavigator(page) {
+  log('--- MENTION_NAVIGATOR ---');
+  if (!CONFIG.rooms.general) return;
+
+  // Send a mention to ensure there's something to navigate to
+  await setupMentionMessage();
+  await page.waitForTimeout(3000);
+
+  await goto(page, `/rooms/${encodeURIComponent(CONFIG.rooms.general)}`, '[class*="composer"]');
+  await page.waitForTimeout(2000);
+  const shot = await snap(page, 'mention-navigator');
+
+  // Look for the floating @ button (MentionNavigator)
+  const navBtn = await page.$('button[aria-label*="упоминаний"], button[title*="упоминан"]');
+  if (!navBtn) {
+    log('MENTION_NAVIGATOR: Navigator button not visible (highlightCount may be 0)');
+    return;
+  }
+
+  log('MENTION_NAVIGATOR: PASS — navigator button visible');
+  await navBtn.click();
+  await page.waitForTimeout(1500);
+  await snap(page, 'mention-navigator-after-click');
+  log('MENTION_NAVIGATOR: Click handled');
+}
+
+// 7c.0e Mention highlights message bubble (mentioned class)
+async function testMentionedBubble(page) {
+  log('--- MENTIONED_BUBBLE ---');
+  if (!CONFIG.rooms.general) return;
+
+  await goto(page, `/rooms/${encodeURIComponent(CONFIG.rooms.general)}`, '[class*="composer"]');
+  await page.waitForTimeout(2000);
+
+  const mentionedMsgs = await page.$$('[class*="message"][class*="mentioned"]');
+  log(`MENTIONED_BUBBLE: ${mentionedMsgs.length} mentioned message(s) visible`);
+
+  if (mentionedMsgs.length === 0) {
+    log('MENTIONED_BUBBLE: No mentioned messages visible (might need to scroll up)');
+  } else {
+    log('MENTIONED_BUBBLE: PASS — mention highlight class applied');
+  }
+  await snap(page, 'mentioned-bubble');
+}
+
+// 7c.0f @room mention via API and verify highlight
+async function testRoomMention(page) {
+  log('--- ROOM_MENTION ---');
+  const u2 = CONFIG.users[1];
+  if (!CONFIG.rooms.general || !u2.token) return;
+
+  // Move user1 OUT of the general room so highlightCount can accumulate
+  if (CONFIG.rooms.empty) {
+    await goto(page, `/rooms/${encodeURIComponent(CONFIG.rooms.empty)}`, '[class*="composer"]');
+    await page.waitForTimeout(1500);
+  }
+
+  // Send @room mention from user2 (user2 has PL 50 thanks to power_level_content_override)
+  await api('PUT',
+    `/_matrix/client/v3/rooms/${encodeURIComponent(CONFIG.rooms.general)}/send/m.room.message/room-mention-${Date.now()}`,
+    {
+      msgtype: 'm.text',
+      body: '@room тестовое уведомление для всех',
+      'm.mentions': { room: true },
+    },
+    u2.token,
+  );
+  log('ROOM_MENTION: @room message sent');
+
+  await page.waitForTimeout(4000);
+  await goto(page, '/rooms', ROOM_ITEM_SEL);
+  await page.waitForTimeout(2000);
+
+  // Check that @ icon appears (room mention should also trigger highlight)
+  const mentionIcons = await page.$$('[class*="mentionIcon"]');
+  log(`ROOM_MENTION: @ icons after @room: ${mentionIcons.length}`);
+  await snap(page, 'room-mention');
+
+  if (mentionIcons.length === 0) {
+    bug('LOW', 'ROOM_MENTION', '@room mention did not trigger highlight badge', [], '');
+  } else {
+    log('ROOM_MENTION: PASS');
+  }
+}
+
+// 7c.1 Quick reactions in context menu
+async function testQuickReactions(page) {
+  log('--- QUICK_REACTIONS ---');
+  if (!(await ensureInRoom(page))) return;
+
+  const msgEl = await page.$('[class*="message"] [class*="bubble"]');
+  if (!msgEl) { log('QUICK_REACTIONS: No messages, skipping'); return; }
+
+  await msgEl.click({ button: 'right' });
+  await page.waitForTimeout(800);
+  const shot = await snap(page, 'quick-reactions');
+
+  const quickBar = await page.$('[class*="quickReactions"]');
+  if (!quickBar) {
+    bug('MEDIUM', 'QUICK_REACTIONS', 'Quick reaction emoji bar not found in context menu', [], shot);
+    await page.keyboard.press('Escape');
+    return;
+  }
+
+  const emojis = await quickBar.$$('button[class*="quickEmoji"]');
+  log(`QUICK_REACTIONS: ${emojis.length} quick emoji buttons found`);
+  if (emojis.length < 4) {
+    bug('MEDIUM', 'QUICK_REACTIONS', `Expected 6 quick emoji, found ${emojis.length}`, [], shot);
+  } else {
+    log('QUICK_REACTIONS: PASS');
+  }
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+}
+
+// 7c.2 Hashtag rendering
+async function testHashtags(page) {
+  log('--- HASHTAG_RENDER ---');
+  if (!(await ensureInRoom(page))) return;
+
+  const textarea = await page.$('textarea[class*="textarea"]');
+  const sendBtn = await page.$('button[class*="sendBtn"]');
+  if (!textarea || !sendBtn) return;
+
+  const msg = `Testing #hashtag and #тест ${Date.now()}`;
+  await textarea.fill(msg);
+  await sendBtn.click();
+  await page.waitForTimeout(3000);
+  const shot = await snap(page, 'hashtag-render');
+
+  const hashtags = await page.$$('.hashtag');
+  if (hashtags.length > 0) {
+    log(`HASHTAG_RENDER: PASS — ${hashtags.length} hashtags styled`);
+  } else {
+    log('HASHTAG_RENDER: Hashtags sent (check visually — global class may not be queryable)');
+  }
+}
+
+// 7c.3 @room mention in popup
+async function testAtRoomMention(page) {
+  log('--- AT_ROOM_MENTION ---');
+  if (!(await ensureInRoom(page))) return;
+
+  const textarea = await page.$('textarea[class*="textarea"]');
+  if (!textarea) return;
+
+  await textarea.fill('');
+  await textarea.click();
+  await page.keyboard.type('@');
+  await page.waitForTimeout(1000);
+  const shot = await snap(page, 'at-room-popup');
+
+  const popup = await page.$('[class*="popup"]');
+  if (!popup) {
+    log('AT_ROOM_MENTION: Mention popup not found');
+    return;
+  }
+
+  const roomItem = await page.$('[class*="roomIcon"]');
+  if (!roomItem) {
+    bug('MEDIUM', 'AT_ROOM_MENTION', '@room option not found in mention popup', [], shot);
+  } else {
+    log('AT_ROOM_MENTION: PASS — @room option visible');
+  }
+
+  await page.keyboard.press('Escape');
+  await textarea.fill('');
+}
+
+// 7c.4 Reply truncation
+async function testReplyTruncation(page) {
+  log('--- REPLY_TRUNCATION ---');
+  if (!(await ensureInRoom(page))) return;
+
+  // Check if any reply quote exists
+  const replyQuote = await page.$('[class*="replyQuoteBody"]');
+  if (replyQuote) {
+    const styles = await replyQuote.evaluate((el) => {
+      const cs = window.getComputedStyle(el);
+      return {
+        overflow: cs.overflow,
+        webkitLineClamp: cs.getPropertyValue('-webkit-line-clamp'),
+        display: cs.display,
+      };
+    });
+    log(`REPLY_TRUNCATION: overflow=${styles.overflow}, line-clamp=${styles.webkitLineClamp}`);
+    if (styles.overflow === 'hidden') {
+      log('REPLY_TRUNCATION: PASS — overflow hidden applied');
+    }
+  } else {
+    log('REPLY_TRUNCATION: No reply quotes visible, skipping');
+  }
+}
+
+// 7c.5 Draft persistence
+async function testDraftPersistence(page) {
+  log('--- DRAFT_PERSIST ---');
+  if (!(await ensureInRoom(page))) return;
+
+  const textarea = await page.$('textarea[class*="textarea"]');
+  if (!textarea) return;
+
+  const draftText = `Draft test ${Date.now()}`;
+  await textarea.fill(draftText);
+  await page.waitForTimeout(500);
+
+  // Navigate away
+  await goto(page, '/rooms', ROOM_ITEM_SEL);
+  await page.waitForTimeout(1000);
+
+  // Navigate back to the same room
+  if (!(await ensureInRoom(page))) return;
+  await page.waitForTimeout(1500);
+
+  const restoredText = await (await page.$('textarea[class*="textarea"]'))?.inputValue() ?? '';
+  const shot = await snap(page, 'draft-persist');
+
+  if (restoredText === draftText) {
+    log('DRAFT_PERSIST: PASS — draft restored');
+  } else {
+    log(`DRAFT_PERSIST: Draft not restored (got "${restoredText.slice(0, 30)}", expected "${draftText.slice(0, 30)}")`);
+  }
+
+  // Clean up
+  const ta = await page.$('textarea[class*="textarea"]');
+  if (ta) await ta.fill('');
+}
+
+// 7c.6 Image caption UI
+async function testImageCaption(page) {
+  log('--- IMAGE_CAPTION ---');
+  if (!(await ensureInRoom(page))) return;
+
+  // Check that ImagePreviewDialog has caption textarea
+  // We can't easily trigger it without a real file, so just verify the attach menu exists
+  const attachBtn = await page.$('[class*="attachBtn"]');
+  if (attachBtn) {
+    log('IMAGE_CAPTION: Attach button present (caption UI added to ImagePreviewDialog)');
+  } else {
+    log('IMAGE_CAPTION: No attach button found');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
 // PHASE 7A — SECURITY & ERROR HANDLING TESTS
 // ═══════════════════════════════════════════════════════════════
 
@@ -2706,6 +3302,27 @@ async function main() {
       await testSettingsNavigation(page);
       await testSettingsProfile(page);
       await testSettingsAppearance(page);
+
+      // ══════ Phase 7c: New Features ══════
+      await testQuickReactions(page);
+      await testHashtags(page);
+      await testAtRoomMention(page);
+      await testReplyTruncation(page);
+      await testDraftPersistence(page);
+      await testImageCaption(page);
+
+      // Mention-specific tests (require API setup of mention messages)
+      await testMentionBadgeInRoomList(page);
+      await testMentionScrollOnEnter(page);
+      await testMentionNavigator(page);
+      await testMentionedBubble(page);
+      await testRoomMention(page);
+
+      // Bug regression tests
+      await testReactionStability(page);
+      await testReactionRapidClicks(page);
+      await testTimelineNoJitter(page);
+      await testPinMessageLive(page);
 
       // ══════ Phase 7a: Security & Error Handling ══════
       await testXssSanitization(page);

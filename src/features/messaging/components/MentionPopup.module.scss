@@ -53,3 +53,15 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+.roomIcon {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-full);
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}

@@ -7,12 +7,12 @@ export function useMediaUpload(roomId: string) {
   const [progress, setProgress] = useState<UploadProgress | null>(null)
 
   const upload = useCallback(
-    async (file: File) => {
+    async (file: File, caption?: string) => {
       setUploading(true)
       setProgress({ loaded: 0, total: file.size, percentage: 0 })
 
       try {
-        await sendFileMessage(roomId, file, setProgress)
+        await sendFileMessage(roomId, file, setProgress, caption)
       } finally {
         setUploading(false)
         setProgress(null)

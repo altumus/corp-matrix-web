@@ -45,6 +45,16 @@ function buildMentionFormats(body: string, roomId: string): { body: string; form
   }
 }
 
+function highlightHashtags(html: string): { html: string; hasHashtags: boolean } {
+  const hashtagRegex = /(^|\s)(#[а-яА-ЯёЁa-zA-Z0-9_]+)/g
+  let hasHashtags = false
+  const result = html.replace(hashtagRegex, (_, prefix, tag) => {
+    hasHashtags = true
+    return `${prefix}<span class="hashtag">${tag}</span>`
+  })
+  return { html: result, hasHashtags }
+}
+
 function renderMarkdown(text: string): string {
   const html = marked.parse(text, { async: false }) as string
   return sanitizeHtml(
@@ -73,6 +83,13 @@ export function useSendMessage(roomId: string) {
         formattedBody = renderMarkdown(finalBody)
       }
 
+      // Highlight #hashtags
+      const hashtagSource = formattedBody || finalBody.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      const hashtagResult = highlightHashtags(hashtagSource)
+      if (hashtagResult.hasHashtags) {
+        formattedBody = hashtagResult.html
+      }
+
       if (quotedText) {
         const senderLine = quotedSender ? `${quotedSender}:\n` : ''
         const quotedLines = (senderLine + quotedText).split('\n').map((l) => `> ${l}`).join('\n')
@@ -83,8 +100,11 @@ export function useSendMessage(roomId: string) {
         formattedBody = `<blockquote>${senderHtml}${esc(quotedText)}</blockquote>${bodyHtml}`
       }
 
+      // Check if @room was used
+      const hasRoomMention = body.includes('@room')
+
       try {
-        await sendTextMessage({ roomId, body: finalBody, formattedBody, replyToEventId, threadRootId })
+        await sendTextMessage({ roomId, body: finalBody, formattedBody, replyToEventId, threadRootId, roomMention: hasRoomMention })
         await sendTypingIndicator(roomId, false)
         return true
       } catch (err) {

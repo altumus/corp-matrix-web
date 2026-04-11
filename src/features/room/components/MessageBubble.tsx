@@ -382,6 +382,11 @@ export function MessageBubble({
 
 	const displayReactions = optimisticReactions ?? event.reactions;
 
+	// Clear optimistic state when fresh server reactions arrive
+	useEffect(() => {
+		setOptimisticReactions(null);
+	}, [event.reactions]);
+
 	const handleReactionClick = (key: string) => {
 		const current = new Map(displayReactions);
 		const senders = new Set(current.get(key) || []);
@@ -394,7 +399,9 @@ export function MessageBubble({
 			current.set(key, senders);
 		}
 		setOptimisticReactions(current);
-		sendReaction(event.roomId, event.eventId, key).finally(() => {
+		// Don't clear on .finally() — wait for server event to arrive via useEffect above
+		sendReaction(event.roomId, event.eventId, key).catch(() => {
+			// On error, revert to server state
 			setOptimisticReactions(null);
 		});
 	};
@@ -592,6 +599,10 @@ export function MessageBubble({
 					actions={contextMenuActions}
 					receipts={receipts}
 					onClose={() => setContextMenu(null)}
+					onQuickReact={(emoji) => {
+						setContextMenu(null)
+						sendReaction(event.roomId, event.eventId, emoji)
+					}}
 				/>
 			)}
 

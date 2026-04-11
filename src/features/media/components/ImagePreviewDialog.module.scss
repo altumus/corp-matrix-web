@@ -44,6 +44,27 @@
   border-radius: var(--radius-sm);
 }
 
+.caption {
+  width: 100%;
+  padding: var(--spacing-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-md);
+  font-family: inherit;
+  resize: none;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+
+  &::placeholder {
+    color: var(--color-text-tertiary);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-accent);
+  }
+}
+
 .fileName {
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);

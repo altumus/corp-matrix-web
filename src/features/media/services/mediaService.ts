@@ -28,6 +28,7 @@ export async function sendFileMessage(
   roomId: string,
   file: File,
   onProgress?: (progress: UploadProgress) => void,
+  caption?: string,
 ): Promise<void> {
   const client = getMatrixClient()
   if (!client) throw new Error('Client not initialized')
@@ -70,9 +71,13 @@ export async function sendFileMessage(
 
   const content: MediaMessagePayload = {
     msgtype,
-    body: file.name,
+    body: caption || file.name,
     url: mxcUrl,
     info,
+  }
+
+  if (caption) {
+    (content as Record<string, unknown>).filename = file.name
   }
 
   await client.sendMessage(roomId, content as unknown as RoomMessageEventContent)

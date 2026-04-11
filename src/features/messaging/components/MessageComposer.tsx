@@ -36,7 +36,19 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
   const clearReply = useComposerStore((s) => s.clearReply)
   const editTarget = useComposerStore((s) => s.editTarget)
   const clearEdit = useComposerStore((s) => s.clearEdit)
+  const setDraft = useComposerStore((s) => s.setDraft)
+  const getDraft = useComposerStore((s) => s.getDraft)
+  const clearDraft = useComposerStore((s) => s.clearDraft)
+  const loadDraftFromServer = useComposerStore((s) => s.loadDraftFromServer)
   const [text, setText] = useState('')
+
+  // Load draft when entering a room
+  useEffect(() => {
+    loadDraftFromServer(roomId)
+    const draft = getDraft(roomId)
+    if (draft) setText(draft)
+    else setText('')
+  }, [roomId]) // eslint-disable-line react-hooks/exhaustive-deps
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [mentionIndex, setMentionIndex] = useState(0)
   const mentionStartRef = useRef<number>(-1)
@@ -88,6 +100,7 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
 
   const handleTextChange = useCallback((value: string) => {
     setText(value)
+    setDraft(roomId, value)
     const textarea = textareaRef.current
     if (!textarea) return
 
@@ -117,11 +130,13 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
         }
       }
       setText('')
+      clearDraft(roomId)
       clearEdit()
     } else {
       const ok = await send(text, replyTarget?.eventId, replyTarget?.quotedText, replyTarget?.quotedText ? replyTarget.sender : undefined)
       if (!ok) return // keep text in composer on failure
       setText('')
+      clearDraft(roomId)
       clearReply()
     }
 
@@ -195,11 +210,11 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
     }
   }, [])
 
-  const handleConfirmSend = useCallback(async () => {
+  const handleConfirmSend = useCallback(async (caption?: string) => {
     if (!pendingFile) return
     const file = pendingFile
     setPendingFile(null)
-    await upload(file)
+    await upload(file, caption)
   }, [pendingFile, upload])
 
   const handleCancelSend = useCallback(() => {

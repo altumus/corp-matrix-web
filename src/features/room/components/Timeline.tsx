@@ -7,6 +7,7 @@ import { TypingIndicator } from './TypingIndicator.js'
 import { Spinner } from '../../../shared/ui/index.js'
 import { TimelineScrollContext } from '../context/TimelineScrollContext.js'
 import { PinnedMessageBar } from './PinnedMessageBar.js'
+import { useComposerStore } from '../../messaging/store/composerStore.js'
 import type { TimelineEvent } from '../types.js'
 import styles from './Timeline.module.scss'
 
@@ -48,6 +49,9 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
   const [highlightedEventId, setHighlightedEventId] = useState<string | null>(null)
   const focusHandledRef = useRef<string | null>(null)
   const paginateBackRef = useRef(paginateBack)
+  const isAtBottomRef = useRef(true)
+  const replyTarget = useComposerStore((s) => s.replyTarget)
+  const editTarget = useComposerStore((s) => s.editTarget)
 
   const listItems = useMemo(() => buildListItems(events), [events])
 
@@ -135,7 +139,12 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
           firstItemIndex={firstItemIndex}
           initialTopMostItemIndex={focusIndex >= 0 ? focusIndex : listItems.length - 1}
           alignToBottom
-          followOutput="smooth"
+          atBottomStateChange={(atBottom) => { isAtBottomRef.current = atBottom }}
+          followOutput={() => {
+            // Don't auto-scroll if user is composing reply/edit or scrolled up
+            if (replyTarget || editTarget) return false
+            return isAtBottomRef.current ? 'smooth' : false
+          }}
           startReached={handleStartReached}
           increaseViewportBy={{ top: 1500, bottom: 0 }}
           itemContent={(_, item) => {

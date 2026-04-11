@@ -1,17 +1,18 @@
-import { useEffect, useRef, useCallback, type MouseEvent } from 'react'
+import { useState, useEffect, useRef, useCallback, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '../../../shared/ui/index.js'
 import styles from './ImagePreviewDialog.module.scss'
 
 interface ImagePreviewDialogProps {
   file: File
-  onConfirm: () => void
+  onConfirm: (caption?: string) => void
   onCancel: () => void
 }
 
 export function ImagePreviewDialog({ file, onConfirm, onCancel }: ImagePreviewDialogProps) {
   const { t } = useTranslation()
   const imgRef = useRef<HTMLImageElement>(null)
+  const [caption, setCaption] = useState('')
 
   useEffect(() => {
     const url = URL.createObjectURL(file)
@@ -24,11 +25,14 @@ export function ImagePreviewDialog({ file, onConfirm, onCancel }: ImagePreviewDi
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onCancel()
-      if (e.key === 'Enter') onConfirm()
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault()
+        onConfirm(caption || undefined)
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onCancel, onConfirm])
+  }, [onCancel, onConfirm, caption])
 
   const handleOverlayClick = useCallback((e: MouseEvent) => {
     if (e.target === e.currentTarget) onCancel()
@@ -41,12 +45,20 @@ export function ImagePreviewDialog({ file, onConfirm, onCancel }: ImagePreviewDi
         <div className={styles.preview}>
           <img ref={imgRef} alt={file.name} className={styles.image} />
         </div>
+        <textarea
+          className={styles.caption}
+          value={caption}
+          onChange={(e) => setCaption(e.target.value)}
+          placeholder={t('messages.addCaption', { defaultValue: 'Добавить комментарий...' })}
+          rows={2}
+          autoFocus
+        />
         <span className={styles.fileName}>{file.name} ({formatSize(file.size)})</span>
         <div className={styles.actions}>
           <Button variant="secondary" onClick={onCancel}>
             {t('common.cancel')}
           </Button>
-          <Button onClick={onConfirm}>
+          <Button onClick={() => onConfirm(caption || undefined)}>
             {t('messages.send')}
           </Button>
         </div>

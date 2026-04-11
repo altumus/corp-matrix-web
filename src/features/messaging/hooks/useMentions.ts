@@ -5,6 +5,14 @@ export interface MentionCandidate {
   userId: string
   displayName: string
   avatarUrl: string | null
+  isRoomMention?: boolean
+}
+
+const ROOM_MENTION: MentionCandidate = {
+  userId: '@room',
+  displayName: 'room',
+  avatarUrl: null,
+  isRoomMention: true,
 }
 
 export function useMentions(roomId: string) {
@@ -30,14 +38,19 @@ export function useMentions(roomId: string) {
   }, [roomId])
 
   const candidates = useMemo(() => {
-    if (!active || !query) return allMembers.slice(0, 8)
+    if (!active || !query) return [ROOM_MENTION, ...allMembers.slice(0, 7)]
     const q = query.toLowerCase()
-    return allMembers
+    const filtered = allMembers
       .filter((m) =>
         m.displayName.toLowerCase().includes(q) ||
         m.userId.toLowerCase().includes(q),
       )
-      .slice(0, 8)
+      .slice(0, 7)
+    // Show @room if query matches "room" or "all" or "все"
+    if ('room'.includes(q) || 'all'.includes(q) || 'все'.includes(q)) {
+      return [ROOM_MENTION, ...filtered]
+    }
+    return filtered
   }, [allMembers, query, active])
 
   const open = useCallback((q: string) => {

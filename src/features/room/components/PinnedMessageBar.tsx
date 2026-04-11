@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Pin, ChevronUp, ChevronDown, X } from 'lucide-react'
+import { RoomStateEvent } from 'matrix-js-sdk'
+import type { MatrixEvent } from 'matrix-js-sdk'
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
 import { useTimelineScroll } from '../context/TimelineScrollContext.js'
 import styles from './PinnedMessageBar.module.scss'
@@ -20,12 +22,7 @@ export function PinnedMessageBar({ roomId }: PinnedMessageBarProps) {
   const [dismissed, setDismissed] = useState(false)
   const [pinnedMessages, setPinnedMessages] = useState<PinnedMsg[]>([])
 
-  useEffect(() => {
-    requestAnimationFrame(() => {
-      setDismissed(false)
-      setCurrentIndex(0)
-    })
-
+  const loadPinned = useCallback(async () => {
     const client = getMatrixClient()
     if (!client) return
 
@@ -35,44 +32,63 @@ export function PinnedMessageBar({ roomId }: PinnedMessageBarProps) {
     const pinEvent = room.currentState.getStateEvents('m.room.pinned_events', '')
     const pinned = (pinEvent?.getContent()?.pinned as string[]) || []
     if (pinned.length === 0) {
-      requestAnimationFrame(() => setPinnedMessages([]))
+      setPinnedMessages([])
       return
     }
 
-    const load = async () => {
-      const msgs: PinnedMsg[] = []
-      for (const eventId of pinned) {
-        let body = ''
-        let sender = ''
+    const msgs: PinnedMsg[] = []
+    for (const eventId of pinned) {
+      let body = ''
+      let sender = ''
 
-        const cached = room.findEventById(eventId)
-        if (cached) {
-          body = (cached.getContent().body as string) || ''
-          const member = room.getMember(cached.getSender()!)
-          sender = member?.name || cached.getSender()!
-        } else {
-          try {
-            const fetched = await client.fetchRoomEvent(roomId, eventId)
-            body = (fetched?.content?.body as string) || ''
-            sender = (fetched?.sender as string) || ''
-            if (sender) {
-              const member = room.getMember(sender)
-              if (member) sender = member.name || sender
-            }
-          } catch {
-            continue
+      const cached = room.findEventById(eventId)
+      if (cached) {
+        body = (cached.getContent().body as string) || ''
+        const member = room.getMember(cached.getSender()!)
+        sender = member?.name || cached.getSender()!
+      } else {
+        try {
+          const fetched = await client.fetchRoomEvent(roomId, eventId)
+          body = (fetched?.content?.body as string) || ''
+          sender = (fetched?.sender as string) || ''
+          if (sender) {
+            const member = room.getMember(sender)
+            if (member) sender = member.name || sender
           }
-        }
-
-        if (body) {
-          msgs.push({ eventId, body, sender })
+        } catch {
+          continue
         }
       }
-      setPinnedMessages(msgs)
-    }
 
-    load()
+      if (body) {
+        msgs.push({ eventId, body, sender })
+      }
+    }
+    setPinnedMessages(msgs)
   }, [roomId])
+
+  useEffect(() => {
+    setDismissed(false)
+    setCurrentIndex(0)
+    loadPinned()
+
+    const client = getMatrixClient()
+    if (!client) return
+    const room = client.getRoom(roomId)
+    if (!room) return
+
+    // Listen for state event changes (pin/unpin)
+    const onStateEvent = (event: MatrixEvent) => {
+      if (event.getType() === 'm.room.pinned_events' && event.getRoomId() === roomId) {
+        loadPinned()
+      }
+    }
+    room.currentState.on(RoomStateEvent.Events, onStateEvent)
+
+    return () => {
+      room.currentState.removeListener(RoomStateEvent.Events, onStateEvent)
+    }
+  }, [roomId, loadPinned])
 
   if (pinnedMessages.length === 0 || dismissed) return null
 

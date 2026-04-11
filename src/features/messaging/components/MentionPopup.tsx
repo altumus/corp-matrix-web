@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { Users } from 'lucide-react'
 import type { MentionCandidate } from '../hooks/useMentions.js'
 import { Avatar } from '../../../shared/ui/index.js'
 import styles from './MentionPopup.module.scss'
@@ -30,10 +31,14 @@ export function MentionPopup({ candidates, selectedIndex, onSelect }: MentionPop
             onSelect(c)
           }}
         >
-          <Avatar src={c.avatarUrl} name={c.displayName} size="xs" />
+          {c.isRoomMention ? (
+            <div className={styles.roomIcon}><Users size={16} /></div>
+          ) : (
+            <Avatar src={c.avatarUrl} name={c.displayName} size="xs" />
+          )}
           <div className={styles.info}>
-            <span className={styles.name}>{c.displayName}</span>
-            <span className={styles.userId}>{c.userId}</span>
+            <span className={styles.name}>{c.isRoomMention ? '@room — Упомянуть всех' : c.displayName}</span>
+            {!c.isRoomMention && <span className={styles.userId}>{c.userId}</span>}
           </div>
         </button>
       ))}

@@ -10,4 +10,5 @@ export interface SendMessageOptions {
   formattedBody?: string
   replyToEventId?: string
   threadRootId?: string
+  roomMention?: boolean
 }

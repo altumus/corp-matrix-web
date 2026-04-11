@@ -108,7 +108,31 @@ export function setupNotificationListeners() {
 
       const sender = event.getSender()
       if (sender === client.getUserId()) return
-      if (event.getType() !== 'm.room.message') return
+
+      const eventType = event.getType()
+
+      // Handle reaction events — notify only when someone reacts to MY message
+      if (eventType === 'm.reaction') {
+        const relatesTo = event.getContent()?.['m.relates_to']
+        const targetEventId = relatesTo?.event_id as string | undefined
+        const reactionKey = relatesTo?.key as string | undefined
+        if (targetEventId && room) {
+          const targetEvent = room.findEventById(targetEventId)
+          if (targetEvent && targetEvent.getSender() === client.getUserId()) {
+            const reactorMember = room.getMember(sender!)
+            const reactorName = reactorMember?.name || sender || ''
+            showDesktopNotification(
+              reactorName,
+              `${reactionKey || '👍'} реакция на ваше сообщение`,
+              room.roomId,
+            )
+            playNotificationSound()
+          }
+        }
+        return
+      }
+
+      if (eventType !== 'm.room.message') return
 
       // Muted rooms: skip unless user was @mentioned (Telegram-style)
       const pushRules = client.pushRules
