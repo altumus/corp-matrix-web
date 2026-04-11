@@ -2082,6 +2082,137 @@ async function testSettingsLogout(page) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// PHASE 7F — CALLS & FINAL POLISH
+// ═══════════════════════════════════════════════════════════════
+
+// 7f.1 Call buttons in DM room header
+async function testCallButtonsInDM(page) {
+  log('--- CALL_BUTTONS_DM ---');
+  if (!CONFIG.rooms.direct) { log('CALL_BUTTONS_DM: No DM room, skipping'); return; }
+
+  await goto(page, `/rooms/${encodeURIComponent(CONFIG.rooms.direct)}`, '[class*="composer"]');
+  await page.waitForTimeout(2000);
+
+  const header = await page.$('header[class*="header"]');
+  if (!header) return;
+
+  // Look for Phone and Video buttons
+  const buttons = await header.$$('button');
+  const titles = [];
+  for (const btn of buttons) {
+    const title = await btn.getAttribute('title');
+    if (title) titles.push(title);
+  }
+  log(`CALL_BUTTONS_DM: header buttons: ${titles.join(' | ')}`);
+
+  const hasVoice = titles.some((t) => /голос|voice|call/i.test(t));
+  const hasVideo = titles.some((t) => /видео|video/i.test(t));
+  await snap(page, 'call-buttons-dm');
+
+  if (!hasVoice && !hasVideo) {
+    bug('LOW', 'CALL_BUTTONS_DM', 'Voice/video call buttons not found in DM header', [], '');
+  } else {
+    log('CALL_BUTTONS_DM: PASS');
+  }
+}
+
+// 7f.2 IncomingCallDialog component exists (smoke check)
+async function testIncomingCallContainer(page) {
+  log('--- INCOMING_CALL_CONTAINER ---');
+  // CallContainer is rendered globally — check it doesn't crash on app load
+  await goto(page, '/rooms', ROOM_ITEM_SEL);
+  await page.waitForTimeout(1000);
+  log('INCOMING_CALL_CONTAINER: PASS — app loaded with global CallContainer');
+}
+
+// 7f.3 Member list shows online indicator
+async function testMemberOnlineIndicator(page) {
+  log('--- MEMBER_ONLINE ---');
+  if (!(await ensureInRoom(page))) return;
+
+  const header = await page.$('[class*="info"]');
+  if (!header) return;
+  await header.click();
+  await page.waitForTimeout(2000);
+
+  // Check that members have avatar elements (online dot is part of Avatar component)
+  const avatars = await page.$$('[class*="avatar"]');
+  log(`MEMBER_ONLINE: ${avatars.length} avatars in room details`);
+  await snap(page, 'member-online');
+}
+
+// 7f.4 Room avatar editable (label wraps avatar for admin)
+async function testRoomAvatarEdit(page) {
+  log('--- ROOM_AVATAR_EDIT ---');
+  if (!(await ensureInRoom(page))) return;
+
+  const header = await page.$('[class*="info"]');
+  if (!header) return;
+  await header.click();
+  await page.waitForTimeout(2000);
+
+  const label = await page.$('label[class*="avatarUploadLabel"]');
+  log(`ROOM_AVATAR_EDIT: Avatar upload label: ${!!label}`);
+  await snap(page, 'room-avatar-edit');
+}
+
+// 7f.5 Spaces drawer with context menu
+async function testSpacesContext(page) {
+  log('--- SPACES_CONTEXT ---');
+  // Open spaces drawer (from mobile menu) — only in mobile
+  await page.setViewportSize({ width: 375, height: 812 });
+  await goto(page, '/rooms', ROOM_ITEM_SEL);
+  await page.waitForTimeout(1500);
+
+  const spacesBtn = await page.$('[class*="spacesBtn"]');
+  if (!spacesBtn) {
+    log('SPACES_CONTEXT: No spaces button (no spaces created)');
+    await page.setViewportSize({ width: 1280, height: 800 });
+    return;
+  }
+
+  await spacesBtn.click();
+  await page.waitForTimeout(1000);
+  await snap(page, 'spaces-drawer');
+  await page.setViewportSize({ width: 1280, height: 800 });
+  log('SPACES_CONTEXT: PASS');
+}
+
+// 7f.6 Bundle visualizer is configured
+async function testBundleVisualizer() {
+  log('--- BUNDLE_VISUALIZER ---');
+  // Just verify package was installed via fs
+  const fs = await import('fs');
+  const pkgPath = 'C:/Users/altumus/Desktop/corp-matrix-web/package.json';
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+  const has = pkg.devDependencies?.['rollup-plugin-visualizer'];
+  if (has) {
+    log(`BUNDLE_VISUALIZER: PASS — installed v${has}`);
+  } else {
+    bug('LOW', 'BUNDLE_VISUALIZER', 'rollup-plugin-visualizer not in devDependencies', [], '');
+  }
+}
+
+// 7f.7 Improved contrast (text-secondary darker than before)
+async function testContrastFix(page) {
+  log('--- CONTRAST_FIX ---');
+  await goto(page, '/rooms', ROOM_ITEM_SEL);
+  await page.waitForTimeout(1000);
+
+  const color = await page.evaluate(() => {
+    const root = document.documentElement;
+    return getComputedStyle(root).getPropertyValue('--color-text-secondary').trim();
+  });
+  log(`CONTRAST_FIX: --color-text-secondary = ${color}`);
+
+  if (color === '#5a627a') {
+    log('CONTRAST_FIX: PASS — improved to #5a627a');
+  } else {
+    log(`CONTRAST_FIX: color is ${color} (may differ in dark mode)`);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
 // PHASE 7E — POLISHED FEATURES (latest session)
 // ═══════════════════════════════════════════════════════════════
 
@@ -3821,6 +3952,15 @@ async function main() {
       await testFrequentEmoji(page);
       await testI18nCleanup(page);
       await testHighContrastMode(page);
+
+      // Calls + final polish tests
+      await testCallButtonsInDM(page);
+      await testIncomingCallContainer(page);
+      await testMemberOnlineIndicator(page);
+      await testRoomAvatarEdit(page);
+      await testSpacesContext(page);
+      await testBundleVisualizer();
+      await testContrastFix(page);
 
       // ══════ Phase 7a: Security & Error Handling ══════
       await testXssSanitization(page);

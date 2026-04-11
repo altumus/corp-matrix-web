@@ -3,6 +3,7 @@ import react, { reactCompilerPreset } from '@vitejs/plugin-react';
 import babel from '@rolldown/plugin-babel';
 import wasm from 'vite-plugin-wasm';
 import { VitePWA } from 'vite-plugin-pwa';
+import { visualizer } from 'rollup-plugin-visualizer';
 import path from 'path';
 import pkg from './package.json' with { type: 'json' };
 
@@ -14,6 +15,11 @@ export default defineConfig({
 		wasm(),
 		react(),
 		babel({ presets: [reactCompilerPreset()] }),
+		visualizer({
+			filename: 'dist/stats.html',
+			gzipSize: true,
+			brotliSize: true,
+		}) as never,
 		VitePWA({
 			registerType: 'autoUpdate',
 			includeAssets: ['corp-logo.png'],

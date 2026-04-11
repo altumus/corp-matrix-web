@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, UserPlus } from 'lucide-react'
+import { ArrowLeft, UserPlus, Phone, Video } from 'lucide-react'
+import { useCallStore } from '../../calls/store/callStore.js'
 import type { RoomSummary } from '../types.js'
 import { Avatar } from '../../../shared/ui/index.js'
 import { EncryptionBadge } from '../../encryption/components/EncryptionBadge.js'
@@ -25,6 +26,9 @@ export function RoomHeader({ room }: RoomHeaderProps) {
   const dmPartnerId = room.isDirect ? getDmPartnerId(room.roomId) : null
   const presence = usePresence(dmPartnerId)
   const trust = useRoomTrust(room.roomId, room.isEncrypted)
+  const startVoice = useCallStore((s) => s.startVoice)
+  const startVideo = useCallStore((s) => s.startVideo)
+  const callActive = useCallStore((s) => s.activeCall !== null)
 
   const handleBack = () => {
     navigate('/rooms')
@@ -73,6 +77,26 @@ export function RoomHeader({ room }: RoomHeaderProps) {
           <p className={styles.topic}>{room.memberCount} уч.</p>
         )}
       </button>
+      {room.isDirect && dmPartnerId && (
+        <>
+          <button
+            className={styles.inviteBtn}
+            onClick={() => !callActive && startVoice(room.roomId, dmPartnerId)}
+            title={t('rooms.callVoice', { defaultValue: 'Голосовой звонок' })}
+            disabled={callActive}
+          >
+            <Phone size={18} />
+          </button>
+          <button
+            className={styles.inviteBtn}
+            onClick={() => !callActive && startVideo(room.roomId, dmPartnerId)}
+            title={t('rooms.callVideo', { defaultValue: 'Видеозвонок' })}
+            disabled={callActive}
+          >
+            <Video size={18} />
+          </button>
+        </>
+      )}
       <button
         className={styles.inviteBtn}
         onClick={() => setShowInvite(true)}

@@ -4,7 +4,13 @@ import { MoreVertical } from 'lucide-react'
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
 import { Avatar } from '../../../shared/ui/index.js'
 import { toast } from '../../../shared/ui/Toast/toastService.js'
+import { usePresence } from '../../../shared/hooks/usePresence.js'
 import styles from './MemberList.module.scss'
+
+function MemberAvatar({ userId, name, src }: { userId: string; name: string; src: string | null }) {
+  const presence = usePresence(userId)
+  return <Avatar src={src} name={name} size="sm" online={presence?.online} />
+}
 
 interface MemberListProps {
   roomId: string
@@ -95,7 +101,7 @@ export function MemberList({ roomId }: MemberListProps) {
         const canActOnThis = !isMe && (canKick || canBan || canPromote) && m.powerLevel < myPL
         return (
           <div key={m.userId + refresh} className={styles.member}>
-            <Avatar src={m.avatarUrl} name={m.name} size="sm" />
+            <MemberAvatar userId={m.userId} name={m.name} src={m.avatarUrl} />
             <div className={styles.info}>
               <span className={styles.name}>{m.name}</span>
               <span className={styles.userId}>{m.userId}</span>

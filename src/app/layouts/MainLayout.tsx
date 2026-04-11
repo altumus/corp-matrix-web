@@ -3,6 +3,7 @@ import { SpacesSidebar } from '../../features/spaces/components/SpacesSidebar.js
 import { RoomList } from '../../features/room-list/components/RoomList.js'
 import { ConnectionBanner } from '../../shared/ui/ConnectionBanner/ConnectionBanner.js'
 import { CryptoBanner } from '../../shared/ui/CryptoBanner/CryptoBanner.js'
+import { CallContainer } from '../../features/calls/components/CallContainer.js'
 import { useNotifications } from '../../features/notifications/hooks/useNotifications.js'
 import { useIncomingVerification } from '../../features/encryption/hooks/useIncomingVerification.js'
 import { IncomingVerificationDialog } from '../../features/encryption/components/IncomingVerificationDialog.js'
@@ -61,6 +62,8 @@ export function MainLayout() {
           onClose={dismissVerification}
         />
       )}
+
+      <CallContainer />
     </div>
   )
 }

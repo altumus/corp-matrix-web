@@ -71,6 +71,21 @@ export function RoomDetailsPanel({ room, onClose }: RoomDetailsPanelProps) {
     setEditingTopic(false)
   }
 
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!client || !canEdit) return
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const upload = await client.uploadContent(file, { type: file.type })
+      const mxc = (upload as { content_uri: string }).content_uri
+      await client.sendStateEvent(room.roomId, 'm.room.avatar' as never, { url: mxc } as never, '')
+      toast(t('rooms.avatarUpdated', { defaultValue: 'Аватар обновлён' }), 'success')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Ошибка', 'error')
+    }
+    e.target.value = ''
+  }
+
   if (view === 'accessibility') {
     return (
       <div className={panelCls}>
@@ -114,7 +129,19 @@ export function RoomDetailsPanel({ room, onClose }: RoomDetailsPanelProps) {
 
       <div className={styles.scrollable}>
         <div className={styles.profile}>
-          <Avatar src={room.avatarUrl} name={room.name} size="xl" />
+          {canEdit ? (
+            <label className={styles.avatarUploadLabel} title={t('rooms.changeAvatar', { defaultValue: 'Сменить аватар' })}>
+              <Avatar src={room.avatarUrl} name={room.name} size="xl" />
+              <input
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={handleAvatarChange}
+              />
+            </label>
+          ) : (
+            <Avatar src={room.avatarUrl} name={room.name} size="xl" />
+          )}
           {editingName ? (
             <div className={styles.editRow}>
               <input
