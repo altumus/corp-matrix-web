@@ -81,3 +81,44 @@ h1, h2, h3, h4, h5, h6 {
     --color-bg-hover: transparent;
   }
 }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.sr-only-focusable:focus,
+.sr-only-focusable:active {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  width: auto;
+  height: auto;
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  border-radius: var(--radius-md);
+  z-index: 9999;
+}
+
+
+@media (pointer: coarse) {
+  button,
+  a,
+  [role='button'] {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+

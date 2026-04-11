@@ -73,37 +73,10 @@ async function ensureKeyBackup(): Promise<void> {
   }
 }
 
+// NOTE: cleanup is no longer automatic — moved to manual UI in DevicesSettings
+// to avoid surprising users by killing their other sessions.
 async function cleanupOldDevices(): Promise<void> {
-  const client = getMatrixClient()
-  if (!client) return
-
-  try {
-    const currentDeviceId = client.getDeviceId()
-    const { devices } = await client.getDevices()
-
-    // Keep current device + any device seen in the last 24 hours
-    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000
-    const toDelete = devices.filter((d) => {
-      if (d.device_id === currentDeviceId) return false
-      // If never seen or last seen > 24h ago — delete
-      if (!d.last_seen_ts || d.last_seen_ts < oneDayAgo) return true
-      return false
-    })
-
-    for (const device of toDelete) {
-      try {
-        await client.deleteDevice(device.device_id)
-      } catch {
-        // Device deletion may require UIA — skip silently
-      }
-    }
-
-    if (toDelete.length > 0) {
-      console.log(`[crypto] Cleaned up ${toDelete.length} old device(s)`)
-    }
-  } catch {
-    // best-effort
-  }
+  // intentionally no-op — keep function signature for backwards compat
 }
 
 async function bootstrapCrossSigning(): Promise<void> {

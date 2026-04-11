@@ -54,18 +54,103 @@ export async function clearSession(): Promise<void> {
   await db.delete(SESSION_STORE, 'recoveryKey').catch(() => {})
 }
 
+// ─── Recovery key encryption ─────────────────────────────────────
+// Encrypt the recovery key with a key derived from device fingerprint.
+// Not perfect (a sufficiently motivated attacker with full device access
+// can still reconstruct the fingerprint), but blocks XSS reading plaintext.
+
+const DEVICE_ID_KEY = 'corp-matrix-device-id'
+
+function getOrCreateDeviceId(): string {
+  let id = localStorage.getItem(DEVICE_ID_KEY)
+  if (!id) {
+    id = crypto.randomUUID()
+    localStorage.setItem(DEVICE_ID_KEY, id)
+  }
+  return id
+}
+
+async function deriveDeviceKey(): Promise<CryptoKey> {
+  const fingerprint = [
+    getOrCreateDeviceId(),
+    navigator.userAgent,
+    navigator.language,
+    `${screen.width}x${screen.height}`,
+    Intl.DateTimeFormat().resolvedOptions().timeZone,
+  ].join('|')
+
+  const enc = new TextEncoder()
+  const baseKey = await crypto.subtle.importKey(
+    'raw',
+    enc.encode(fingerprint),
+    'PBKDF2',
+    false,
+    ['deriveKey'],
+  )
+
+  return crypto.subtle.deriveKey(
+    {
+      name: 'PBKDF2',
+      salt: enc.encode('corp-matrix-recovery-salt'),
+      iterations: 100_000,
+      hash: 'SHA-256',
+    },
+    baseKey,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt'],
+  )
+}
+
+interface EncryptedBlob {
+  iv: number[]
+  data: number[]
+}
+
 export async function saveRecoveryKey(key: Uint8Array): Promise<void> {
+  const cryptoKey = await deriveDeviceKey()
+  const iv = crypto.getRandomValues(new Uint8Array(12))
+  const encrypted = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    cryptoKey,
+    key,
+  )
+
+  const blob: EncryptedBlob = {
+    iv: Array.from(iv),
+    data: Array.from(new Uint8Array(encrypted)),
+  }
+
   const db = await getDb()
-  await db.put(SESSION_STORE, Array.from(key), 'recoveryKey')
+  await db.put(SESSION_STORE, blob, 'recoveryKey')
 }
 
 export async function loadRecoveryKey(): Promise<Uint8Array | null> {
   const db = await getDb()
   const stored = await db.get(SESSION_STORE, 'recoveryKey')
-  if (stored && Array.isArray(stored)) {
+  if (!stored || typeof stored !== 'object') return null
+
+  // Legacy plaintext format (array)
+  if (Array.isArray(stored)) {
     return new Uint8Array(stored)
   }
-  return null
+
+  // Encrypted format
+  const blob = stored as EncryptedBlob
+  if (!blob.iv || !blob.data) return null
+
+  try {
+    const cryptoKey = await deriveDeviceKey()
+    const decrypted = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: new Uint8Array(blob.iv) },
+      cryptoKey,
+      new Uint8Array(blob.data),
+    )
+    return new Uint8Array(decrypted)
+  } catch {
+    // Decryption failed (e.g. user changed device fingerprint)
+    return null
+  }
 }
 
 export function createMatrixClient(opts: {
@@ -147,10 +232,10 @@ export async function startClient(): Promise<void> {
         await withTimeout(clientInstance.initRustCrypto(), 15_000, 'initRustCrypto (retry)')
         cryptoInitialized = true
       } catch {
-        console.warn('[crypto] E2E encryption unavailable — init failed on retry')
+        if (import.meta.env.DEV) console.warn('[crypto] E2E encryption unavailable — init failed on retry')
       }
     } else {
-      console.warn('[crypto] E2E encryption unavailable —', msg)
+      if (import.meta.env.DEV) console.warn('[crypto] E2E encryption unavailable —', msg)
     }
   }
 

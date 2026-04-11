@@ -1,0 +1,65 @@
+.recorder {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-lg);
+  flex: 1;
+}
+
+.indicator {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex: 1;
+  justify-content: center;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-danger);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(1.5); }
+}
+
+.time {
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-size-md);
+  color: var(--color-text-primary);
+}
+
+.cancelBtn,
+.sendBtn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.cancelBtn {
+  color: var(--color-text-secondary);
+
+  &:hover {
+    color: var(--color-danger);
+    background: var(--color-bg-hover);
+  }
+}
+
+.sendBtn {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+
+  &:hover {
+    opacity: 0.9;
+  }
+}

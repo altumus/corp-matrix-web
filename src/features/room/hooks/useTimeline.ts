@@ -106,10 +106,24 @@ function countThreadReplies(room: Room): Map<string, number> {
   return counts
 }
 
+// Per-room mapEvent cache to avoid re-mapping unchanged events on every sync.
+// Key: eventId, Value: { event: TimelineEvent, ts: timestamp of last edit }
+const eventCache = new WeakMap<Room, Map<string, { ev: TimelineEvent; editTs: number }>>()
+
+function getCacheForRoom(room: Room): Map<string, { ev: TimelineEvent; editTs: number }> {
+  let cache = eventCache.get(room)
+  if (!cache) {
+    cache = new Map()
+    eventCache.set(room, cache)
+  }
+  return cache
+}
+
 function collectEvents(room: Room): TimelineEvent[] {
   const mapped: TimelineEvent[] = []
   const seen = new Set<string>()
   const threadCounts = countThreadReplies(room)
+  const cache = getCacheForRoom(room)
 
   const allTimelines = room.getUnfilteredTimelineSet().getTimelines()
   for (const tl of allTimelines) {
@@ -121,12 +135,26 @@ function collectEvents(room: Room): TimelineEvent[] {
       const id = e.getId()!
       if (seen.has(id)) continue
       seen.add(id)
+
+      // Check cache — invalidate if event was edited
+      const editTs = e.replacingEvent()?.getTs() || 0
+      const cached = cache.get(id)
+      if (cached && cached.editTs === editTs) {
+        const tc = threadCounts.get(id)
+        if (tc !== cached.ev.threadReplyCount) {
+          cached.ev.threadReplyCount = tc
+        }
+        mapped.push(cached.ev)
+        continue
+      }
+
       try {
         const ev = mapEvent(e, room)
         const tc = threadCounts.get(id)
         if (tc) {
           ev.threadReplyCount = tc
         }
+        cache.set(id, { ev, editTs })
         mapped.push(ev)
       } catch {
         // skip
@@ -175,7 +203,11 @@ export function useTimeline(roomId: string) {
     setEvents(newEvents)
   }, [])
 
-  const sendReadReceipt = useCallback(() => {
+  const sendReadReceipt = useCallback(async () => {
+    // Privacy: respect user setting
+    const { getSendReadReceipts } = await import('../../settings/components/PrivacySettings.js')
+    if (!getSendReadReceipts()) return
+
     const client = getMatrixClient()
     const room = roomRef.current
     if (!client || !room) return

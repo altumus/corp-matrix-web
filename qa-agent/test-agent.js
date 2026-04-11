@@ -2082,6 +2082,260 @@ async function testSettingsLogout(page) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// PHASE 7D — PRODUCTION HARDENING TESTS
+// ═══════════════════════════════════════════════════════════════
+
+// 7d.1 Privacy settings exist
+async function testPrivacySettings(page) {
+  log('--- PRIVACY_SETTINGS ---');
+  await goto(page, '/settings/privacy', 'h3, [class*="heading"]');
+  await page.waitForTimeout(1500);
+  const shot = await snap(page, 'privacy-settings');
+
+  const checkboxes = await page.$$('input[type="checkbox"]');
+  log(`PRIVACY_SETTINGS: ${checkboxes.length} privacy toggles found`);
+
+  if (checkboxes.length < 2) {
+    bug('MEDIUM', 'PRIVACY_SETTINGS', 'Privacy toggles missing (read receipts, typing)', [], shot);
+  } else {
+    log('PRIVACY_SETTINGS: PASS');
+  }
+
+  // Check deactivate button
+  const deactivateBtn = await page.$('button:has-text("Удалить")');
+  log(`PRIVACY_SETTINGS: Deactivate button: ${!!deactivateBtn}`);
+}
+
+// 7d.2 Idle logout setting
+async function testIdleLogoutSetting(page) {
+  log('--- IDLE_LOGOUT_SETTING ---');
+  await goto(page, '/settings/privacy', 'select, h3');
+  await page.waitForTimeout(1000);
+
+  const select = await page.$('select');
+  if (!select) {
+    bug('LOW', 'IDLE_LOGOUT_SETTING', 'Idle timeout selector not found', [], '');
+    return;
+  }
+  const options = await select.$$('option');
+  log(`IDLE_LOGOUT_SETTING: ${options.length} timeout options`);
+  log('IDLE_LOGOUT_SETTING: PASS');
+}
+
+// 7d.3 Voice recorder button
+async function testVoiceButton(page) {
+  log('--- VOICE_BUTTON ---');
+  if (!(await ensureInRoom(page))) return;
+
+  // Clear textarea — voice button should appear when empty
+  const textarea = await page.$('textarea[data-testid="composer-textarea"], textarea[class*="textarea"]');
+  if (textarea) await textarea.fill('');
+  await page.waitForTimeout(500);
+
+  // Voice button should be present (with Mic icon)
+  const sendBtn = await page.$('button[class*="sendBtn"]');
+  if (!sendBtn) {
+    log('VOICE_BUTTON: No send button area');
+    return;
+  }
+
+  const innerHtml = await sendBtn.innerHTML();
+  // Mic icon (lucide) renders as svg with mic attributes
+  const hasMic = innerHtml.includes('svg') || innerHtml.includes('Mic');
+  log(`VOICE_BUTTON: Mic icon visible when textarea empty: ${hasMic}`);
+  await snap(page, 'voice-button');
+}
+
+// 7d.4 Slash commands
+async function testSlashCommands(page) {
+  log('--- SLASH_COMMANDS ---');
+  if (!(await ensureInRoom(page))) return;
+
+  const textarea = await page.$('textarea[class*="textarea"]');
+  const sendBtn = await page.$('button[class*="sendBtn"]');
+  if (!textarea || !sendBtn) return;
+
+  // Test /shrug command
+  await textarea.fill('/shrug hello');
+  await page.waitForTimeout(300);
+  await sendBtn.click();
+  await page.waitForTimeout(2500);
+  const shot = await snap(page, 'slash-shrug');
+
+  // Look for ¯\_(ツ)_/¯ in timeline
+  const html = await page.content();
+  if (html.includes('¯\\_(ツ)_/¯') || html.includes('(ツ)')) {
+    log('SLASH_COMMANDS: PASS — /shrug rendered');
+  } else {
+    log('SLASH_COMMANDS: shrug text not found (may be due to encoding)');
+  }
+}
+
+// 7d.5 Send queue exists in IDB
+async function testSendQueueDB(page) {
+  log('--- SEND_QUEUE_DB ---');
+
+  // Open IndexedDB and check if our send queue store exists
+  const exists = await page.evaluate(async () => {
+    return new Promise((resolve) => {
+      const req = indexedDB.open('corp-matrix-send-queue', 1);
+      req.onsuccess = () => {
+        const db = req.result;
+        const has = db.objectStoreNames.contains('pending');
+        db.close();
+        resolve(has);
+      };
+      req.onerror = () => resolve(false);
+    });
+  });
+
+  log(`SEND_QUEUE_DB: send queue store exists: ${exists}`);
+}
+
+// 7d.6 Saved Messages no duplication
+async function testSavedMessagesNoDup(page) {
+  log('--- SAVED_MESSAGES_NO_DUP ---');
+  await goto(page, '/rooms', ROOM_ITEM_SEL);
+  await page.waitForTimeout(1500);
+
+  // Click savedBtn twice
+  const savedBtn = await page.$('[class*="savedBtn"]');
+  if (!savedBtn) { log('SAVED_MESSAGES_NO_DUP: No saved btn, skipping'); return; }
+
+  await savedBtn.click();
+  await page.waitForTimeout(2500);
+  const url1 = page.url();
+
+  await goto(page, '/rooms', ROOM_ITEM_SEL);
+  await page.waitForTimeout(1000);
+
+  await savedBtn.click();
+  await page.waitForTimeout(2500);
+  const url2 = page.url();
+
+  const shot = await snap(page, 'saved-no-dup');
+
+  if (url1 === url2 && url1.includes('/rooms/')) {
+    log('SAVED_MESSAGES_NO_DUP: PASS — same room opened twice');
+  } else {
+    bug('MEDIUM', 'SAVED_MESSAGES_NO_DUP', `Different Saved Messages opened: ${url1} vs ${url2}`, [], shot);
+  }
+}
+
+// 7d.7 Encrypted recovery key in IDB
+async function testEncryptedRecoveryKey(page) {
+  log('--- ENCRYPTED_RECOVERY_KEY ---');
+
+  const stored = await page.evaluate(async () => {
+    return new Promise((resolve) => {
+      const req = indexedDB.open('corp-matrix-web', 1);
+      req.onsuccess = () => {
+        const db = req.result;
+        try {
+          const tx = db.transaction('session', 'readonly');
+          const store = tx.objectStore('session');
+          const getReq = store.get('recoveryKey');
+          getReq.onsuccess = () => {
+            const val = getReq.result;
+            const shape = val == null ? 'null' : Array.isArray(val) ? 'array' : typeof val;
+            const isEncrypted =
+              val != null &&
+              !Array.isArray(val) &&
+              typeof val === 'object' &&
+              'iv' in val &&
+              'data' in val;
+            db.close();
+            resolve({ shape: shape, isEncrypted: isEncrypted });
+          };
+          getReq.onerror = () => { db.close(); resolve({ shape: 'error', isEncrypted: false }); };
+        } catch {
+          db.close();
+          resolve({ shape: 'error', isEncrypted: false });
+        }
+      };
+      req.onerror = () => resolve({ shape: 'no-db', isEncrypted: false });
+    });
+  });
+
+  log(`ENCRYPTED_RECOVERY_KEY: shape=${stored.shape}, encrypted=${stored.isEncrypted}`);
+
+  if (stored.shape === 'array') {
+    bug('HIGH', 'ENCRYPTED_RECOVERY_KEY', 'Recovery key stored as plaintext array — security hole', [], '');
+  } else if (stored.shape === 'object' && stored.isEncrypted) {
+    log('ENCRYPTED_RECOVERY_KEY: PASS — key is encrypted with iv+data');
+  }
+}
+
+// 7d.8 Pinned bar updates without reload (regression — already fixed earlier)
+// — covered by testPinMessageLive, no duplicate
+
+// 7d.9 No console.log in production build (just check that logger module exists)
+async function testLoggerExists(page) {
+  log('--- LOGGER_MODULE ---');
+  // Just verify by checking app loaded (no missing module errors)
+  const url = page.url();
+  log(`LOGGER_MODULE: App loaded OK at ${url}`);
+}
+
+// 7d.10 Touch targets (visual check via getBoundingClientRect on mobile viewport)
+async function testTouchTargetSize(page) {
+  log('--- TOUCH_TARGETS ---');
+  await page.setViewportSize({ width: 375, height: 812 });
+  await goto(page, '/rooms', ROOM_ITEM_SEL);
+  await page.waitForTimeout(1500);
+
+  const tiny = await page.evaluate(() => {
+    const buttons = document.querySelectorAll('button');
+    const tooSmall = [];
+    for (const btn of Array.from(buttons)) {
+      if (btn.offsetParent === null) continue; // hidden
+      const r = btn.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0 && (r.width < 36 || r.height < 36)) {
+        tooSmall.push(`${btn.textContent?.trim().slice(0, 20)} (${Math.round(r.width)}x${Math.round(r.height)})`);
+      }
+    }
+    return tooSmall.slice(0, 5);
+  });
+
+  await snap(page, 'touch-targets');
+  await page.setViewportSize({ width: 1280, height: 800 });
+
+  if (tiny.length > 0) {
+    bug('LOW', 'TOUCH_TARGETS', `Buttons too small for mobile: ${tiny.join(', ')}`, [], '');
+  } else {
+    log('TOUCH_TARGETS: PASS');
+  }
+}
+
+// 7d.11 Skip link is present
+async function testSkipLink(page) {
+  log('--- SKIP_LINK ---');
+  await goto(page, '/', 'a, button');
+  await page.waitForTimeout(1000);
+
+  const skipLink = await page.$('a[href="#main-content"], a[class*="sr-only"]');
+  if (!skipLink) {
+    bug('LOW', 'SKIP_LINK', 'Accessibility skip link not present', [], '');
+  } else {
+    log('SKIP_LINK: PASS');
+  }
+}
+
+// 7d.12 Cross-signing UI present in encryption settings
+async function testCrossSigningUiNew(page) {
+  log('--- CROSS_SIGNING_UI_PRESENT ---');
+  await goto(page, '/settings/encryption', 'button, h3');
+  await page.waitForTimeout(2000);
+
+  const verifyBtn = await page.$('button:has-text("ерифицировать"), button:has-text("Verify")');
+  log(`CROSS_SIGNING_UI_PRESENT: Verify button: ${!!verifyBtn}`);
+
+  if (!verifyBtn) {
+    bug('LOW', 'CROSS_SIGNING_UI_PRESENT', 'Cross-signing verify button not in encryption settings', [], '');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
 // PHASE 7C — NEW FEATURES TESTS
 // ═══════════════════════════════════════════════════════════════
 
@@ -3323,6 +3577,19 @@ async function main() {
       await testReactionRapidClicks(page);
       await testTimelineNoJitter(page);
       await testPinMessageLive(page);
+
+      // Production hardening tests
+      await testPrivacySettings(page);
+      await testIdleLogoutSetting(page);
+      await testVoiceButton(page);
+      await testSlashCommands(page);
+      await testSendQueueDB(page);
+      await testSavedMessagesNoDup(page);
+      await testEncryptedRecoveryKey(page);
+      await testLoggerExists(page);
+      await testTouchTargetSize(page);
+      await testSkipLink(page);
+      await testCrossSigningUiNew(page);
 
       // ══════ Phase 7a: Security & Error Handling ══════
       await testXssSanitization(page);

@@ -1,10 +1,11 @@
 import { useRef, useState, useCallback, useEffect, type FormEvent, type KeyboardEvent, type ClipboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Forward, Trash2, Copy, Pin, X, Plus, Pencil } from 'lucide-react'
+import { Forward, Trash2, Copy, Pin, X, Plus, Pencil, Mic } from 'lucide-react'
 import { useSendMessage } from '../hooks/useSendMessage.js'
 import { useMediaUpload } from '../../media/hooks/useMediaUpload.js'
 import { useMentions, type MentionCandidate } from '../hooks/useMentions.js'
 import { ImagePreviewDialog } from '../../media/components/ImagePreviewDialog.js'
+import { VoiceRecorder } from './VoiceRecorder.js'
 import { MentionPopup } from './MentionPopup.js'
 import { AttachMenu } from './AttachMenu.jsx'
 import { CreatePollDialog } from './CreatePollDialog.js'
@@ -50,6 +51,7 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
     else setText('')
   }, [roomId]) // eslint-disable-line react-hooks/exhaustive-deps
   const [pendingFile, setPendingFile] = useState<File | null>(null)
+  const [recordingVoice, setRecordingVoice] = useState(false)
   const [mentionIndex, setMentionIndex] = useState(0)
   const mentionStartRef = useRef<number>(-1)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -339,7 +341,7 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
 
   return (
     <>
-      <form className={styles.composer} onSubmit={handleSubmit} role="form" aria-label={t('messages.placeholder')}>
+      <form className={styles.composer} onSubmit={handleSubmit} role="form" aria-label={t('messages.placeholder')} data-testid="composer">
         {editTarget && (
           <div className={styles.replyPreview}>
             <div className={styles.replyInfo}>
@@ -413,6 +415,7 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
           </div>
           <textarea
             ref={textareaRef}
+            data-testid="composer-textarea"
             className={styles.textarea}
             value={text}
             onChange={(e) => {
@@ -426,15 +429,28 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
             rows={1}
             disabled={uploading}
           />
-          <button
-            type="submit"
-            className={styles.sendBtn}
-            disabled={!text.trim() || uploading}
-            title={t('messages.send')}
-            aria-label={t('messages.send')}
-          >
-            ➤
-          </button>
+          {text.trim() ? (
+            <button
+              type="submit"
+              className={styles.sendBtn}
+              disabled={uploading}
+              title={t('messages.send')}
+              aria-label={t('messages.send')}
+            >
+              ➤
+            </button>
+          ) : (
+            <button
+              type="button"
+              className={styles.sendBtn}
+              disabled={uploading}
+              onClick={() => setRecordingVoice(true)}
+              title={t('messages.recordVoice', { defaultValue: 'Записать голосовое' })}
+              aria-label={t('messages.recordVoice', { defaultValue: 'Записать голосовое' })}
+            >
+              <Mic size={18} />
+            </button>
+          )}
         </div>
         <input
           ref={fileInputRef}
@@ -450,6 +466,13 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
           file={pendingFile}
           onConfirm={handleConfirmSend}
           onCancel={handleCancelSend}
+        />
+      )}
+
+      {recordingVoice && (
+        <VoiceRecorder
+          roomId={roomId}
+          onCancel={() => setRecordingVoice(false)}
         />
       )}
 

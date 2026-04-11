@@ -23,13 +23,44 @@ export function RoomListHeader() {
     if (!client) return
     const myUserId = client.getUserId()!
 
-    const existing = rooms.find((r) => r.isSavedMessages)
-    if (existing) {
-      setSelectedRoom(existing.roomId)
-      navigate(`/rooms/${encodeURIComponent(existing.roomId)}`)
+    // 1. Check rooms list store first
+    const fromStore = rooms.find((r) => r.isSavedMessages)
+    if (fromStore) {
+      setSelectedRoom(fromStore.roomId)
+      navigate(`/rooms/${encodeURIComponent(fromStore.roomId)}`)
       return
     }
 
+    // 2. Check ALL rooms in client (not only loaded in store) — find self-DM
+    const allRooms = client.getRooms()
+    for (const room of allRooms) {
+      const members = room.getJoinedMembers()
+      if (members.length === 1 && members[0].userId === myUserId) {
+        // Self-DM
+        setSelectedRoom(room.roomId)
+        navigate(`/rooms/${encodeURIComponent(room.roomId)}`)
+        return
+      }
+    }
+
+    // 3. Check m.direct account_data for self-mapping
+    try {
+      const directData = client.getAccountData('m.direct')
+      const directMap = (directData?.getContent() as Record<string, string[]> | undefined) || {}
+      const selfRooms = directMap[myUserId]
+      if (selfRooms && selfRooms.length > 0) {
+        const roomId = selfRooms[0]
+        // Verify room still exists and we're joined
+        const room = client.getRoom(roomId)
+        if (room && room.getMyMembership() === 'join') {
+          setSelectedRoom(roomId)
+          navigate(`/rooms/${encodeURIComponent(roomId)}`)
+          return
+        }
+      }
+    } catch { /* ignore */ }
+
+    // 4. None found — create a new one and store mapping in m.direct
     try {
       const { room_id } = await client.createRoom({
         is_direct: true,
@@ -37,11 +68,18 @@ export function RoomListHeader() {
         preset: 'trusted_private_chat' as never,
         name: 'Saved Messages',
       })
+
+      // Update m.direct so subsequent lookups find this room
+      try {
+        const directData = client.getAccountData('m.direct')
+        const directMap = (directData?.getContent() as Record<string, string[]> | undefined) || {}
+        directMap[myUserId] = [...(directMap[myUserId] || []), room_id]
+        await client.setAccountData('m.direct', directMap)
+      } catch { /* ignore */ }
+
       setSelectedRoom(room_id)
       navigate(`/rooms/${encodeURIComponent(room_id)}`)
-    } catch {
-      // room creation failed silently
-    }
+    } catch { /* ignore */ }
   }, [rooms, navigate, setSelectedRoom])
 
   return (

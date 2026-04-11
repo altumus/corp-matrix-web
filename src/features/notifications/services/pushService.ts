@@ -1,4 +1,5 @@
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { logger } from '../../../shared/lib/logger.js'
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || ''
 const PUSH_GATEWAY_URL = import.meta.env.VITE_PUSH_GATEWAY_URL || ''
@@ -73,7 +74,7 @@ async function removeOldPushers(): Promise<void> {
     for (const pusher of pushers) {
       if (pusher.app_id !== 'corp.matrix.web') continue
       if (pusher.pushkey?.includes('ntfy')) {
-        console.log('[Push] Removing old ntfy pusher:', pusher.pushkey)
+        logger.log('[Push] Removing old ntfy pusher:', pusher.pushkey)
         await client.setPusher({
           pushkey: pusher.pushkey,
           kind: null,
@@ -84,11 +85,11 @@ async function removeOldPushers(): Promise<void> {
           profile_tag: '',
           data: {},
         } as never)
-        console.log('[Push] Old ntfy pusher removed')
+        logger.log('[Push] Old ntfy pusher removed')
       }
     }
   } catch (err) {
-    console.warn('[Push] Failed to clean old pushers:', err)
+    logger.warn('[Push] Failed to clean old pushers:', err)
   }
 }
 
@@ -112,15 +113,15 @@ export async function subscribeToPush(): Promise<boolean> {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ subscription: subscription.toJSON(), userId }),
     })
-    console.log('[Push] Subscription sent to gateway')
+    logger.log('[Push] Subscription sent to gateway')
   }
 
   if (gatewayPushUrl.startsWith('https://')) {
     await registerMatrixPusher(pushkey, gatewayPushUrl)
-    console.log('[Push] Matrix pusher registered, gateway:', gatewayPushUrl)
+    logger.log('[Push] Matrix pusher registered, gateway:', gatewayPushUrl)
   } else {
-    console.log('[Push] Local dev mode — Matrix pusher skipped')
-    console.log('[Push] Test at:', `${gatewayBase}/api/push-test`)
+    logger.log('[Push] Local dev mode — Matrix pusher skipped')
+    logger.log('[Push] Test at:', `${gatewayBase}/api/push-test`)
   }
 
   return true
@@ -147,7 +148,7 @@ export async function unsubscribeFromPush(): Promise<void> {
     }
 
     if (subscription) await subscription.unsubscribe()
-    console.log('[Push] Unsubscribed')
+    logger.log('[Push] Unsubscribed')
   } catch (err) {
     console.error('[Push] Unsubscribe failed:', err)
   }

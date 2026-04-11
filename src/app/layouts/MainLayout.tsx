@@ -7,11 +7,15 @@ import { useNotifications } from '../../features/notifications/hooks/useNotifica
 import { useIncomingVerification } from '../../features/encryption/hooks/useIncomingVerification.js'
 import { IncomingVerificationDialog } from '../../features/encryption/components/IncomingVerificationDialog.js'
 import { useIsMobile } from '../../shared/hooks/useMediaQuery.js'
+import { useIdleLogout } from '../../shared/hooks/useIdleLogout.js'
+import { useKeyboardShortcuts } from '../../shared/hooks/useKeyboardShortcuts.js'
 import { ErrorBoundary } from '../../shared/ui/index.js'
 import styles from './MainLayout.module.scss'
 
 export function MainLayout() {
   useNotifications()
+  useIdleLogout()
+  useKeyboardShortcuts()
   const { request: verificationRequest, dismiss: dismissVerification } = useIncomingVerification()
   const isMobile = useIsMobile()
   const location = useLocation()

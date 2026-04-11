@@ -43,6 +43,7 @@ export function PinnedMessageBar({ roomId }: PinnedMessageBarProps) {
 
       const cached = room.findEventById(eventId)
       if (cached) {
+        if (cached.isRedacted()) continue // skip deleted pinned messages
         body = (cached.getContent().body as string) || ''
         const member = room.getMember(cached.getSender()!)
         sender = member?.name || cached.getSender()!

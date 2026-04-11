@@ -11,6 +11,7 @@ import { DevicesSettings } from './DevicesSettings.js'
 import { EncryptionSettings } from './EncryptionSettings.js'
 import { LanguageSettings } from './LanguageSettings.js'
 import { NotificationSettings } from '../../notifications/components/NotificationSettings.js'
+import { PrivacySettings } from './PrivacySettings.js'
 import styles from './SettingsPage.module.scss'
 
 export default function SettingsPage() {
@@ -73,6 +74,12 @@ export default function SettingsPage() {
           >
             {t('notifications.title')}
           </NavLink>
+          <NavLink
+            to="/settings/privacy"
+            className={({ isActive }) => `${styles.link} ${isActive ? styles.active : ''}`}
+          >
+            {t('privacy.title', { defaultValue: 'Приватность' })}
+          </NavLink>
 
           <div className={styles.spacer} />
 
@@ -98,6 +105,7 @@ export default function SettingsPage() {
             <Route path="encryption" element={<EncryptionSettings />} />
             <Route path="language" element={<LanguageSettings />} />
             <Route path="notifications" element={<NotificationSettings />} />
+            <Route path="privacy" element={<PrivacySettings />} />
           </Routes>
         </div>
       )}

@@ -3,7 +3,10 @@ import { marked } from 'marked'
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
 import { sanitizeHtml } from '../../../shared/lib/sanitizeHtml.js'
 import { sendTextMessage, sendTypingIndicator } from '../services/messageService.js'
+import { enqueueMessage } from '../services/sendQueue.js'
+import { processSlashCommand } from '../services/slashCommands.js'
 import { toast } from '../../../shared/ui/Toast/toastService.js'
+import { getSendTyping } from '../../settings/components/PrivacySettings.js'
 
 marked.setOptions({
   breaks: true,
@@ -74,6 +77,15 @@ export function useSendMessage(roomId: string) {
 
       let finalBody = body.trim()
       let formattedBody: string | undefined
+      let isEmote = false
+
+      // Slash commands
+      const slashResult = processSlashCommand(finalBody)
+      if (slashResult) {
+        finalBody = slashResult.body
+        isEmote = !!slashResult.emote
+      }
+      void isEmote
 
       const mentionResult = buildMentionFormats(finalBody, roomId)
       finalBody = mentionResult.body
@@ -103,11 +115,18 @@ export function useSendMessage(roomId: string) {
       // Check if @room was used
       const hasRoomMention = body.includes('@room')
 
+      const messageOpts = { roomId, body: finalBody, formattedBody, replyToEventId, threadRootId, roomMention: hasRoomMention }
       try {
-        await sendTextMessage({ roomId, body: finalBody, formattedBody, replyToEventId, threadRootId, roomMention: hasRoomMention })
+        await sendTextMessage(messageOpts)
         await sendTypingIndicator(roomId, false)
         return true
       } catch (err) {
+        // If offline or network error — enqueue for retry
+        if (!navigator.onLine || (err instanceof Error && /network|fetch|connection/i.test(err.message))) {
+          await enqueueMessage(messageOpts)
+          toast('Сообщение отправлено в очередь — будет доставлено при появлении сети', 'info')
+          return true // Treat as success for UI purposes
+        }
         toast(err instanceof Error ? err.message : 'Не удалось отправить сообщение', 'error')
         return false
       }
@@ -116,6 +135,8 @@ export function useSendMessage(roomId: string) {
   )
 
   const onTyping = useCallback(() => {
+    if (!getSendTyping()) return // privacy: typing disabled
+
     sendTypingIndicator(roomId, true)
 
     if (typingTimeoutRef.current) {

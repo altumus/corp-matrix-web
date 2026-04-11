@@ -5,6 +5,7 @@ import { ArrowLeft, UserPlus } from 'lucide-react'
 import type { RoomSummary } from '../types.js'
 import { Avatar } from '../../../shared/ui/index.js'
 import { EncryptionBadge } from '../../encryption/components/EncryptionBadge.js'
+import { useRoomTrust } from '../../encryption/hooks/useRoomTrust.js'
 import { usePresence, getDmPartnerId } from '../../../shared/hooks/usePresence.js'
 import { InviteToRoomDialog } from './InviteToRoomDialog.js'
 import { useRightPanel } from '../context/RightPanelContext.js'
@@ -23,6 +24,7 @@ export function RoomHeader({ room }: RoomHeaderProps) {
   const isMobile = useIsMobile()
   const dmPartnerId = room.isDirect ? getDmPartnerId(room.roomId) : null
   const presence = usePresence(dmPartnerId)
+  const trust = useRoomTrust(room.roomId, room.isEncrypted)
 
   const handleBack = () => {
     navigate('/rooms')
@@ -61,7 +63,7 @@ export function RoomHeader({ room }: RoomHeaderProps) {
       <button className={styles.info} onClick={openDetails}>
         <h2 className={styles.name}>
           {room.name}
-          {room.isEncrypted && <EncryptionBadge verified />}
+          {room.isEncrypted && <EncryptionBadge verified={trust !== false} />}
         </h2>
         {subtitle ? (
           <p className={`${styles.topic} ${presence?.online ? styles.onlineText : ''}`}>
