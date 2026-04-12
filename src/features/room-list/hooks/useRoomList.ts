@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from 'react'
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
-import { ClientEvent, SyncState } from 'matrix-js-sdk'
+import { ClientEvent, RoomEvent, MatrixEventEvent, SyncState } from 'matrix-js-sdk'
 import { NotificationCountType } from 'matrix-js-sdk/lib/models/room.js'
 import type { Room } from 'matrix-js-sdk'
 import { useRoomListStore } from '../store/roomListStore.js'
@@ -121,11 +121,28 @@ export function useRoomList() {
       }
       refresh()
     }
+    // Instant refresh on:
+    // - new room added (joinRoom from invite accept)
+    // - own membership change
+    // - new timeline event (so unread/highlight badges update before next sync)
+    // - decrypted event (E2E rooms — mention is hidden until decrypt completes)
+    const onRoom = () => refresh()
+    const onMembership = () => refresh()
+    const onTimeline = () => refresh()
+    const onDecrypted = () => refresh()
 
     client.on(ClientEvent.Sync, onSync)
+    client.on(ClientEvent.Room, onRoom)
+    client.on(RoomEvent.MyMembership, onMembership)
+    client.on(RoomEvent.Timeline, onTimeline)
+    client.on(MatrixEventEvent.Decrypted, onDecrypted)
 
     return () => {
       client.removeListener(ClientEvent.Sync, onSync)
+      client.removeListener(ClientEvent.Room, onRoom)
+      client.removeListener(RoomEvent.MyMembership, onMembership)
+      client.removeListener(RoomEvent.Timeline, onTimeline)
+      client.removeListener(MatrixEventEvent.Decrypted, onDecrypted)
     }
   }, [refresh, setInitialLoading])
 

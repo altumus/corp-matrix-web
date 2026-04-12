@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
+import { NotificationCountType } from 'matrix-js-sdk'
 import { Bookmark, BellOff, Bell, Circle, Pin, ArrowDown, Home, Archive, LogOut, AtSign } from 'lucide-react'
 import type { RoomListEntry } from '../types.js'
 import { useRoomListStore } from '../store/roomListStore.js'
@@ -94,10 +95,14 @@ export function RoomListItem({ room }: RoomListItemProps) {
   const handleClick = () => {
     setSelectedRoom(room.roomId)
 
-    // If user was mentioned — scroll to first (oldest) unread mention
-    if (room.highlightCount > 0 && client) {
+    // If user was mentioned — scroll to first (oldest) unread mention.
+    // Check both the cached prop AND the live SDK count — the prop may be stale
+    // (fresh mention not yet in store) or the live count may already be cleared
+    // (badge still visible from last refresh but SDK reset the counter).
+    if (client) {
       const matrixRoom = client.getRoom(room.roomId)
-      if (matrixRoom) {
+      const liveHighlight = matrixRoom?.getRoomUnreadNotificationCount(NotificationCountType.Highlight) || 0
+      if (matrixRoom && (room.highlightCount > 0 || liveHighlight > 0)) {
         const timeline = matrixRoom.getLiveTimeline().getEvents()
         const myId = client.getUserId()
         const encodedId = myId ? encodeURIComponent(myId) : ''

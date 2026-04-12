@@ -97,3 +97,12 @@
   color: var(--color-text-secondary);
   flex-shrink: 0;
 }
+
+// Mobile touch target — WCAG 2.5.5 / Apple HIG: minimum 44x44
+@media (max-width: 768px) {
+  .backBtn,
+  .inviteBtn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

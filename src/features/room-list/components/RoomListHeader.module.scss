@@ -29,6 +29,7 @@
 }
 
 .spacesBtn,
+.searchBtn,
 .savedBtn,
 .createBtn,
 .settingsBtn {
@@ -49,5 +50,17 @@
 
   &:active {
     transform: scale(0.98);
+  }
+}
+
+// Mobile touch target — WCAG 2.5.5 / Apple HIG: minimum 44x44
+@media (max-width: 768px) {
+  .spacesBtn,
+  .searchBtn,
+  .savedBtn,
+  .createBtn,
+  .settingsBtn {
+    min-width: 44px;
+    min-height: 44px;
   }
 }

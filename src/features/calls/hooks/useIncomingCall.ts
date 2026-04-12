@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { CallEventHandlerEvent, type MatrixCall } from 'matrix-js-sdk'
+import { type MatrixCall } from 'matrix-js-sdk'
+import { CallEventHandlerEvent } from 'matrix-js-sdk/lib/webrtc/callEventHandler.js'
 import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 
 export function useIncomingCall(): {

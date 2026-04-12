@@ -41,7 +41,8 @@
 }
 
 .attachBtn,
-.sendBtn {
+.sendBtn,
+.voiceBtn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -77,6 +78,27 @@
     &:active {
       transform: none;
     }
+  }
+}
+
+.voiceBtn {
+  &:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+
+    &:active {
+      transform: none;
+    }
+  }
+}
+
+// Mobile touch target — WCAG 2.5.5 / Apple HIG: minimum 44x44
+@media (max-width: 768px) {
+  .attachBtn,
+  .sendBtn,
+  .voiceBtn {
+    min-width: 44px;
+    min-height: 44px;
   }
 }
 

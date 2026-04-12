@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
 import { AtSign } from 'lucide-react'
+import { useSearchParams } from 'react-router'
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
 import { NotificationCountType } from 'matrix-js-sdk'
 import { useTimelineScroll } from '../context/TimelineScrollContext.js'
@@ -52,6 +53,7 @@ function findMentionEventIds(roomId: string): string[] {
 
 export function MentionNavigator({ roomId }: MentionNavigatorProps) {
   const scrollToEvent = useTimelineScroll()
+  const [, setSearchParams] = useSearchParams()
   const [mentionIds, setMentionIds] = useState<string[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
 
@@ -64,9 +66,12 @@ export function MentionNavigator({ roomId }: MentionNavigatorProps) {
   const handleClick = useCallback(() => {
     if (mentionIds.length === 0) return
 
-    scrollToEvent(mentionIds[currentIndex])
+    const targetId = mentionIds[currentIndex]
+    // Update URL so reload / share keeps the position
+    setSearchParams({ eventId: targetId }, { replace: true })
+    scrollToEvent(targetId)
     setCurrentIndex((i) => (i + 1) % mentionIds.length)
-  }, [mentionIds, currentIndex, scrollToEvent])
+  }, [mentionIds, currentIndex, scrollToEvent, setSearchParams])
 
   if (mentionIds.length === 0) return null
 

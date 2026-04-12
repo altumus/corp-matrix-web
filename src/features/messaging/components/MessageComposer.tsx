@@ -92,6 +92,21 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
     }
   }, [editTarget])
 
+  // Global Escape handler for cancelling edit mode — covers cases where focus
+  // is not on the textarea (e.g. just dismissed context menu still owns focus).
+  useEffect(() => {
+    if (!editTarget) return
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        clearEdit()
+        setText('')
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [editTarget, clearEdit])
+
   const insertMention = useCallback((candidate: MentionCandidate) => {
     const textarea = textareaRef.current
     if (!textarea) return
@@ -534,7 +549,7 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
           ) : (
             <button
               type="button"
-              className={styles.sendBtn}
+              className={styles.voiceBtn}
               disabled={uploading}
               onClick={() => setRecordingVoice(true)}
               title={t('messages.recordVoice', { defaultValue: 'Записать голосовое' })}

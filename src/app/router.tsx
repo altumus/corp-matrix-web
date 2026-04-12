@@ -6,6 +6,7 @@ import { AuthLayout } from './layouts/AuthLayout.js'
 import { AuthGuard } from '../features/auth/components/AuthGuard.js'
 import { Spinner } from '../shared/ui/index.js'
 import { useRoomListStore } from '../features/room-list/store/roomListStore.js'
+import { RouteErrorBoundary } from './RouteErrorBoundary.js'
 
 function RoomsPlaceholder() {
   const loading = useRoomListStore((s) => s.initialLoading)
@@ -45,6 +46,7 @@ export const router = createBrowserRouter([
         </SuspenseWrapper>
       </AuthLayout>
     ),
+    errorElement: <RouteErrorBoundary />,
   },
   {
     path: '/register',
@@ -55,6 +57,7 @@ export const router = createBrowserRouter([
         </SuspenseWrapper>
       </AuthLayout>
     ),
+    errorElement: <RouteErrorBoundary />,
   },
   {
     path: '/',
@@ -63,6 +66,7 @@ export const router = createBrowserRouter([
         <MainLayout />
       </AuthGuard>
     ),
+    errorElement: <RouteErrorBoundary />,
     children: [
       {
         index: true,
@@ -93,5 +97,11 @@ export const router = createBrowserRouter([
         ),
       },
     ],
+  },
+  {
+    // Catch-all for unknown URLs — without it, React Router falls back to its
+    // default ErrorBoundary which logs to console.
+    path: '*',
+    element: <RouteErrorBoundary />,
   },
 ])

@@ -22,6 +22,12 @@ export default defineConfig({
 		}) as never,
 		VitePWA({
 			registerType: 'autoUpdate',
+			// Enable SW in dev mode so PWA features (push, offline, install) work
+			// during local development and can be exercised by E2E tests.
+			devOptions: {
+				enabled: true,
+				type: 'module',
+			},
 			includeAssets: ['corp-logo.png'],
 			manifest: {
 				name: 'Corp Matrix',

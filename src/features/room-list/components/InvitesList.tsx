@@ -1,9 +1,11 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import type { RoomListEntry } from '../types.js'
 import { Avatar, Button } from '../../../shared/ui/index.js'
 import { toast } from '../../../shared/ui/Toast/toastService.js'
+import { useRoomListStore } from '../store/roomListStore.js'
 import styles from './InvitesList.module.scss'
 
 interface InvitesListProps {
@@ -28,6 +30,8 @@ export function InvitesList({ invites }: InvitesListProps) {
 function InviteItem({ invite }: { invite: RoomListEntry }) {
   const { t } = useTranslation()
   const client = useMatrixClient()
+  const navigate = useNavigate()
+  const setSelectedRoom = useRoomListStore((s) => s.setSelectedRoom)
   const [loading, setLoading] = useState(false)
 
   const handleAction = async (accept: boolean) => {
@@ -37,6 +41,11 @@ function InviteItem({ invite }: { invite: RoomListEntry }) {
     try {
       if (accept) {
         await client.joinRoom(invite.roomId)
+        // Navigate immediately after join — this also forces the room into the
+        // current view so the user (and tests) see it appear without waiting
+        // for the next sync to repopulate the room list.
+        setSelectedRoom(invite.roomId)
+        navigate(`/rooms/${encodeURIComponent(invite.roomId)}`)
       } else {
         await client.leave(invite.roomId)
       }

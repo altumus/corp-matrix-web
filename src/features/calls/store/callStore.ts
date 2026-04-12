@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import { CallEvent, CallState, type MatrixCall } from 'matrix-js-sdk'
+import { CallEvent, type MatrixCall } from 'matrix-js-sdk'
+import { CallState } from 'matrix-js-sdk/lib/webrtc/call.js'
 import { createOutboundCall } from '../services/callService.js'
 import { toast } from '../../../shared/ui/Toast/toastService.js'
 

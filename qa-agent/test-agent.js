@@ -71,6 +71,24 @@ async function safe(label, fn) {
   catch (err) { log(`ERROR in ${label}: ${err.message}`); return null; }
 }
 
+/**
+ * Run a single test in isolation: catch any unhandled error so one bad test
+ * doesn't crash the whole suite. Logs a HIGH bug for the failing scenario and
+ * tries to dismiss leftover modals before returning.
+ */
+async function runTest(name, page, fn) {
+  try {
+    await fn();
+  } catch (err) {
+    log(`${name}: CRASH — ${err.message.split('\n')[0]}`);
+    const shot = await snap(page, `crash-${name.toLowerCase()}`).catch(() => '');
+    bug('HIGH', name, `Test crashed: ${err.message.slice(0, 200)}`, [], shot);
+    // Best-effort cleanup so subsequent tests aren't blocked by leftover overlays
+    try { await page.keyboard.press('Escape'); } catch { /* ignore */ }
+    await page.waitForTimeout(300);
+  }
+}
+
 function listen(page, label) {
   page.on('console', (msg) => {
     if (msg.type() === 'error') {
@@ -325,6 +343,70 @@ async function sendMessage(token, roomId, body, txnId) {
   return res.ok ? res.data.event_id : null;
 }
 
+/**
+ * Purge all stale test rooms (anything with name starting "QA " or "Saved Messages" duplicates).
+ * Uses Synapse admin API which requires testuser1 to be admin (set via shared-secret registration).
+ * Best-effort: silently skips rooms it can't purge.
+ */
+async function cleanupTestRooms(u1, u2) {
+  log('Cleanup: purging stale test rooms from previous runs...');
+  let purged = 0;
+  let savedKept = false;
+
+  for (const user of [u1, u2]) {
+    try {
+      const joinedRes = await api('GET', '/_matrix/client/v3/joined_rooms', null, user.token);
+      if (!joinedRes.ok) continue;
+
+      for (const roomId of joinedRes.data.joined_rooms || []) {
+        const nameRes = await api('GET',
+          `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/state/m.room.name`,
+          null, user.token);
+        if (!nameRes.ok) continue;
+        const name = nameRes.data?.name || '';
+
+        // Match QA-prefixed rooms (created by tests) + duplicate Saved Messages
+        const isQA = /^QA\b/i.test(name) || name === 'QA Test Space' || name === 'QA Test Poll Question';
+        const isSaved = name === 'Saved Messages';
+
+        // Keep at most 1 Saved Messages per user
+        if (isSaved) {
+          if (!savedKept && user === u1) { savedKept = true; continue; }
+          if (user === u1 && savedKept) { /* delete */ }
+          else if (user === u2) { /* delete u2's saved messages duplicates too */ }
+          else continue;
+        } else if (!isQA) {
+          continue;
+        }
+
+        // Force-leave + admin purge
+        await api('POST', `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/leave`, {}, user.token);
+        const delRes = await api('DELETE',
+          `/_synapse/admin/v1/rooms/${encodeURIComponent(roomId)}`,
+          { purge: true }, user.token);
+        if (delRes.ok) purged++;
+      }
+    } catch { /* best-effort */ }
+  }
+
+  if (purged > 0) log(`  Purged ${purged} stale test room(s)`);
+  else log('  No stale test rooms found');
+}
+
+/**
+ * Cleanup after test run: purge rooms created during this run.
+ * Called from main()'s finally block.
+ */
+async function cleanupAfterRun() {
+  log('═══ POST-RUN CLEANUP ═══');
+  const u1 = CONFIG.users[0];
+  if (!u1?.token) { log('  No token — skipping post-run cleanup'); return; }
+
+  // Re-fetch and purge anything still matching our test patterns
+  // (catches dynamically-created rooms like "QA Invite Test", "QA Test Space")
+  await cleanupTestRooms(u1, CONFIG.users[1]);
+}
+
 /** Full setup: users, rooms, messages */
 async function setup() {
   log('═══ PHASE 0: SETUP ═══');
@@ -385,29 +467,10 @@ async function setup() {
   const u1 = CONFIG.users[0];
   const u2 = CONFIG.users[1];
 
-  // 0.3 Delete duplicate "Saved Messages" rooms via admin API
-  try {
-    const joinedRes = await api('GET', '/_matrix/client/v3/joined_rooms', null, u1.token);
-    if (joinedRes.ok) {
-      const savedRooms = [];
-      for (const roomId of joinedRes.data.joined_rooms || []) {
-        const nameRes = await api('GET', `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/state/m.room.name`, null, u1.token);
-        if (nameRes.ok && nameRes.data.name === 'Saved Messages') {
-          savedRooms.push(roomId);
-        }
-      }
-      // Keep at most 1 Saved Messages, delete the rest via admin API
-      const toDelete = savedRooms.length > 1 ? savedRooms.slice(1) : [];
-      for (const roomId of toDelete) {
-        // Leave first, then force-delete via Synapse admin
-        await api('POST', `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/leave`, {}, u1.token);
-        await api('DELETE', `/_synapse/admin/v1/rooms/${encodeURIComponent(roomId)}`, { purge: true }, u1.token);
-      }
-      if (toDelete.length > 0) {
-        log(`  Deleted ${toDelete.length} duplicate Saved Messages room(s)`);
-      }
-    }
-  } catch { /* best-effort */ }
+  // 0.3 Cleanup: purge stale test rooms from previous runs (admin API)
+  // Removes any room whose m.room.name starts with "QA " or equals "Saved Messages" duplicates.
+  // This makes each run hermetic and prevents Synapse from accumulating test data.
+  await cleanupTestRooms(u1, u2);
 
   // 0.4 Create rooms
   log('Creating test rooms...');
@@ -507,6 +570,32 @@ async function setup() {
       await new Promise(r => setTimeout(r, 500));
     }
     log(`  Sent ${messages.length} messages`);
+  }
+
+  // 0.4b Create a poll in general room via API (so testVotePoll doesn't depend on UI form)
+  if (generalId) {
+    const pollTxn = `poll-setup-${Date.now()}`;
+    const pollRes = await api('PUT',
+      `/_matrix/client/v3/rooms/${encodeURIComponent(generalId)}/send/org.matrix.msc3381.poll.start/${pollTxn}`,
+      {
+        'org.matrix.msc3381.poll': {
+          kind: 'org.matrix.msc3381.poll.disclosed',
+          max_selections: 1,
+          question: { 'org.matrix.msc1767.text': 'QA Test Poll Question' },
+          answers: [
+            { id: 'opt-a', 'org.matrix.msc1767.text': 'Option A' },
+            { id: 'opt-b', 'org.matrix.msc1767.text': 'Option B' },
+          ],
+        },
+        'org.matrix.msc1767.text': 'QA Test Poll Question\n1. Option A\n2. Option B',
+      },
+      u1.token,
+    );
+    if (pollRes.ok) {
+      log(`  Poll created — ${pollRes.data.event_id}`);
+    } else {
+      log(`  Poll creation failed: ${JSON.stringify(pollRes.data)}`);
+    }
   }
 
   // 0.5 Populate DM with messages
@@ -920,64 +1009,73 @@ async function testRoomSwitch(page) {
 // 3.6 Create room dialog
 async function testCreateRoom(page) {
   log('--- ROOM_CREATE ---');
-  await goto(page, '/rooms', ROOM_ITEM_SEL);
+  try {
+    await goto(page, '/rooms', ROOM_ITEM_SEL);
 
-  // createBtn is in RoomListHeader — avoid matching SpacesSidebar "+" button
-  const createBtn = await page.$('[class*="createBtn"]');
-  if (!createBtn) {
-    bug('HIGH', 'ROOM_CREATE', 'Create room button not found in header', [], await snap(page, 'room-create-no-btn'));
-    return;
-  }
+    // createBtn is in RoomListHeader — avoid matching SpacesSidebar "+" button
+    const createBtn = await page.$('[class*="createBtn"]');
+    if (!createBtn) {
+      bug('HIGH', 'ROOM_CREATE', 'Create room button not found in header', [], await snap(page, 'room-create-no-btn'));
+      return;
+    }
 
-  await createBtn.click();
-  await page.waitForTimeout(1000);
-  const shot1 = await snap(page, 'room-create-dialog');
+    await createBtn.click();
+    await page.waitForTimeout(1000);
+    const shot1 = await snap(page, 'room-create-dialog');
 
-  const modal = await page.$('dialog, [class*="modal"]');
-  if (!modal) {
-    bug('HIGH', 'ROOM_CREATE', 'Create room modal did not open', [], shot1);
-    return;
-  }
+    const modal = await page.$('dialog, [class*="modal"]');
+    if (!modal) {
+      bug('HIGH', 'ROOM_CREATE', 'Create room modal did not open', [], shot1);
+      return;
+    }
 
-  // Check tabs
-  const tabs = await page.$$('[class*="tab"]');
-  log(`ROOM_CREATE: Tabs found: ${tabs.length}`);
-  if (tabs.length < 2) {
-    bug('MEDIUM', 'ROOM_CREATE', 'Expected 2 tabs (Room / DM)', [], shot1);
-  }
+    // Scope tab search to INSIDE the modal — otherwise we'd match RoomListHeader tabs
+    // (All/Unread/DMs/Spaces) underneath, which the modal blocks via pointer-events.
+    const tabs = await modal.$$('[class*="tab"]');
+    log(`ROOM_CREATE: Tabs found: ${tabs.length}`);
+    if (tabs.length < 2) {
+      bug('MEDIUM', 'ROOM_CREATE', `Expected 2 tabs (Room/DM) inside dialog, found ${tabs.length}`, [], shot1);
+    }
 
-  // Check form fields
-  const inputs = await modal.$$('input');
-  log(`ROOM_CREATE: Input fields: ${inputs.length}`);
+    // Check form fields
+    const inputs = await modal.$$('input');
+    log(`ROOM_CREATE: Input fields: ${inputs.length}`);
 
-  // Fill room name
-  const nameInput = inputs[0];
-  if (nameInput) {
-    const roomName = `QA-Test-${Date.now()}`;
-    await nameInput.fill(roomName);
-    await snap(page, 'room-create-filled');
-  }
+    // Fill room name
+    const nameInput = inputs[0];
+    if (nameInput) {
+      const roomName = `QA-Test-${Date.now()}`;
+      await nameInput.fill(roomName);
+      await snap(page, 'room-create-filled');
+    }
 
-  // Test switching to DM tab
-  if (tabs.length >= 2) {
-    await tabs[1].click();
+    // Test switching to DM tab
+    if (tabs.length >= 2) {
+      await tabs[1].click();
+      await page.waitForTimeout(500);
+      await snap(page, 'room-create-dm-tab');
+
+      // Room name should be hidden in DM mode
+      const visibleInputs = await modal.$$('input:visible');
+      log(`ROOM_CREATE (DM tab): Visible inputs: ${visibleInputs.length}`);
+
+      // Switch back to Room tab
+      await tabs[0].click();
+      await page.waitForTimeout(500);
+    }
+
+    // Close modal — scope to inside the modal
+    const closeBtn = await modal.$('[aria-label*="Закрыть"], [aria-label*="Close"], [class*="close"]');
+    if (closeBtn) await safe('close modal', () => closeBtn.click());
+    else await page.keyboard.press('Escape');
     await page.waitForTimeout(500);
-    await snap(page, 'room-create-dm-tab');
-
-    // Room name should be hidden in DM mode
-    const visibleInputs = await modal.$$('input:visible');
-    log(`ROOM_CREATE (DM tab): Visible inputs: ${visibleInputs.length}`);
-
-    // Switch back to Room tab
-    await tabs[0].click();
+  } catch (err) {
+    log(`ROOM_CREATE: ERROR — ${err.message}`);
+    bug('HIGH', 'ROOM_CREATE', `Test crashed: ${err.message.slice(0, 200)}`, [], await snap(page, 'room-create-crash').catch(() => ''));
+    // Try to dismiss any leftover modal so subsequent tests aren't blocked
+    await page.keyboard.press('Escape').catch(() => {});
     await page.waitForTimeout(500);
   }
-
-  // Close modal
-  const closeBtn = await page.$('[aria-label*="Закрыть"], [aria-label*="Close"], [class*="close"]');
-  if (closeBtn) await safe('close modal', () => closeBtn.click());
-  else await page.keyboard.press('Escape');
-  await page.waitForTimeout(500);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1108,15 +1206,22 @@ async function testChatSendMessage(page) {
   if (!(await ensureInRoom(page))) return;
 
   const textarea = await page.$('textarea[class*="textarea"]');
-  const sendBtn = await page.$('button[class*="sendBtn"]');
-  if (!textarea || !sendBtn) {
-    bug('CRITICAL', 'CHAT_SEND_MESSAGE', 'Composer textarea or send button not found', [], await snap(page, 'chat-no-composer'));
+  if (!textarea) {
+    bug('CRITICAL', 'CHAT_SEND_MESSAGE', 'Composer textarea not found', [], await snap(page, 'chat-no-composer'));
     return;
   }
 
   const msg = `QA-test-${Date.now()}`;
   await textarea.fill(msg);
+  await page.waitForTimeout(200);
   await snap(page, 'chat-msg-typed');
+
+  // sendBtn appears only after text is non-empty (voice button shown otherwise)
+  const sendBtn = await page.$('button[class*="sendBtn"]');
+  if (!sendBtn) {
+    bug('CRITICAL', 'CHAT_SEND_MESSAGE', 'Send button not found after typing text', [], await snap(page, 'chat-no-sendbtn'));
+    return;
+  }
 
   // Check send button enabled
   const disabled = await sendBtn.isDisabled();
@@ -2692,18 +2797,21 @@ async function testSavedMessagesNoDup(page) {
   await goto(page, '/rooms', ROOM_ITEM_SEL);
   await page.waitForTimeout(1500);
 
-  // Click savedBtn twice
-  const savedBtn = await page.$('[class*="savedBtn"]');
-  if (!savedBtn) { log('SAVED_MESSAGES_NO_DUP: No saved btn, skipping'); return; }
+  // First click
+  const savedBtn1 = await page.$('[class*="savedBtn"]');
+  if (!savedBtn1) { log('SAVED_MESSAGES_NO_DUP: No saved btn, skipping'); return; }
 
-  await savedBtn.click();
+  await savedBtn1.click();
   await page.waitForTimeout(2500);
   const url1 = page.url();
 
+  // Re-navigate and re-fetch the button — old handle is detached after reload
   await goto(page, '/rooms', ROOM_ITEM_SEL);
   await page.waitForTimeout(1000);
+  const savedBtn2 = await page.$('[class*="savedBtn"]');
+  if (!savedBtn2) { log('SAVED_MESSAGES_NO_DUP: Saved btn disappeared after reload, skipping'); return; }
 
-  await savedBtn.click();
+  await savedBtn2.click();
   await page.waitForTimeout(2500);
   const url2 = page.url();
 
@@ -2836,7 +2944,11 @@ async function testCrossSigningUiNew(page) {
 // 7c.bug1 Reactions don't reset on rapid clicks
 async function testReactionStability(page) {
   log('--- REACTION_STABILITY ---');
-  if (!(await ensureInRoom(page))) return;
+  // Navigate to QA General explicitly — ensureInRoom might leave us in an
+  // empty room with no messages to react to.
+  if (CONFIG.rooms.general) {
+    await goto(page, `/rooms/${encodeURIComponent(CONFIG.rooms.general)}`, '[class*="composer"]');
+  } else if (!(await ensureInRoom(page))) return;
 
   const msgEl = await page.$('[class*="message"] [class*="bubble"]');
   if (!msgEl) { log('REACTION_STABILITY: No messages, skipping'); return; }
@@ -2854,10 +2966,19 @@ async function testReactionStability(page) {
 
   // Click first emoji
   await quickEmoji.click();
-  await page.waitForTimeout(1000);
 
-  // Check reaction appeared
-  let reaction = await page.$('[class*="reaction"]');
+  // Poll up to 5s for the reaction badge to appear (optimistic + server roundtrip).
+  // Use a more specific selector — [class*="reaction"] also matches reactionPicker
+  // and other reaction-related UI that may have been visible BEFORE the click.
+  let reaction = null;
+  for (let i = 0; i < 25; i++) {
+    await page.waitForTimeout(200);
+    // MessageBubble renders reactions inside [class*="reactions"] container.
+    // Try multiple selectors: direct child button, or any button inside reactions div.
+    reaction = await page.$('[class*="reactions"] > button[class*="reaction"]')
+      || await page.$('[class*="reactions"] button');
+    if (reaction) break;
+  }
   const beforeShot = await snap(page, 'reaction-stability-1');
   if (!reaction) {
     bug('HIGH', 'REACTION_STABILITY', 'Reaction not visible after click', [], beforeShot);
@@ -3867,6 +3988,780 @@ async function testMultiUser(browser) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// PHASE 7g — MISSING COVERAGE (D1 + polls + permissions + ...)
+// ═══════════════════════════════════════════════════════════════
+
+// 1. D1 Context reactivity after re-login
+async function testD1ContextReactivity(page) {
+  log('--- D1_CONTEXT_REACTIVITY ---');
+  try {
+    // Try to logout via settings/profile
+    await goto(page, '/settings/profile', 'nav, [class*="nav"], [class*="settings"]').catch(() => {});
+    await page.waitForTimeout(1000);
+
+    // Find logout button by text
+    let logoutBtn = await page.$('button:has-text("Выйти")');
+    if (!logoutBtn) logoutBtn = await page.$('button:has-text("Logout")');
+    if (!logoutBtn) logoutBtn = await page.$('button[class*="logout"]');
+
+    if (!logoutBtn) {
+      log('D1_CONTEXT_REACTIVITY: SKIP (no logout button found)');
+      return;
+    }
+
+    await logoutBtn.click().catch(() => {});
+    await page.waitForTimeout(1500);
+
+    // Confirm dialog if present
+    const confirmBtn = await page.$('button:has-text("Выйти"), button:has-text("Confirm"), button:has-text("Подтвердить")');
+    if (confirmBtn) {
+      await confirmBtn.click().catch(() => {});
+      await page.waitForTimeout(1500);
+    }
+
+    // Re-login
+    const ok = await loginAs(page, CONFIG.users[0]);
+    if (!ok) {
+      log('D1_CONTEXT_REACTIVITY: SKIP (re-login failed)');
+      return;
+    }
+
+    await goto(page, '/settings/encryption', '[class*="settings"], h3').catch(() => {});
+    await page.waitForTimeout(2000);
+
+    const hasContent = await page.evaluate(() => {
+      const h3 = document.querySelector('h3');
+      const settings = document.querySelector('[class*="settings"]');
+      const bodyText = document.body.innerText || '';
+      return !!(h3 || settings) && bodyText.length > 50;
+    });
+
+    const shot = await snap(page, 'd1-context-reactivity');
+    if (!hasContent) {
+      bug('HIGH', 'D1_CONTEXT_REACTIVITY',
+        'After re-login encryption settings are empty/broken — Context not reactive',
+        ['1. Logout from /settings/profile', '2. Login again', '3. Navigate to /settings/encryption', '4. Page content is missing'],
+        shot);
+    } else {
+      log('D1_CONTEXT_REACTIVITY: PASS');
+    }
+  } catch (err) {
+    log(`D1_CONTEXT_REACTIVITY: ERROR ${err.message}`);
+  }
+}
+
+// 2. Create poll via Composer AttachMenu
+async function testCreatePoll(page) {
+  log('--- CREATE_POLL ---');
+  try {
+    // Navigate to QA General explicitly so the poll is created in a known room.
+    if (CONFIG.rooms.general) {
+      await goto(page, `/rooms/${encodeURIComponent(CONFIG.rooms.general)}`, '[class*="composer"]');
+    } else if (!(await ensureInRoom(page))) return;
+    await page.waitForTimeout(500);
+
+    let attachBtn = await page.$('[class*="attachBtn"]');
+    if (!attachBtn) attachBtn = await page.$('button[aria-label*="Attach"]');
+    if (!attachBtn) attachBtn = await page.$('button[aria-label*="ttach"]');
+    if (!attachBtn) {
+      log('CREATE_POLL: SKIP (no attach button)');
+      return;
+    }
+
+    await attachBtn.click();
+    await page.waitForTimeout(800);
+
+    // AttachMenu renders a list of buttons; find the poll one by text content
+    // (more reliable than :has-text() which may not traverse nested spans).
+    const menuButtons = await page.$$('[class*="attachMenu"] button, [class*="menu"] button');
+    if (menuButtons.length === 0) {
+      log('CREATE_POLL: SKIP (attach menu did not open or has no buttons)');
+      return;
+    }
+
+    let pollItem = null;
+    for (const btn of menuButtons) {
+      const txt = (await btn.textContent()) || '';
+      if (/опрос|poll/i.test(txt)) { pollItem = btn; break; }
+    }
+    if (!pollItem) {
+      bug('LOW', 'CREATE_POLL', 'No poll item in attach menu', ['1. Open room', '2. Click attach button', '3. Option missing'], await snap(page, 'poll-menu-missing'));
+      return;
+    }
+
+    await pollItem.click();
+    await page.waitForTimeout(1000);
+
+    const modal = await page.$('[class*="modal"]');
+    if (!modal) {
+      log('CREATE_POLL: SKIP (modal not opened)');
+      return;
+    }
+
+    // Fill question
+    const questionInput = await page.$('[class*="modal"] input[autofocus], [class*="modal"] input:not([type="checkbox"]):not([type="radio"])');
+    if (questionInput) {
+      await questionInput.fill('QA Test Poll Question');
+    }
+
+    // Fill options
+    const optionInputs = await page.$$('[class*="optionInput"] input, input[class*="optionInput"], [class*="option"] input');
+    if (optionInputs.length >= 2) {
+      await optionInputs[0].fill('Option A');
+      await optionInputs[1].fill('Option B');
+    } else {
+      log(`CREATE_POLL: only ${optionInputs.length} option inputs found`);
+    }
+
+    await snap(page, 'poll-modal-filled');
+
+    let submitBtn = await page.$('button[type="submit"]:has-text("Создать опрос")');
+    if (!submitBtn) submitBtn = await page.$('[class*="modal"] button[type="submit"]');
+    if (!submitBtn) submitBtn = await page.$('button:has-text("Создать опрос")');
+
+    if (!submitBtn) {
+      log('CREATE_POLL: SKIP (no submit button)');
+      return;
+    }
+
+    await submitBtn.click();
+
+    // Poll up to 8s for the poll event to appear in the timeline —
+    // sendEvent + sync + re-render can take a few seconds.
+    let hasPoll = false;
+    for (let i = 0; i < 40; i++) {
+      await page.waitForTimeout(200);
+      hasPoll = await page.evaluate(() => {
+        const polls = document.querySelectorAll('[class*="poll"]');
+        for (const p of polls) {
+          if ((p.textContent || '').includes('QA Test Poll Question')) return true;
+        }
+        return false;
+      });
+      if (hasPoll) break;
+    }
+
+    const shot = await snap(page, 'poll-created');
+
+    if (!hasPoll) {
+      bug('LOW', 'CREATE_POLL',
+        'Poll created via UI form but not visible in timeline (poll created via API in setup is tested separately by POLL_VOTE)',
+        ['1. Open room', '2. Click attach > Начать опрос', '3. Fill question and 2 options', '4. Submit', '5. Poll missing in timeline'],
+        shot);
+    } else {
+      log('CREATE_POLL: PASS');
+    }
+  } catch (err) {
+    log(`CREATE_POLL: ERROR ${err.message}`);
+  }
+}
+
+// 3. Vote in poll
+async function testVotePoll(page) {
+  log('--- POLL_VOTE ---');
+  try {
+    // Navigate to QA General explicitly — poll was created there by testCreatePoll.
+    // ensureInRoom might leave us in a different room (e.g. QA Empty Room).
+    if (CONFIG.rooms.general) {
+      await goto(page, `/rooms/${encodeURIComponent(CONFIG.rooms.general)}`, '[class*="composer"]');
+    } else if (!(await ensureInRoom(page))) return;
+    await page.waitForTimeout(800);
+
+    const pollHandle = await page.evaluateHandle(() => {
+      const polls = document.querySelectorAll('[class*="poll"]');
+      for (const p of polls) {
+        if ((p.textContent || '').includes('QA Test Poll Question')) return p;
+      }
+      return null;
+    });
+
+    const pollEl = pollHandle.asElement();
+    if (!pollEl) {
+      log('POLL_VOTE: SKIP (no poll from previous test)');
+      return;
+    }
+
+    // [class*="answer"] also matches the .answers wrapper — must look for the
+    // actual button (PollMessage renders <button class={styles.answer}>).
+    const answer = await pollEl.$('button[class*="answer"]');
+    if (!answer) {
+      log('POLL_VOTE: SKIP (no answer button inside poll)');
+      return;
+    }
+
+    await answer.click();
+
+    // Poll up to 5s for visual feedback — handles slow optimistic update or
+    // server round-trip in encrypted/throttled environments.
+    let voted = false;
+    for (let i = 0; i < 25; i++) {
+      await page.waitForTimeout(200);
+      voted = await page.evaluate(() => {
+        const polls = document.querySelectorAll('[class*="poll"]');
+        for (const p of polls) {
+          if ((p.textContent || '').includes('QA Test Poll Question')) {
+            return !!(p.querySelector('[class*="voted"]') ||
+                     p.querySelector('[class*="check"]') ||
+                     p.querySelector('[class*="progressBar"]'));
+          }
+        }
+        return false;
+      });
+      if (voted) break;
+    }
+
+    const shot = await snap(page, 'poll-voted');
+
+    if (!voted) {
+      bug('MEDIUM', 'POLL_VOTE',
+        'After clicking answer no visual feedback (voted/check/progressBar)',
+        ['1. Open room with poll', '2. Click first answer', '3. No UI feedback of vote'],
+        shot);
+    } else {
+      log('POLL_VOTE: PASS');
+    }
+  } catch (err) {
+    log(`POLL_VOTE: ERROR ${err.message}`);
+  }
+}
+
+// 4. Read receipts visual
+async function testReadReceiptsVisual(page) {
+  log('--- READ_RECEIPTS_VISUAL ---');
+  try {
+    const user1 = CONFIG.users[0];
+    const user2 = CONFIG.users[1];
+    const roomId = CONFIG.rooms.general;
+
+    if (!user1?.token || !user2?.token || !roomId) {
+      log('READ_RECEIPTS_VISUAL: SKIP (missing users or room)');
+      return;
+    }
+
+    const txnId = `rr-${Date.now()}`;
+    const eventId = await sendMessage(user1.token, roomId, `READ-RECEIPT-TEST-${Date.now()}`, txnId);
+    if (!eventId) {
+      log('READ_RECEIPTS_VISUAL: SKIP (send failed)');
+      return;
+    }
+
+    await page.waitForTimeout(2000);
+
+    // user2 marks as read
+    await api('POST',
+      `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/receipt/m.read/${encodeURIComponent(eventId)}`,
+      {}, user2.token);
+
+    await page.waitForTimeout(1500);
+
+    // Navigate to room in UI
+    if (!(await ensureInRoom(page))) return;
+    await page.waitForTimeout(1500);
+
+    // Scroll to bottom
+    await page.evaluate(() => {
+      const tl = document.querySelector('[class*="timelineList"]');
+      if (tl) tl.scrollTop = tl.scrollHeight;
+    });
+    await page.waitForTimeout(1500);
+
+    const shot = await snap(page, 'read-receipts');
+    const hasReceipts = await page.evaluate(() => {
+      return !!(document.querySelector('[class*="receipts"]') ||
+                document.querySelector('[class*="avatarWrap"]'));
+    });
+
+    if (!hasReceipts) {
+      bug('LOW', 'READ_RECEIPTS_VISUAL',
+        'No visible read receipts UI after user2 marked message as read',
+        ['1. user1 sends message via API', '2. user2 POST /receipt/m.read', '3. user1 UI shows no receipts'],
+        shot);
+    } else {
+      log('READ_RECEIPTS_VISUAL: PASS');
+    }
+  } catch (err) {
+    log(`READ_RECEIPTS_VISUAL: ERROR ${err.message}`);
+  }
+}
+
+// 5. Typing indicator visual
+async function testTypingIndicatorVisual(browser, page) {
+  log('--- TYPING_INDICATOR ---');
+  let ctx2;
+  try {
+    const user2 = CONFIG.users[1];
+    if (!user2) {
+      log('TYPING_INDICATOR: SKIP (no user2)');
+      return;
+    }
+
+    ctx2 = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const page2 = await ctx2.newPage();
+    listen(page2, 'typing-user2');
+
+    const ok = await loginAs(page2, user2);
+    if (!ok) {
+      log('TYPING_INDICATOR: SKIP (user2 login failed)');
+      await ctx2.close();
+      return;
+    }
+
+    // Enter same room on both pages
+    if (!(await ensureInRoom(page))) {
+      await ctx2.close();
+      return;
+    }
+    if (!(await ensureInRoom(page2))) {
+      await ctx2.close();
+      return;
+    }
+    await page.waitForTimeout(1000);
+    await page2.waitForTimeout(1000);
+
+    // user2 types into composer
+    const textarea2 = await page2.$('textarea[class*="textarea"]');
+    if (!textarea2) {
+      log('TYPING_INDICATOR: SKIP (no textarea on page2)');
+      await ctx2.close();
+      return;
+    }
+
+    await textarea2.click();
+    await page2.keyboard.type('test', { delay: 80 });
+
+    // Wait for typing event to propagate to page1
+    await page.waitForTimeout(2500);
+
+    const shot = await snap(page, 'typing-indicator');
+    const hasTyping = await page.evaluate(() => {
+      const indicators = document.querySelectorAll('[class*="indicator"]');
+      for (const el of indicators) {
+        const t = (el.textContent || '').toLowerCase();
+        if (t.includes('печат')) return true;
+      }
+      return false;
+    });
+
+    if (!hasTyping) {
+      bug('MEDIUM', 'TYPING_INDICATOR',
+        'No typing indicator visible on page1 while user2 types',
+        ['1. user1 and user2 open same room', '2. user2 types in composer', '3. user1 sees no "печатает" indicator'],
+        shot);
+    } else {
+      log('TYPING_INDICATOR: PASS');
+    }
+
+    // Clear user2 composer
+    await textarea2.fill('').catch(() => {});
+  } catch (err) {
+    log(`TYPING_INDICATOR: ERROR ${err.message}`);
+  } finally {
+    if (ctx2) await ctx2.close().catch(() => {});
+  }
+}
+
+// 6. Invite accept / decline
+async function testInviteAcceptDecline(browser) {
+  log('--- INVITE_ACCEPT_DECLINE ---');
+  let ctx2;
+  try {
+    const user1 = CONFIG.users[0];
+    const user2 = CONFIG.users[1];
+    if (!user1?.token || !user2) {
+      log('INVITE_ACCEPT_DECLINE: SKIP (missing users)');
+      return;
+    }
+
+    const newRoomId = await createRoom(user1.token, {
+      name: `QA Invite Test ${Date.now()}`,
+      preset: 'private_chat',
+    });
+    if (!newRoomId) {
+      log('INVITE_ACCEPT_DECLINE: SKIP (createRoom failed)');
+      return;
+    }
+
+    await inviteUser(user1.token, newRoomId, user2.userId);
+    await new Promise(r => setTimeout(r, 1500));
+
+    // Decline any stale invites for user2 from previous runs first
+    try {
+      const joinedRes = await api('GET', '/_matrix/client/v3/joined_rooms', null, user2.token);
+      // Also check sync for invited rooms — leave stale ones
+      const syncRes = await api('GET', '/_matrix/client/v3/sync?filter={"room":{"include_leave":false}}&timeout=0', null, user2.token);
+      if (syncRes.ok && syncRes.data?.rooms?.invite) {
+        for (const rid of Object.keys(syncRes.data.rooms.invite)) {
+          if (rid !== newRoomId) {
+            await api('POST', `/_matrix/client/v3/rooms/${encodeURIComponent(rid)}/leave`, {}, user2.token);
+          }
+        }
+      }
+    } catch { /* best-effort */ }
+
+    ctx2 = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const page2 = await ctx2.newPage();
+    listen(page2, 'invite-user2');
+
+    const ok = await loginAs(page2, user2);
+    if (!ok) {
+      log('INVITE_ACCEPT_DECLINE: SKIP (user2 login failed)');
+      await ctx2.close();
+      return;
+    }
+
+    await page2.waitForTimeout(3000);
+
+    // Look for invites section
+    const inviteVisible = await page2.evaluate(() => {
+      const sections = document.querySelectorAll('[class*="section"], [class*="invite"]');
+      for (const s of sections) {
+        const t = s.textContent || '';
+        if (t.includes('Приглашени') || t.includes('QA Invite Test')) return true;
+      }
+      return false;
+    });
+
+    const shot1 = await snap(page2, 'invite-visible');
+    if (!inviteVisible) {
+      bug('HIGH', 'INVITE_NOT_VISIBLE',
+        'Invite is not visible in user2 room list',
+        ['1. user1 creates room via API', '2. user1 invites user2', '3. user2 logs in', '4. No invite shown'],
+        shot1);
+      await ctx2.close();
+      return;
+    }
+
+    // Click Accept
+    const acceptBtn = await page2.$('button:has-text("Принять"), button:has-text("Accept")');
+    if (!acceptBtn) {
+      log('INVITE_ACCEPT_DECLINE: no Accept button found');
+      await ctx2.close();
+      return;
+    }
+
+    await acceptBtn.click();
+    // Poll up to 10s for either: navigation to the new room, OR the room
+    // appearing in the joined list. Either is a successful accept.
+    let joined = false;
+    for (let i = 0; i < 20; i++) {
+      await page2.waitForTimeout(500);
+      const url = page2.url();
+      if (url.includes(encodeURIComponent(newRoomId)) || url.includes(newRoomId)) {
+        joined = true;
+        break;
+      }
+      const inDom = await page2.evaluate(() => {
+        const btns = document.querySelectorAll('button');
+        for (const b of btns) {
+          if ((b.textContent || '').includes('QA Invite Test')) return true;
+        }
+        return false;
+      });
+      if (inDom) { joined = true; break; }
+    }
+
+    const shot2 = await snap(page2, 'invite-accepted');
+
+    if (!joined) {
+      bug('HIGH', 'INVITE_ACCEPT_FAILED',
+        'Room did not appear in room list (or navigate) after accepting invite',
+        ['1. user2 sees invite', '2. Click Accept', '3. Room missing from list and URL'],
+        shot2);
+    } else {
+      log('INVITE_ACCEPT_DECLINE: PASS');
+    }
+  } catch (err) {
+    log(`INVITE_ACCEPT_DECLINE: ERROR ${err.message}`);
+  } finally {
+    if (ctx2) await ctx2.close().catch(() => {});
+  }
+}
+
+// 7. Create Space flow
+async function testCreateSpaceFlow(page) {
+  log('--- CREATE_SPACE ---');
+  try {
+    await goto(page, '/rooms', ROOM_ITEM_SEL);
+    await page.waitForTimeout(1000);
+
+    const addBtn = await page.$('[class*="sidebar"] [class*="addBtn"]');
+    if (!addBtn) {
+      log('CREATE_SPACE: SKIP (no addBtn in sidebar)');
+      return;
+    }
+
+    await addBtn.click();
+    await page.waitForTimeout(1000);
+
+    const modal = await page.$('[class*="modal"]');
+    if (!modal) {
+      log('CREATE_SPACE: SKIP (modal did not open)');
+      return;
+    }
+
+    const modalText = await modal.evaluate(el => el.textContent || '');
+    if (!modalText.includes('пространство') && !modalText.includes('Space')) {
+      log('CREATE_SPACE: SKIP (modal is not "create space")');
+      return;
+    }
+
+    const nameInput = await page.$('[class*="modal"] input:not([type="checkbox"]):not([type="radio"])');
+    if (nameInput) {
+      await nameInput.fill('QA Test Space');
+    }
+
+    await snap(page, 'create-space-filled');
+
+    let submitBtn = await page.$('button:has-text("Создать пространство")');
+    if (!submitBtn) submitBtn = await page.$('[class*="modal"] button[type="submit"]');
+    if (!submitBtn) {
+      log('CREATE_SPACE: SKIP (no submit button)');
+      return;
+    }
+
+    await submitBtn.click();
+    await page.waitForTimeout(3500);
+
+    const shot = await snap(page, 'space-created');
+    const created = await page.evaluate(() => {
+      const sidebar = document.querySelector('[class*="sidebar"]');
+      if (!sidebar) return false;
+      return (sidebar.textContent || '').includes('QA Test Space') ||
+             !!sidebar.querySelector('[aria-label*="QA Test Space"]');
+    });
+
+    if (!created) {
+      bug('MEDIUM', 'CREATE_SPACE_FAILED',
+        'New space not visible in spaces sidebar after creation',
+        ['1. Click + in spaces sidebar', '2. Fill name "QA Test Space"', '3. Submit', '4. Space missing'],
+        shot);
+    } else {
+      log('CREATE_SPACE: PASS');
+    }
+  } catch (err) {
+    log(`CREATE_SPACE: ERROR ${err.message}`);
+  }
+}
+
+// 8. Message search wired / SearchPanel dead code
+async function testMessageSearchWired(page) {
+  log('--- MESSAGE_SEARCH_WIRED ---');
+  try {
+    await goto(page, '/rooms', ROOM_ITEM_SEL).catch(() => {});
+    await page.waitForTimeout(1000);
+
+    // Look for the search button in RoomListHeader (added when SearchPanel was wired up)
+    const searchBtn = await page.$('[class*="searchBtn"]');
+    if (!searchBtn) {
+      bug('LOW', 'MESSAGE_SEARCH_DEAD_CODE',
+        'SearchPanel component exists in code but is not wired up anywhere — no global search button found',
+        ['1. Open /rooms', '2. Look for search button in header', '3. Not present'],
+        await snap(page, 'message-search-no-btn'));
+      return;
+    }
+
+    // Click and verify Modal with SearchPanel opens
+    await searchBtn.click();
+    await page.waitForTimeout(800);
+
+    const opened = await page.evaluate(() => {
+      // SearchPanel renders an input with type="search" inside a Modal
+      const modals = document.querySelectorAll('dialog, [class*="modal"]');
+      for (const m of modals) {
+        if (m.querySelector('input[type="search"]')) return true;
+      }
+      return false;
+    });
+
+    const shot = await snap(page, 'message-search-opened');
+    if (!opened) {
+      bug('LOW', 'MESSAGE_SEARCH_DEAD_CODE',
+        'Search button exists but clicking it does not open SearchPanel',
+        ['1. Click search button', '2. Modal with search input did not appear'],
+        shot);
+    } else {
+      log('MESSAGE_SEARCH_WIRED: PASS — search button opens SearchPanel modal');
+      // Close modal so subsequent tests are not blocked
+      await page.keyboard.press('Escape').catch(() => {});
+      await page.waitForTimeout(300);
+    }
+  } catch (err) {
+    log(`MESSAGE_SEARCH_WIRED: ERROR ${err.message}`);
+  }
+}
+
+// 9. KeyRestoreScreen content
+async function testKeyRestoreScreenContent(page) {
+  log('--- KEY_RESTORE_METHODS ---');
+  try {
+    // Check for key restore screen (may not appear if already loaded)
+    const container = await page.$('[class*="container"]:has([class*="methodGrid"]), [class*="methodGrid"]');
+    if (!container) {
+      log('KEY_RESTORE_METHODS: SKIP (screen not visible, keys already loaded)');
+      return;
+    }
+
+    const methodCards = await page.$$('[class*="methodCard"]');
+    const shot = await snap(page, 'key-restore-methods');
+
+    if (methodCards.length < 2) {
+      bug('LOW', 'KEY_RESTORE_METHODS',
+        `KeyRestoreScreen does not show both recovery methods (key + device verification) — found ${methodCards.length}`,
+        ['1. Observe KeyRestoreScreen', '2. Expected 2 method cards', `3. Actual: ${methodCards.length}`],
+        shot);
+    } else {
+      log('KEY_RESTORE_METHODS: PASS');
+    }
+  } catch (err) {
+    log(`KEY_RESTORE_METHODS: ERROR ${err.message}`);
+  }
+}
+
+// 10. Network reconnect
+async function testNetworkReconnect(page) {
+  log('--- NETWORK_RECONNECT ---');
+  try {
+    if (!(await ensureInRoom(page))) return;
+    await page.waitForTimeout(1000);
+
+    await page.context().setOffline(true);
+    await page.waitForTimeout(4000);
+
+    const shotOff = await snap(page, 'offline-state');
+    const hasOfflineIndicator = await page.evaluate(() => {
+      if (document.querySelector('[class*="connectionStatus"]')) return true;
+      if (document.querySelector('[class*="reconnect"]')) return true;
+      if (document.querySelector('[class*="offline"]')) return true;
+      const text = (document.body.innerText || '').toLowerCase();
+      return text.includes('переподключение') || text.includes('reconnect') || text.includes('офлайн') || text.includes('offline');
+    });
+
+    if (!hasOfflineIndicator) {
+      bug('LOW', 'NO_OFFLINE_INDICATOR',
+        'No visible offline/reconnection indicator while context is offline',
+        ['1. Enter room', '2. Set context offline', '3. Wait 4s', '4. No indicator visible'],
+        shotOff);
+    }
+
+    await page.context().setOffline(false);
+    await page.waitForTimeout(5000);
+
+    const shotOn = await snap(page, 'online-reconnected');
+    const composer = await page.$('[class*="composer"]');
+    if (!composer) {
+      bug('HIGH', 'RECONNECT_BROKEN',
+        'Composer disappeared after reconnect — app broken',
+        ['1. Go offline then online', '2. Composer no longer visible'],
+        shotOn);
+    } else {
+      log('NETWORK_RECONNECT: PASS');
+    }
+  } catch (err) {
+    log(`NETWORK_RECONNECT: ERROR ${err.message}`);
+    // ensure we come back online
+    try { await page.context().setOffline(false); } catch (_) {}
+  }
+}
+
+// 11. Service worker registered
+async function testServiceWorkerRegistered(page) {
+  log('--- SW_REGISTERED ---');
+  try {
+    await goto(page, '/rooms', ROOM_ITEM_SEL);
+    await page.waitForTimeout(1500);
+
+    const sw = await page.evaluate(() => {
+      try {
+        return navigator.serviceWorker?.controller?.scriptURL || null;
+      } catch (_) {
+        return null;
+      }
+    });
+
+    const regCount = await page.evaluate(async () => {
+      try {
+        if (!navigator.serviceWorker?.getRegistrations) return 0;
+        const regs = await navigator.serviceWorker.getRegistrations();
+        return regs.length;
+      } catch (_) {
+        return 0;
+      }
+    });
+
+    log(`SW: controller=${sw || 'null'}, registrations=${regCount}`);
+
+    if (!sw && regCount === 0) {
+      bug('LOW', 'SW_NOT_REGISTERED',
+        'PWA service worker not registered/active',
+        ['1. Open /rooms', '2. navigator.serviceWorker.controller is null', '3. getRegistrations() empty'],
+        '');
+    } else {
+      log('SW_REGISTERED: PASS');
+    }
+  } catch (err) {
+    log(`SW_REGISTERED: ERROR ${err.message}`);
+  }
+}
+
+// 12. Stress messages
+async function testStressMessages(page) {
+  log('--- STRESS_MESSAGES ---');
+  try {
+    const user1 = CONFIG.users[0];
+    const roomId = CONFIG.rooms.general;
+    if (!user1?.token || !roomId) {
+      log('STRESS_MESSAGES: SKIP (missing user/room)');
+      return;
+    }
+
+    const baselineErrors = consoleErrors.length;
+
+    // Send 30 messages via API
+    for (let i = 0; i < 30; i++) {
+      await sendMessage(user1.token, roomId, `stress-msg-${i}`, `stress-${i}-${Date.now()}`);
+    }
+
+    await page.waitForTimeout(2000);
+
+    // Open room in UI
+    if (!(await ensureInRoom(page))) return;
+    await page.waitForTimeout(2000);
+
+    // Scroll timeline a few times
+    for (let i = 0; i < 3; i++) {
+      await page.evaluate(() => {
+        const tl = document.querySelector('[class*="timelineList"]');
+        if (tl) tl.scrollTop = tl.scrollHeight;
+      });
+      await page.waitForTimeout(800);
+      await page.evaluate(() => {
+        const tl = document.querySelector('[class*="timelineList"]');
+        if (tl) tl.scrollTop = 0;
+      });
+      await page.waitForTimeout(800);
+    }
+
+    await page.waitForTimeout(1500);
+    const shot = await snap(page, 'stress-timeline');
+
+    const composer = await page.$('[class*="composer"]');
+    const newErrors = consoleErrors.length - baselineErrors;
+    log(`STRESS_MESSAGES: new console errors=${newErrors}`);
+
+    if (!composer) {
+      bug('HIGH', 'STRESS_TIMELINE_CRASH',
+        'Composer not visible after stress test — timeline likely crashed',
+        ['1. Send 30 messages via API', '2. Open room', '3. Scroll timeline', '4. Composer missing'],
+        shot);
+    } else {
+      log('STRESS_MESSAGES: PASS');
+    }
+  } catch (err) {
+    log(`STRESS_MESSAGES: ERROR ${err.message}`);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
 // CONSOLE & NETWORK ERROR REPORTS
 // ═══════════════════════════════════════════════════════════════
 
@@ -3880,6 +4775,8 @@ function reportConsoleErrors() {
     /Failed to load resource.*403/,        // Auth-related during tests
     /Failed to load resource.*400/,        // Bad request during negative tests
     /room_keys\/version/,                  // Key backup not configured
+    /ERR_INTERNET_DISCONNECTED/,           // Intentional from testNetworkReconnect
+    /Failed to fetch/,                     // Transient during offline/reconnect tests
   ];
   const filtered = consoleErrors.filter(e =>
     !ignoredPatterns.some(p => p.test(e.text))
@@ -4010,143 +4907,158 @@ async function main() {
     if (loginOk) {
       // ══════ Phase 3: Room List ══════
       await discoverPostAuth(page);
-      await testRoomListDisplay(page);
-      await testRoomSearch(page);
-      await testRoomListContextMenu(page);
-      await testRoomSwitch(page);
-      await testCreateRoom(page);
+      await runTest('ROOM_LIST_DISPLAY', page, () => testRoomListDisplay(page));
+      await runTest('ROOM_SEARCH', page, () => testRoomSearch(page));
+      await runTest('ROOM_LIST_CONTEXT_MENU', page, () => testRoomListContextMenu(page));
+      await runTest('ROOM_SWITCH', page, () => testRoomSwitch(page));
+      await runTest('CREATE_ROOM', page, () => testCreateRoom(page));
 
       // ══════ Phase 4: Room Header & Special Rooms ══════
-      await testRoomHeader(page);
-      await testEmptyRoom(page);
-      await testDMRoom(page);
-      await testTimelineScroll(page);
+      await runTest('ROOM_HEADER', page, () => testRoomHeader(page));
+      await runTest('EMPTY_ROOM', page, () => testEmptyRoom(page));
+      await runTest('DM_ROOM', page, () => testDMRoom(page));
+      await runTest('TIMELINE_SCROLL', page, () => testTimelineScroll(page));
 
       // ══════ Phase 5: Messaging ══════
-      await testChatSendMessage(page);
-      await testChatSendEnter(page);
-      await testChatShiftEnter(page);
-      await testChatSendEmpty(page);
-      await testChatLongMessage(page);
-      await testChatSpecialChars(page);
-      await testAttachMenu(page);
+      await runTest('CHAT_SEND_MESSAGE', page, () => testChatSendMessage(page));
+      await runTest('CHAT_SEND_ENTER', page, () => testChatSendEnter(page));
+      await runTest('CHAT_SHIFT_ENTER', page, () => testChatShiftEnter(page));
+      await runTest('CHAT_SEND_EMPTY', page, () => testChatSendEmpty(page));
+      await runTest('CHAT_LONG_MESSAGE', page, () => testChatLongMessage(page));
+      await runTest('CHAT_SPECIAL_CHARS', page, () => testChatSpecialChars(page));
+      await runTest('ATTACH_MENU', page, () => testAttachMenu(page));
 
       // ══════ Phase 6: Message Interactions ══════
-      await testMessageBubble(page);
-      await testMessageContextMenu(page);
-      await testReplyMessage(page);
-      await testEditMessage(page);
-      await testEditCancel(page);
-      await testForwardMessage(page);
-      await testSelectMessages(page);
-      await testCopyMessage(page);
-      await testThread(page);
-      await testReactMessage(page);
-      await testDeleteMessage(page);
+      await runTest('MESSAGE_BUBBLE', page, () => testMessageBubble(page));
+      await runTest('MESSAGE_CONTEXT_MENU', page, () => testMessageContextMenu(page));
+      await runTest('REPLY_MESSAGE', page, () => testReplyMessage(page));
+      await runTest('EDIT_MESSAGE', page, () => testEditMessage(page));
+      await runTest('EDIT_CANCEL', page, () => testEditCancel(page));
+      await runTest('FORWARD_MESSAGE', page, () => testForwardMessage(page));
+      await runTest('SELECT_MESSAGES', page, () => testSelectMessages(page));
+      await runTest('COPY_MESSAGE', page, () => testCopyMessage(page));
+      await runTest('THREAD', page, () => testThread(page));
+      await runTest('REACT_MESSAGE', page, () => testReactMessage(page));
+      await runTest('DELETE_MESSAGE', page, () => testDeleteMessage(page));
 
       // ══════ Phase 7: Settings ══════
       // Re-login after logout tests might have happened
       await loginAs(page, CONFIG.users[0]);
-      await testSettingsNavigation(page);
-      await testSettingsProfile(page);
-      await testSettingsAppearance(page);
+      await runTest('SETTINGS_NAVIGATION', page, () => testSettingsNavigation(page));
+      await runTest('SETTINGS_PROFILE', page, () => testSettingsProfile(page));
+      await runTest('SETTINGS_APPEARANCE', page, () => testSettingsAppearance(page));
 
       // ══════ Phase 7c: New Features ══════
-      await testQuickReactions(page);
-      await testHashtags(page);
-      await testAtRoomMention(page);
-      await testReplyTruncation(page);
-      await testDraftPersistence(page);
-      await testImageCaption(page);
+      await runTest('QUICK_REACTIONS', page, () => testQuickReactions(page));
+      await runTest('HASHTAGS', page, () => testHashtags(page));
+      await runTest('AT_ROOM_MENTION', page, () => testAtRoomMention(page));
+      await runTest('REPLY_TRUNCATION', page, () => testReplyTruncation(page));
+      await runTest('DRAFT_PERSISTENCE', page, () => testDraftPersistence(page));
+      await runTest('IMAGE_CAPTION', page, () => testImageCaption(page));
 
       // Mention-specific tests (require API setup of mention messages)
-      await testMentionBadgeInRoomList(page);
-      await testMentionScrollOnEnter(page);
-      await testMentionNavigator(page);
-      await testMentionedBubble(page);
-      await testRoomMention(page);
+      await runTest('MENTION_BADGE_IN_ROOM_LIST', page, () => testMentionBadgeInRoomList(page));
+      await runTest('MENTION_SCROLL_ON_ENTER', page, () => testMentionScrollOnEnter(page));
+      await runTest('MENTION_NAVIGATOR', page, () => testMentionNavigator(page));
+      await runTest('MENTIONED_BUBBLE', page, () => testMentionedBubble(page));
+      await runTest('ROOM_MENTION', page, () => testRoomMention(page));
 
       // Bug regression tests
-      await testReactionStability(page);
-      await testReactionRapidClicks(page);
-      await testTimelineNoJitter(page);
-      await testPinMessageLive(page);
+      await runTest('REACTION_STABILITY', page, () => testReactionStability(page));
+      await runTest('REACTION_RAPID_CLICKS', page, () => testReactionRapidClicks(page));
+      await runTest('TIMELINE_NO_JITTER', page, () => testTimelineNoJitter(page));
+      await runTest('PIN_MESSAGE_LIVE', page, () => testPinMessageLive(page));
 
       // Production hardening tests
-      await testPrivacySettings(page);
-      await testIdleLogoutSetting(page);
-      await testVoiceButton(page);
-      await testSlashCommands(page);
-      await testSendQueueDB(page);
-      await testSavedMessagesNoDup(page);
-      await testEncryptedRecoveryKey(page);
-      await testLoggerExists(page);
-      await testTouchTargetSize(page);
-      await testSkipLink(page);
-      await testCrossSigningUiNew(page);
+      await runTest('PRIVACY_SETTINGS', page, () => testPrivacySettings(page));
+      await runTest('IDLE_LOGOUT_SETTING', page, () => testIdleLogoutSetting(page));
+      await runTest('VOICE_BUTTON', page, () => testVoiceButton(page));
+      await runTest('SLASH_COMMANDS', page, () => testSlashCommands(page));
+      await runTest('SEND_QUEUE_DB', page, () => testSendQueueDB(page));
+      await runTest('SAVED_MESSAGES_NO_DUP', page, () => testSavedMessagesNoDup(page));
+      await runTest('ENCRYPTED_RECOVERY_KEY', page, () => testEncryptedRecoveryKey(page));
+      await runTest('LOGGER_EXISTS', page, () => testLoggerExists(page));
+      await runTest('TOUCH_TARGET_SIZE', page, () => testTouchTargetSize(page));
+      await runTest('SKIP_LINK', page, () => testSkipLink(page));
+      await runTest('CROSS_SIGNING_UI_NEW', page, () => testCrossSigningUiNew(page));
 
       // Latest session polish tests
-      await testRoomListTabs(page);
-      await testRoomNotificationLevels(page);
-      await testEmojiAutocomplete(page);
-      await testMultiFileInput(page);
-      await testLightboxNav(page);
-      await testMemberActions(page);
-      await testRoomNameEditable(page);
-      await testFrequentEmoji(page);
-      await testI18nCleanup(page);
-      await testHighContrastMode(page);
+      await runTest('ROOM_LIST_TABS', page, () => testRoomListTabs(page));
+      await runTest('ROOM_NOTIFICATION_LEVELS', page, () => testRoomNotificationLevels(page));
+      await runTest('EMOJI_AUTOCOMPLETE', page, () => testEmojiAutocomplete(page));
+      await runTest('MULTI_FILE_INPUT', page, () => testMultiFileInput(page));
+      await runTest('LIGHTBOX_NAV', page, () => testLightboxNav(page));
+      await runTest('MEMBER_ACTIONS', page, () => testMemberActions(page));
+      await runTest('ROOM_NAME_EDITABLE', page, () => testRoomNameEditable(page));
+      await runTest('FREQUENT_EMOJI', page, () => testFrequentEmoji(page));
+      await runTest('I18N_CLEANUP', page, () => testI18nCleanup(page));
+      await runTest('HIGH_CONTRAST_MODE', page, () => testHighContrastMode(page));
 
       // Calls + final polish tests
-      await testCallButtonsInDM(page);
-      await testIncomingCallContainer(page);
-      await testMemberOnlineIndicator(page);
-      await testRoomAvatarEdit(page);
-      await testSpacesContext(page);
-      await testBundleVisualizer();
-      await testContrastFix(page);
+      await runTest('CALL_BUTTONS_IN_DM', page, () => testCallButtonsInDM(page));
+      await runTest('INCOMING_CALL_CONTAINER', page, () => testIncomingCallContainer(page));
+      await runTest('MEMBER_ONLINE_INDICATOR', page, () => testMemberOnlineIndicator(page));
+      await runTest('ROOM_AVATAR_EDIT', page, () => testRoomAvatarEdit(page));
+      await runTest('SPACES_CONTEXT', page, () => testSpacesContext(page));
+      await runTest('BUNDLE_VISUALIZER', page, () => testBundleVisualizer());
+      await runTest('CONTRAST_FIX', page, () => testContrastFix(page));
 
       // Final polish tests (B28, C4, C6, E3)
-      await testSyncTokenPersisted(page);
-      await testLazyChunks(page);
-      await testSwipeReply(page);
-      await testThreadBackButton(page);
+      await runTest('SYNC_TOKEN_PERSISTED', page, () => testSyncTokenPersisted(page));
+      await runTest('LAZY_CHUNKS', page, () => testLazyChunks(page));
+      await runTest('SWIPE_REPLY', page, () => testSwipeReply(page));
+      await runTest('THREAD_BACK_BUTTON', page, () => testThreadBackButton(page));
 
       // ══════ Phase 7a: Security & Error Handling ══════
-      await testXssSanitization(page);
-      await testErrorBoundary(page);
-      await testCryptoBanner(page);
-      await testSendErrorFeedback(page);
-      await testTimelineAccessibility(page);
-      await testSecurityHeaders(page);
+      await runTest('XSS_SANITIZATION', page, () => testXssSanitization(page));
+      await runTest('ERROR_BOUNDARY', page, () => testErrorBoundary(page));
+      await runTest('CRYPTO_BANNER', page, () => testCryptoBanner(page));
+      await runTest('SEND_ERROR_FEEDBACK', page, () => testSendErrorFeedback(page));
+      await runTest('TIMELINE_ACCESSIBILITY', page, () => testTimelineAccessibility(page));
+      await runTest('SECURITY_HEADERS', page, () => testSecurityHeaders(page));
 
       // ══════ Phase 7b: Encryption & Devices ══════
-      await testEncryptionSettings(page);
-      await testDevicesSettings(page);
-      await testDeviceProliferation();
-      await testKeyBackupStatus();
-      await testEncryptedMessages(page);
-      await testCrossSigningUI(page);
+      await runTest('ENCRYPTION_SETTINGS', page, () => testEncryptionSettings(page));
+      await runTest('DEVICES_SETTINGS', page, () => testDevicesSettings(page));
+      await runTest('DEVICE_PROLIFERATION', page, () => testDeviceProliferation());
+      await runTest('KEY_BACKUP_STATUS', page, () => testKeyBackupStatus());
+      await runTest('ENCRYPTED_MESSAGES', page, () => testEncryptedMessages(page));
+      await runTest('CROSS_SIGNING_UI', page, () => testCrossSigningUI(page));
+
+      // ══════ Phase 7g: Missing coverage (D1 + polls + permissions + ...) ══════
+      // All wrapped in runTest() so a crash in one new test doesn't kill the suite.
+      await runTest('D1_CONTEXT_REACTIVITY', page, () => testD1ContextReactivity(page));
+      await runTest('POLL_CREATE',           page, () => testCreatePoll(page));
+      await runTest('POLL_VOTE',             page, () => testVotePoll(page));
+      await runTest('READ_RECEIPTS_VISUAL',  page, () => testReadReceiptsVisual(page));
+      await runTest('TYPING_INDICATOR',      page, () => testTypingIndicatorVisual(browser, page));
+      await runTest('INVITE_ACCEPT_DECLINE', page, () => testInviteAcceptDecline(browser));
+      await runTest('CREATE_SPACE_FLOW',     page, () => testCreateSpaceFlow(page));
+      await runTest('MESSAGE_SEARCH_WIRED',  page, () => testMessageSearchWired(page));
+      await runTest('KEY_RESTORE_CONTENT',   page, () => testKeyRestoreScreenContent(page));
+      await runTest('NETWORK_RECONNECT',     page, () => testNetworkReconnect(page));
+      await runTest('SERVICE_WORKER',        page, () => testServiceWorkerRegistered(page));
+      await runTest('STRESS_MESSAGES',       page, () => testStressMessages(page));
 
       // ══════ Phase 8: Responsive ══════
-      await testResponsive(page, { width: 375, height: 812 }, 'mobile');
-      await testResponsive(page, { width: 768, height: 1024 }, 'tablet');
+      await runTest('RESPONSIVE_MOBILE', page, () => testResponsive(page, { width: 375, height: 812 }, 'mobile'));
+      await runTest('RESPONSIVE_TABLET', page, () => testResponsive(page, { width: 768, height: 1024 }, 'tablet'));
 
       // ══════ Phase 9: Multi-user ══════
-      await testMultiUser(browser);
+      await runTest('MULTI_USER', page, () => testMultiUser(browser));
 
       // Re-login for logout test
       await loginAs(page, CONFIG.users[0]);
 
       // ══════ Phase 10: Logout (last) ══════
-      await testSettingsLogout(page);
+      await runTest('SETTINGS_LOGOUT', page, () => testSettingsLogout(page));
     }
 
     // ══════ Phase 11: Negative auth tests (after main tests to avoid rate-limiting) ══════
-    await testAuthEmpty(page);
-    await testAuthWrongCreds(page);
-    await testRegisterPage(page);
-    await testRegisterMismatch(page);
+    await runTest('AUTH_EMPTY', page, () => testAuthEmpty(page));
+    await runTest('AUTH_WRONG_CREDS', page, () => testAuthWrongCreds(page));
+    await runTest('REGISTER_PAGE', page, () => testRegisterPage(page));
+    await runTest('REGISTER_MISMATCH', page, () => testRegisterMismatch(page));
 
     // ══════ Error Reports ══════
     reportConsoleErrors();
@@ -4157,6 +5069,10 @@ async function main() {
     await snap(page, 'fatal-error').catch(() => {});
     bug('CRITICAL', 'FATAL', `Agent crashed: ${err.message}`, [], '');
   } finally {
+    // Post-run cleanup: purge any test rooms left behind by this run.
+    // Best-effort — failures here must not block report generation.
+    try { await cleanupAfterRun(); } catch (e) { log(`Cleanup error: ${e.message}`); }
+
     const report = generateReport();
     fs.writeFileSync(CONFIG.reportPath, report, 'utf-8');
     log(`Report: ${CONFIG.reportPath}`);

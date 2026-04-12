@@ -151,7 +151,19 @@ export function PollMessage({ eventId, roomId, content }: PollMessageProps) {
       nextVoted = [answerId]
     }
 
+    // Optimistic update — both myVotes AND allVotes so that hasVotes=true
+    // immediately and the progress bar / check icon render before the server
+    // round-trip completes.
+    const myUserId = client.getUserId()!
+    const myName = client.getRoom(roomId)?.getMember(myUserId)?.name || myUserId
+    const prevMyVotes = myVotes
+    const prevAllVotes = allVotes
+
     setMyVotes(nextVoted)
+    setAllVotes((prev) => {
+      const without = prev.filter((v) => v.userId !== myUserId)
+      return [...without, ...nextVoted.map((aid) => ({ answerId: aid, userId: myUserId, name: myName }))]
+    })
 
     try {
       await client.sendEvent(roomId, 'org.matrix.msc3381.poll.response' as never, {
@@ -163,15 +175,10 @@ export function PollMessage({ eventId, roomId, content }: PollMessageProps) {
           answers: nextVoted,
         },
       } as never)
-
-      const myUserId = client.getUserId()!
-      const myName = client.getRoom(roomId)?.getMember(myUserId)?.name || myUserId
-      setAllVotes((prev) => {
-        const without = prev.filter((v) => v.userId !== myUserId)
-        return [...without, ...nextVoted.map((aid) => ({ answerId: aid, userId: myUserId, name: myName }))]
-      })
     } catch {
-      setMyVotes(myVotes)
+      // Revert both on failure
+      setMyVotes(prevMyVotes)
+      setAllVotes(prevAllVotes)
     }
   }
 

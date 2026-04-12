@@ -145,7 +145,13 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
     <TimelineScrollContext.Provider value={scrollToEvent}>
       <PinnedMessageBar roomId={roomId} />
       <span className="sr-only" aria-live="polite" aria-atomic="true">{announcement}</span>
-      <div className={styles.container} role="log">
+      <div
+        className={styles.container}
+        role="log"
+        aria-live="polite"
+        aria-relevant="additions text"
+        aria-label="Лента сообщений"
+      >
         <Virtuoso
           key={roomId}
           ref={virtuosoRef}
