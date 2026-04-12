@@ -17,6 +17,8 @@ function RoomsPlaceholder() {
   )
 }
 
+import { SsoCallback } from '../features/auth/components/SsoCallback.js'
+
 const LoginPage = lazy(() => import('../features/auth/components/LoginPage.js'))
 const RegisterPage = lazy(() => import('../features/auth/components/RegisterPage.js'))
 const RoomView = lazy(() => import('../features/room/components/RoomView.js'))
@@ -46,6 +48,11 @@ export const router = createBrowserRouter([
         </SuspenseWrapper>
       </AuthLayout>
     ),
+    errorElement: <RouteErrorBoundary />,
+  },
+  {
+    path: '/auth/callback',
+    element: <SsoCallback />,
     errorElement: <RouteErrorBoundary />,
   },
   {

@@ -10,6 +10,7 @@ import { TimelineScrollContext } from '../context/TimelineScrollContext.js'
 import { PinnedMessageBar } from './PinnedMessageBar.js'
 import type { TimelineEvent } from '../types.js'
 import type { TimelineScrollApi } from '../context/TimelineScrollContext.js'
+import { useRoomListStore } from '../../../features/room-list/store/roomListStore.js'
 import styles from './Timeline.module.scss'
 
 interface TimelineProps {
@@ -55,6 +56,9 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
   const paginateBackRef = useRef(paginateBack)
   const isAtBottomRef = useRef(true)
   const lastEventIdRef = useRef<string | null>(null)
+
+  const setScrollState = useRoomListStore((s) => s.setScrollState)
+  const savedState = useRoomListStore((s) => s.getScrollState(roomId))
 
   const listItems = useMemo(() => buildListItems(events), [events])
 
@@ -169,7 +173,13 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
           data={listItems}
           computeItemKey={(_, item) => item.key}
           firstItemIndex={firstItemIndex}
-          initialTopMostItemIndex={focusIndex >= 0 ? focusIndex : listItems.length - 1}
+          initialTopMostItemIndex={
+            focusIndex >= 0 ? focusIndex
+            : savedState ? undefined
+            : listItems.length - 1
+          }
+          stateChanged={(snapshot: unknown) => setScrollState(roomId, snapshot)}
+          restoreStateFrom={savedState as never}
           alignToBottom
           atBottomStateChange={(atBottom) => {
             isAtBottomRef.current = atBottom

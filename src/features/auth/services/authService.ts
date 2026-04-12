@@ -16,6 +16,65 @@ function normalizeHomeserver(url: string): string {
   return normalized.replace(/\/+$/, '')
 }
 
+export interface SsoIdentityProvider {
+  id: string
+  name: string
+  icon?: string
+  brand?: string
+}
+
+export interface LoginFlows {
+  supportsPassword: boolean
+  supportsSso: boolean
+  ssoProviders: SsoIdentityProvider[]
+}
+
+export async function fetchLoginFlows(homeserverUrl: string): Promise<LoginFlows> {
+  const url = normalizeHomeserver(homeserverUrl)
+  const res = await fetch(`${url}/_matrix/client/v3/login`)
+  const data = await res.json()
+  const flows = data.flows || []
+
+  const supportsPassword = flows.some((f: any) => f.type === 'm.login.password')
+  const ssoFlow = flows.find((f: any) => f.type === 'm.login.sso' || f.type === 'm.login.cas')
+
+  return {
+    supportsPassword,
+    supportsSso: !!ssoFlow,
+    ssoProviders: ssoFlow?.identity_providers || [],
+  }
+}
+
+async function finalizeLogin(
+  loginData: { user_id: string; access_token: string; device_id: string; refresh_token?: string },
+  baseUrl: string,
+): Promise<AuthUser> {
+  const sessionData = {
+    userId: loginData.user_id,
+    accessToken: loginData.access_token,
+    deviceId: loginData.device_id,
+    homeserverUrl: baseUrl,
+    refreshToken: loginData.refresh_token,
+  }
+
+  await saveSession(sessionData)
+
+  createMatrixClient({
+    baseUrl,
+    accessToken: loginData.access_token,
+    userId: loginData.user_id,
+    deviceId: loginData.device_id,
+  })
+
+  await startClient()
+
+  return {
+    userId: loginData.user_id,
+    displayName: undefined,
+    avatarUrl: null,
+  }
+}
+
 export async function loginWithPassword(
   credentials: LoginCredentials,
 ): Promise<AuthUser> {
@@ -28,29 +87,48 @@ export async function loginWithPassword(
     credentials.password,
   )
 
-  const sessionData = {
-    userId: response.user_id,
-    accessToken: response.access_token,
-    deviceId: response.device_id,
-    homeserverUrl: baseUrl,
-  }
-
-  await saveSession(sessionData)
-
-  createMatrixClient({
+  return finalizeLogin(
+    {
+      user_id: response.user_id,
+      access_token: response.access_token,
+      device_id: response.device_id,
+      refresh_token: (response as Record<string, unknown>).refresh_token as string | undefined,
+    },
     baseUrl,
-    accessToken: response.access_token,
-    userId: response.user_id,
-    deviceId: response.device_id,
+  )
+}
+
+export async function loginWithSsoToken(
+  homeserverUrl: string,
+  loginToken: string,
+): Promise<AuthUser> {
+  const baseUrl = normalizeHomeserver(homeserverUrl)
+
+  const res = await fetch(`${baseUrl}/_matrix/client/v3/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      type: 'm.login.token',
+      token: loginToken,
+    }),
   })
 
-  await startClient()
-
-  return {
-    userId: response.user_id,
-    displayName: undefined,
-    avatarUrl: null,
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || 'SSO login failed')
   }
+
+  const data = await res.json()
+
+  return finalizeLogin(
+    {
+      user_id: data.user_id,
+      access_token: data.access_token,
+      device_id: data.device_id,
+      refresh_token: data.refresh_token,
+    },
+    baseUrl,
+  )
 }
 
 export async function registerAccount(

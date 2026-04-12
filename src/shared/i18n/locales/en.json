@@ -17,6 +17,11 @@
 		"hasAccount": "Already have an account?",
 		"loggingIn": "Signing in...",
 		"registering": "Signing up...",
+		"ssoLogin": "Sign in with SSO",
+		"ssoLoginWith": "Sign in with {{provider}}",
+		"ssoOr": "or",
+		"ssoCallbackLoading": "Completing authorization...",
+		"ssoCallbackError": "SSO authorization error",
 		"errors": {
 			"invalidCredentials": "Invalid username or password",
 			"serverUnavailable": "Server is unavailable",

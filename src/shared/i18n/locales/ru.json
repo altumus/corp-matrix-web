@@ -17,6 +17,11 @@
 		"hasAccount": "Уже есть аккаунт?",
 		"loggingIn": "Вход...",
 		"registering": "Регистрация...",
+		"ssoLogin": "Войти через SSO",
+		"ssoLoginWith": "Войти через {{provider}}",
+		"ssoOr": "или",
+		"ssoCallbackLoading": "Завершение авторизации...",
+		"ssoCallbackError": "Ошибка SSO авторизации",
 		"errors": {
 			"invalidCredentials": "Неверное имя пользователя или пароль",
 			"serverUnavailable": "Сервер недоступен",

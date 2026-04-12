@@ -26,6 +26,7 @@ export interface AuthState {
 
   setHomeserver: (url: string) => void
   login: (credentials: LoginCredentials) => Promise<void>
+  loginWithSso: (homeserverUrl: string, loginToken: string) => Promise<void>
   register: (credentials: RegisterCredentials) => Promise<void>
   restoreSession: () => Promise<void>
   logout: () => Promise<void>

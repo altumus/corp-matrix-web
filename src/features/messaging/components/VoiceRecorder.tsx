@@ -30,8 +30,15 @@ export function VoiceRecorder({ roomId, onCancel }: VoiceRecorderProps) {
         stream.getTracks().forEach((t) => t.stop())
         const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
         const file = new File([blob], `voice-${Date.now()}.webm`, { type: 'audio/webm' })
-        await upload(file)
-        onCancel()
+        try {
+          await upload(file)
+          onCancel()
+        } catch (err) {
+          toast(
+            err instanceof Error ? err.message : 'Не удалось отправить голосовое сообщение',
+            'error',
+          )
+        }
       }
       recorder.start()
       recorderRef.current = recorder

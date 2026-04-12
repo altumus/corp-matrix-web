@@ -160,6 +160,7 @@ export function createMatrixClient(opts: {
   accessToken?: string
   userId?: string
   deviceId?: string
+  refreshToken?: string
 }): sdk.MatrixClient {
   // Persistent sync store — survives reloads, enables incremental sync
   storeInstance = new IndexedDBStore({
@@ -172,8 +173,30 @@ export function createMatrixClient(opts: {
     accessToken: opts.accessToken,
     userId: opts.userId,
     deviceId: opts.deviceId,
+    refreshToken: opts.refreshToken,
     useAuthorizationHeader: true,
     store: storeInstance,
+    tokenRefreshFunction: opts.refreshToken
+      ? async (refreshToken: string) => {
+          const res = await fetch(`${opts.baseUrl}/_matrix/client/v3/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refresh_token: refreshToken }),
+          })
+          if (!res.ok) throw new Error('Token refresh failed')
+          const data = await res.json()
+          const session = await loadSession()
+          if (session) {
+            const updated = { ...session, accessToken: data.access_token as string }
+            if (data.refresh_token) updated.refreshToken = data.refresh_token as string
+            await saveSession(updated)
+          }
+          return {
+            accessToken: data.access_token as string,
+            refreshToken: data.refresh_token as string,
+          }
+        }
+      : undefined,
     cryptoCallbacks: {
       getSecretStorageKey: async ({ keys }: { keys: Record<string, unknown> }) => {
         if (!cachedSecretStorageKey) return null

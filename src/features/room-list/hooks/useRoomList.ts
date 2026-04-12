@@ -64,6 +64,25 @@ function roomToEntry(room: Room): RoomListEntry | null {
     avatarUrl = getDmPartnerAvatar(room, myUserId) ?? null
   }
 
+  let highlightCount = room.getRoomUnreadNotificationCount(NotificationCountType.Highlight) || 0
+
+  // Client-side fallback: scan unread timeline events for m.mentions
+  // when server reports 0 (happens with API/bot-sent mentions)
+  if (highlightCount === 0 && room.getUnreadNotificationCount() > 0 && myUserId) {
+    const timeline = room.getLiveTimeline().getEvents()
+    const readUpTo = room.getEventReadUpTo(myUserId)
+    let pastRead = !readUpTo
+    for (const ev of timeline) {
+      if (ev.getId() === readUpTo) { pastRead = true; continue }
+      if (!pastRead || ev.getSender() === myUserId) continue
+      const mentions = ev.getContent()['m.mentions'] as { user_ids?: string[]; room?: boolean } | undefined
+      if (mentions?.user_ids?.includes(myUserId) || mentions?.room) {
+        highlightCount = 1
+        break
+      }
+    }
+  }
+
   return {
     roomId: room.roomId,
     name: room.name || room.roomId,
@@ -73,7 +92,7 @@ function roomToEntry(room: Room): RoomListEntry | null {
     lastMessageSenderId: lastMsg.senderId,
     lastMessageTs: lastMsg.ts || room.getLastActiveTimestamp(),
     unreadCount: room.getUnreadNotificationCount() || 0,
-    highlightCount: room.getRoomUnreadNotificationCount(NotificationCountType.Highlight) || 0,
+    highlightCount,
     isDirect,
     isInvite: room.getMyMembership() === 'invite',
     isEncrypted: room.hasEncryptionStateEvent(),

@@ -4,6 +4,7 @@ import { ClientEvent, SyncState } from 'matrix-js-sdk'
 import type { AuthState, AuthStatus } from '../types.js'
 import {
   loginWithPassword,
+  loginWithSsoToken,
   registerAccount,
   restoreExistingSession,
   logoutSession,
@@ -197,6 +198,23 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'auth.errors.unknownError'
+      set({ status: 'unauthenticated', error: message })
+    }
+  },
+
+  loginWithSso: async (homeserverUrl, loginToken) => {
+    set({ status: 'loading', error: null })
+    keyRestoreSkipped = false
+    try {
+      const user = await loginWithSsoToken(homeserverUrl, loginToken)
+      set({ status: 'authenticated', user, error: null })
+      installSyncErrorGuard(set)
+      resolvePostAuthStatus().then((s) => {
+        if (s === 'needs_key_restore' && !keyRestoreSkipped) set({ status: s })
+      })
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'SSO login failed'
       set({ status: 'unauthenticated', error: message })
     }
   },
