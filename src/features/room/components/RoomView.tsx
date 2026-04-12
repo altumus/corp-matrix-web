@@ -5,6 +5,7 @@ import { useRoom } from '../hooks/useRoom.js'
 import { useMediaUpload } from '../../media/hooks/useMediaUpload.js'
 import { MediaUploader } from '../../media/components/MediaUploader.js'
 import { RoomHeader } from './RoomHeader.js'
+import { GroupCallView } from '../../calls/components/GroupCallView.js'
 import { Timeline } from './Timeline.js'
 import { MentionNavigator } from './MentionNavigator.js'
 import { MessageComposer } from '../../messaging/components/MessageComposer.js'
@@ -77,6 +78,7 @@ export default function RoomView() {
         <div className={styles.wrapper}>
           <div className={styles.container}>
             <RoomHeader room={room} />
+            <GroupCallView />
             <Timeline
               roomId={room.roomId}
               focusEventId={focusEventId}

@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, UserPlus, Phone, Video } from 'lucide-react'
+import { ArrowLeft, UserPlus, Phone, Video, Users } from 'lucide-react'
 import { useCallStore } from '../../calls/store/callStore.js'
+import { useGroupCallStore } from '../../calls/store/groupCallStore.js'
+import { useActiveGroupCall } from '../../calls/hooks/useGroupCall.js'
 import type { RoomSummary } from '../types.js'
 import { Avatar } from '../../../shared/ui/index.js'
 import { EncryptionBadge } from '../../encryption/components/EncryptionBadge.js'
@@ -29,6 +31,9 @@ export function RoomHeader({ room }: RoomHeaderProps) {
   const startVoice = useCallStore((s) => s.startVoice)
   const startVideo = useCallStore((s) => s.startVideo)
   const callActive = useCallStore((s) => s.activeCall !== null)
+  const groupCallStatus = useGroupCallStore((s) => s.status)
+  const joinGroupCall = useGroupCallStore((s) => s.joinGroupCall)
+  const activeGroupCall = useActiveGroupCall(room.roomId)
 
   const handleBack = () => {
     navigate('/rooms')
@@ -95,6 +100,30 @@ export function RoomHeader({ room }: RoomHeaderProps) {
           >
             <Video size={18} />
           </button>
+        </>
+      )}
+      {!room.isDirect && (
+        <>
+          {activeGroupCall && groupCallStatus === 'idle' ? (
+            <button
+              className={styles.inviteBtn}
+              onClick={() => void joinGroupCall(activeGroupCall, true)}
+              title={t('calls.joinCall', { defaultValue: 'Присоединиться' })}
+            >
+              <Phone size={18} />
+            </button>
+          ) : (
+            <button
+              className={styles.inviteBtn}
+              onClick={() => {
+                useGroupCallStore.getState().startGroupCall(room.roomId, 'video')
+              }}
+              disabled={groupCallStatus !== 'idle'}
+              title={t('calls.groupCall', { defaultValue: 'Групповой звонок' })}
+            >
+              <Users size={18} />
+            </button>
+          )}
         </>
       )}
       <button

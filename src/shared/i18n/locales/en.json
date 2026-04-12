@@ -216,6 +216,14 @@
 		"mentionsOnly": "Mentions only",
 		"allMessages": "All messages"
 	},
+	"calls": {
+		"groupCall": "Group call",
+		"joinCall": "Join call",
+		"leaveCall": "Leave",
+		"participants": "participants",
+		"screenShare": "Screen share",
+		"stopScreenShare": "Stop screen share"
+	},
 	"common": {
 		"loading": "Loading...",
 		"error": "Error",

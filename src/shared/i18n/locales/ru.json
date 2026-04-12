@@ -216,6 +216,14 @@
 		"mentionsOnly": "Только упоминания",
 		"allMessages": "Все сообщения"
 	},
+	"calls": {
+		"groupCall": "Групповой звонок",
+		"joinCall": "Присоединиться",
+		"leaveCall": "Покинуть",
+		"participants": "участников",
+		"screenShare": "Демонстрация экрана",
+		"stopScreenShare": "Остановить демонстрацию"
+	},
 	"common": {
 		"loading": "Загрузка...",
 		"error": "Ошибка",
