@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import { Modal, Avatar } from '../../../shared/ui/index.js'
 import { useRoomListStore } from '../../room-list/store/roomListStore.js'
+import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { forwardMessage } from '../services/messageService.js'
 import styles from './ForwardDialog.module.scss'
 
@@ -15,6 +16,7 @@ interface ForwardDialogProps {
 export function ForwardDialog({ fromRoomId, eventId, onClose }: ForwardDialogProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const client = useMatrixClient()
   const rooms = useRoomListStore((s) => s.rooms)
   const setSelectedRoom = useRoomListStore((s) => s.setSelectedRoom)
   const [search, setSearch] = useState('')
@@ -33,6 +35,14 @@ export function ForwardDialog({ fromRoomId, eventId, onClose }: ForwardDialogPro
     if (sending) return
     setSending(true)
     try {
+      const fromRoom = client?.getRoom(fromRoomId)
+      const toRoom = client?.getRoom(toRoomId)
+      if (fromRoom?.hasEncryptionStateEvent() && !toRoom?.hasEncryptionStateEvent()) {
+        if (!confirm('Целевая комната не зашифрована. Сообщение будет отправлено в открытом виде. Продолжить?')) {
+          setSending(false)
+          return
+        }
+      }
       for (const id of eventIds) {
         await forwardMessage(fromRoomId, id, toRoomId)
       }

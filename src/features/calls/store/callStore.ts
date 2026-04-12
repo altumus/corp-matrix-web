@@ -21,11 +21,11 @@ interface CallStore {
   toggleVideo: () => void
 }
 
-let listenersAttached = false
+const attachedCalls = new WeakSet<MatrixCall>()
 
 function attachListeners(call: MatrixCall, set: (s: Partial<CallStore>) => void) {
-  if (listenersAttached) return
-  listenersAttached = true
+  if (attachedCalls.has(call)) return
+  attachedCalls.add(call)
 
   call.on(CallEvent.State, (state: CallState) => {
     let status: CallStatus = 'connecting'
@@ -34,7 +34,6 @@ function attachListeners(call: MatrixCall, set: (s: Partial<CallStore>) => void)
     else if (state === CallState.Ended) {
       status = 'ended'
       setTimeout(() => {
-        listenersAttached = false
         set({ activeCall: null, status: 'idle' })
       }, 1500)
     }
@@ -44,14 +43,12 @@ function attachListeners(call: MatrixCall, set: (s: Partial<CallStore>) => void)
   call.on(CallEvent.Hangup, () => {
     set({ status: 'ended' })
     setTimeout(() => {
-      listenersAttached = false
       set({ activeCall: null, status: 'idle' })
     }, 1500)
   })
 
   call.on(CallEvent.Error, (err: Error) => {
     toast(`Ошибка звонка: ${err.message}`, 'error')
-    listenersAttached = false
     set({ activeCall: null, status: 'idle' })
   })
 }
@@ -75,7 +72,6 @@ export const useCallStore = create<CallStore>((set, get) => ({
       await call.placeVoiceCall()
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Не удалось начать звонок', 'error')
-      listenersAttached = false
       set({ activeCall: null, status: 'idle' })
     }
   },
@@ -92,7 +88,6 @@ export const useCallStore = create<CallStore>((set, get) => ({
       await call.placeVideoCall()
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Не удалось начать звонок', 'error')
-      listenersAttached = false
       set({ activeCall: null, status: 'idle' })
     }
   },
@@ -104,7 +99,6 @@ export const useCallStore = create<CallStore>((set, get) => ({
       await call.answer(true, withVideo)
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Не удалось принять звонок', 'error')
-      listenersAttached = false
       set({ activeCall: null, status: 'idle' })
     }
   },
@@ -117,7 +111,6 @@ export const useCallStore = create<CallStore>((set, get) => ({
     } catch { /* already ended */ }
     set({ status: 'ended' })
     setTimeout(() => {
-      listenersAttached = false
       set({ activeCall: null, status: 'idle' })
     }, 1500)
   },

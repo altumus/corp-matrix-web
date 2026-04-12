@@ -1,9 +1,17 @@
 import { createContext, useContext } from 'react'
 
-type ScrollToEvent = (eventId: string) => void
+export interface TimelineScrollApi {
+  scrollToEvent: (eventId: string) => void
+  scrollToBottom: () => void
+}
 
-export const TimelineScrollContext = createContext<ScrollToEvent>(() => {})
+const defaultApi: TimelineScrollApi = {
+  scrollToEvent: () => {},
+  scrollToBottom: () => {},
+}
 
-export function useTimelineScroll(): ScrollToEvent {
+export const TimelineScrollContext = createContext<TimelineScrollApi>(defaultApi)
+
+export function useTimelineScroll(): TimelineScrollApi {
   return useContext(TimelineScrollContext)
 }

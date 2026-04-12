@@ -6,7 +6,7 @@ import { RoomListHeader } from './RoomListHeader.js'
 import { RoomSearch } from './RoomSearch.js'
 import { RoomListItem } from './RoomListItem.js'
 import { InvitesList } from './InvitesList.js'
-import { Spinner } from '../../../shared/ui/index.js'
+import { RoomListSkeleton } from './RoomListSkeleton.js'
 import styles from './RoomList.module.scss'
 
 export function RoomList() {
@@ -47,9 +47,7 @@ export function RoomList() {
           <InvitesList invites={invites} />
           <div className={styles.list}>
             {initialLoading ? (
-              <div className={styles.loading}>
-                <Spinner size={24} />
-              </div>
+              <RoomListSkeleton />
             ) : rooms.length === 0 ? (
               <div className={styles.empty}>{t('rooms.empty')}</div>
             ) : (

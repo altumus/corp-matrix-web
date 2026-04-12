@@ -108,10 +108,10 @@ function countThreadReplies(room: Room): Map<string, number> {
 }
 
 // Per-room mapEvent cache to avoid re-mapping unchanged events on every sync.
-// Key: eventId, Value: { event: TimelineEvent, ts: timestamp of last edit }
-const eventCache = new WeakMap<Room, Map<string, { ev: TimelineEvent; editTs: number }>>()
+// Key: eventId, Value: { event, editTs, reactionCount — all three must match to use cache }
+const eventCache = new WeakMap<Room, Map<string, { ev: TimelineEvent; editTs: number; reactionCount?: number }>>()
 
-function getCacheForRoom(room: Room): Map<string, { ev: TimelineEvent; editTs: number }> {
+function getCacheForRoom(room: Room): Map<string, { ev: TimelineEvent; editTs: number; reactionCount?: number }> {
   let cache = eventCache.get(room)
   if (!cache) {
     cache = new Map()
@@ -137,10 +137,17 @@ function collectEvents(room: Room): TimelineEvent[] {
       if (seen.has(id)) continue
       seen.add(id)
 
-      // Check cache — invalidate if event was edited
+      // Check cache — invalidate if event was edited or reactions changed
       const editTs = e.replacingEvent()?.getTs() || 0
+      let reactionCount = 0
+      try {
+        const timelineSet = room.getUnfilteredTimelineSet()
+        const rels = timelineSet.relations.getChildEventsForEvent(id, RelationType.Annotation, EventType.Reaction)
+        reactionCount = rels?.getRelations().length || 0
+      } catch { /* relations API may not be available */ }
+
       const cached = cache.get(id)
-      if (cached && cached.editTs === editTs) {
+      if (cached && cached.editTs === editTs && (cached.reactionCount ?? 0) === reactionCount) {
         const tc = threadCounts.get(id)
         if (tc !== cached.ev.threadReplyCount) {
           cached.ev.threadReplyCount = tc
@@ -155,7 +162,7 @@ function collectEvents(room: Room): TimelineEvent[] {
         if (tc) {
           ev.threadReplyCount = tc
         }
-        cache.set(id, { ev, editTs })
+        cache.set(id, { ev, editTs, reactionCount })
         mapped.push(ev)
       } catch {
         // skip

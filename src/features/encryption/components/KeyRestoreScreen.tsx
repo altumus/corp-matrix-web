@@ -57,7 +57,9 @@ export function KeyRestoreScreen() {
       completeKeyRestore()
     } catch (err) {
       const msg = err instanceof Error ? err.message : ''
-      if (msg.includes('does not match') || msg.includes('MAC mismatch')) {
+      if (msg.includes('secret storage')) {
+        setError('Хранилище ключей недоступно на этом сервере')
+      } else if (msg.includes('does not match') || msg.includes('MAC mismatch')) {
         setError(t('encryption.wrongRecoveryKey'))
       } else if (msg.includes('Invalid recoveryKey')) {
         setError(t('encryption.invalidKeyFormat'))

@@ -77,6 +77,11 @@ export async function setupKeyBackup(): Promise<void> {
   const crypto = client.getCrypto()
   if (!crypto) throw new Error('Crypto not initialized')
 
+  const existing = await crypto.getActiveSessionBackupVersion()
+  if (existing) {
+    throw new Error('BACKUP_EXISTS')
+  }
+
   await crypto.resetKeyBackup()
 }
 

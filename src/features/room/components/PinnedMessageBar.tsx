@@ -18,7 +18,7 @@ interface PinnedMsg {
 
 export function PinnedMessageBar({ roomId }: PinnedMessageBarProps) {
   const client = useMatrixClient()
-  const scrollToEvent = useTimelineScroll()
+  const { scrollToEvent } = useTimelineScroll()
   const [currentIndex, setCurrentIndex] = useState(0)
   const [dismissed, setDismissed] = useState(false)
   const [pinnedMessages, setPinnedMessages] = useState<PinnedMsg[]>([])

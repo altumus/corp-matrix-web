@@ -53,9 +53,14 @@ export async function getQueuedMessages(): Promise<QueuedMessage[]> {
   return await database.getAll(STORE)
 }
 
+let processing = false
+
 async function processQueue(): Promise<void> {
+  if (processing) return
   if (!navigator.onLine) return
 
+  processing = true
+  try {
   const messages = await getQueuedMessages()
   if (messages.length === 0) return
 
@@ -78,6 +83,9 @@ async function processQueue(): Promise<void> {
       msg.attempts++
       await database.put(STORE, msg)
     }
+  }
+  } finally {
+    processing = false
   }
 }
 

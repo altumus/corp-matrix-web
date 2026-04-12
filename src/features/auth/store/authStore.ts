@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { getMatrixClient, saveRecoveryKey, loadRecoveryKey, setSecretStorageKey } from '../../../shared/lib/matrixClient.js'
+import { getMatrixClient, saveRecoveryKey, loadRecoveryKey, setSecretStorageKey, clearSession } from '../../../shared/lib/matrixClient.js'
 import { ClientEvent, SyncState } from 'matrix-js-sdk'
 import type { AuthState, AuthStatus } from '../types.js'
 import {
@@ -153,6 +153,25 @@ async function resolvePostAuthStatus(isNewAccount = false): Promise<AuthStatus> 
   return 'authenticated'
 }
 
+function installSyncErrorGuard(set: (s: Partial<AuthState>) => void) {
+  const client = getMatrixClient()
+  if (!client) return
+
+  const onSyncError = async (state: SyncState) => {
+    if (state === SyncState.Error) {
+      try {
+        await client.whoami()
+      } catch {
+        // Token invalid — force logout
+        await clearSession()
+        set({ user: null, status: 'unauthenticated' })
+      }
+    }
+  }
+
+  client.on(ClientEvent.Sync, onSyncError)
+}
+
 // When user clicks "Skip for now", prevent resolvePostAuthStatus from
 // overwriting status back to 'needs_key_restore'
 let keyRestoreSkipped = false
@@ -171,6 +190,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const user = await loginWithPassword(credentials)
       set({ status: 'authenticated', user, error: null })
+      installSyncErrorGuard(set)
       resolvePostAuthStatus().then((s) => {
         if (s === 'needs_key_restore' && !keyRestoreSkipped) set({ status: s })
       })
@@ -187,6 +207,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const user = await registerAccount(credentials)
       set({ status: 'authenticated', user, error: null })
+      installSyncErrorGuard(set)
       resolvePostAuthStatus(true).then((s) => {
         if (s === 'needs_key_restore' && !keyRestoreSkipped) set({ status: s })
       })
@@ -204,6 +225,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       const user = await restoreExistingSession()
       if (user) {
         set({ status: 'authenticated', user })
+        installSyncErrorGuard(set)
         resolvePostAuthStatus().then((s) => {
           if (s === 'needs_key_restore' && !keyRestoreSkipped) set({ status: s })
         })

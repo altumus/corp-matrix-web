@@ -7,6 +7,7 @@ import { enqueueMessage } from '../services/sendQueue.js'
 import { processSlashCommand } from '../services/slashCommands.js'
 import { toast } from '../../../shared/ui/Toast/toastService.js'
 import { getSendTyping } from '../../settings/components/PrivacySettings.js'
+import { useTimelineScroll } from '../../room/context/TimelineScrollContext.js'
 
 marked.setOptions({
   breaks: true,
@@ -69,6 +70,7 @@ function renderMarkdown(text: string): string {
 }
 
 export function useSendMessage(roomId: string) {
+  const { scrollToBottom } = useTimelineScroll()
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const send = useCallback(
@@ -119,6 +121,7 @@ export function useSendMessage(roomId: string) {
       try {
         await sendTextMessage(messageOpts)
         await sendTypingIndicator(roomId, false)
+        scrollToBottom()
         return true
       } catch (err) {
         // If offline or network error — enqueue for retry
@@ -131,7 +134,7 @@ export function useSendMessage(roomId: string) {
         return false
       }
     },
-    [roomId],
+    [roomId, scrollToBottom],
   )
 
   const onTyping = useCallback(() => {

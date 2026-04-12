@@ -82,7 +82,7 @@ export function MessageBubble({
 	const selectedIds = useSelectionStore((s) => s.selectedIds);
 	const toggleSelection = useSelectionStore((s) => s.toggle);
 	const startSelecting = useSelectionStore((s) => s.startSelecting);
-	const scrollToEvent = useTimelineScroll();
+	const { scrollToEvent } = useTimelineScroll();
 	const navigate = useNavigate();
 	const isSelected = selectedIds.has(event.eventId);
 

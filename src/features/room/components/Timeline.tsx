@@ -4,11 +4,12 @@ import { useTimeline } from '../hooks/useTimeline.js'
 import { TimelineItem } from './TimelineItem.js'
 import { DateSeparator } from './DateSeparator.js'
 import { TypingIndicator } from './TypingIndicator.js'
+import { ScrollToBottomFab } from './ScrollToBottomFab.js'
 import { Spinner } from '../../../shared/ui/index.js'
 import { TimelineScrollContext } from '../context/TimelineScrollContext.js'
 import { PinnedMessageBar } from './PinnedMessageBar.js'
-import { useComposerStore } from '../../messaging/store/composerStore.js'
 import type { TimelineEvent } from '../types.js'
+import type { TimelineScrollApi } from '../context/TimelineScrollContext.js'
 import styles from './Timeline.module.scss'
 
 interface TimelineProps {
@@ -48,12 +49,12 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   const [highlightedEventId, setHighlightedEventId] = useState<string | null>(null)
   const [announcement, setAnnouncement] = useState('')
+  const [isAtBottom, setIsAtBottom] = useState(true)
+  const [newMessageCount, setNewMessageCount] = useState(0)
   const focusHandledRef = useRef<string | null>(null)
   const paginateBackRef = useRef(paginateBack)
   const isAtBottomRef = useRef(true)
   const lastEventIdRef = useRef<string | null>(null)
-  const replyTarget = useComposerStore((s) => s.replyTarget)
-  const editTarget = useComposerStore((s) => s.editTarget)
 
   const listItems = useMemo(() => buildListItems(events), [events])
 
@@ -83,6 +84,9 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
       const body = (last.content?.body as string) || ''
       const preview = body.slice(0, 80)
       setAnnouncement(`Новое сообщение от ${last.senderName}: ${preview}`)
+      if (!isAtBottomRef.current) {
+        setNewMessageCount((c) => c + 1)
+      }
     }
     lastEventIdRef.current = last.eventId
   }, [events])
@@ -125,6 +129,13 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
     setTimeout(() => setHighlightedEventId(null), 2000)
   }, [listItems])
 
+  const scrollToBottom = useCallback(() => {
+    virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' })
+    setNewMessageCount(0)
+  }, [])
+
+  const scrollApi = useMemo<TimelineScrollApi>(() => ({ scrollToEvent, scrollToBottom }), [scrollToEvent, scrollToBottom])
+
   const handleStartReached = useCallback(() => {
     paginateBackRef.current()
   }, [])
@@ -142,7 +153,7 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
   }
 
   return (
-    <TimelineScrollContext.Provider value={scrollToEvent}>
+    <TimelineScrollContext.Provider value={scrollApi}>
       <PinnedMessageBar roomId={roomId} />
       <span className="sr-only" aria-live="polite" aria-atomic="true">{announcement}</span>
       <div
@@ -160,11 +171,14 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
           firstItemIndex={firstItemIndex}
           initialTopMostItemIndex={focusIndex >= 0 ? focusIndex : listItems.length - 1}
           alignToBottom
-          atBottomStateChange={(atBottom) => { isAtBottomRef.current = atBottom }}
-          followOutput={() => {
-            // Don't auto-scroll if user is composing reply/edit or scrolled up
-            if (replyTarget || editTarget) return false
-            return isAtBottomRef.current ? 'smooth' : false
+          atBottomStateChange={(atBottom) => {
+            isAtBottomRef.current = atBottom
+            setIsAtBottom(atBottom)
+            if (atBottom) setNewMessageCount(0)
+          }}
+          followOutput={(isAtB) => {
+            isAtBottomRef.current = isAtB
+            return isAtB ? 'smooth' : false
           }}
           startReached={handleStartReached}
           increaseViewportBy={{ top: 1500, bottom: 0 }}
@@ -184,6 +198,7 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
             Footer: () => <TypingIndicator roomId={roomId} />,
           }}
         />
+        <ScrollToBottomFab visible={!isAtBottom} newCount={newMessageCount} onClick={scrollToBottom} />
       </div>
     </TimelineScrollContext.Provider>
   )

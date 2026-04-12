@@ -137,6 +137,12 @@ export function setupNotificationListeners() {
       // Muted rooms: skip unless user was @mentioned (Telegram-style)
       const pushRules = client.pushRules
       const isMuted = !!pushRules?.global?.room?.find((r) => r.rule_id === room.roomId)
+
+      // Check if room is muted via tag (in addition to push rules)
+      const roomTags = room.tags || {}
+      const isMutedByTag = !!roomTags['m.mute']
+      if (isMutedByTag) return
+
       if (isMuted) {
         const actions = client.pushProcessor.actionsForEvent(event)
         if (!actions.tweaks?.highlight) return

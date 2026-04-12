@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
 import { ClientEvent, RoomEvent, MatrixEventEvent, SyncState } from 'matrix-js-sdk'
 import { NotificationCountType } from 'matrix-js-sdk/lib/models/room.js'
@@ -50,10 +50,12 @@ function getDmPartnerAvatar(room: Room, myUserId: string): string | null {
   return other?.getMxcAvatarUrl() ?? null
 }
 
-function roomToEntry(room: Room): RoomListEntry {
+function roomToEntry(room: Room): RoomListEntry | null {
   const lastMsg = getLastMessage(room)
-  const client = getMatrixClient()!
-  const myUserId = client.getUserId()!
+  const client = getMatrixClient()
+  if (!client) return null
+  const myUserId = client.getUserId()
+  if (!myUserId) return null
 
   const savedMessages = isSelfDm(room, myUserId)
   const isDirect = savedMessages || isDmRoom(room)
@@ -86,6 +88,8 @@ export function useRoomList() {
   const activeSpaceId = useSpacesStore((s) => s.activeSpaceId)
   const spaces = useSpacesStore((s) => s.spaces)
 
+  const throttleRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const refresh = useCallback(() => {
     const client = getMatrixClient()
     if (!client) return
@@ -99,7 +103,7 @@ export function useRoomList() {
         if (createEvent?.getContent()?.type === 'm.space') return false
         return true
       })
-      .map(roomToEntry)
+      .map(roomToEntry).filter((e): e is RoomListEntry => e !== null)
       .sort((a, b) => {
         if (a.isSavedMessages && !b.isSavedMessages) return -1
         if (!a.isSavedMessages && b.isSavedMessages) return 1
@@ -110,6 +114,12 @@ export function useRoomList() {
 
     setRooms(entries)
   }, [setRooms])
+
+  const scheduleRefresh = useCallback(() => {
+    if (throttleRef.current) return
+    refresh()
+    throttleRef.current = setTimeout(() => { throttleRef.current = null }, 300)
+  }, [refresh])
 
   useEffect(() => {
     const client = getMatrixClient()
@@ -128,8 +138,8 @@ export function useRoomList() {
     // - decrypted event (E2E rooms — mention is hidden until decrypt completes)
     const onRoom = () => refresh()
     const onMembership = () => refresh()
-    const onTimeline = () => refresh()
-    const onDecrypted = () => refresh()
+    const onTimeline = () => scheduleRefresh()
+    const onDecrypted = () => scheduleRefresh()
 
     client.on(ClientEvent.Sync, onSync)
     client.on(ClientEvent.Room, onRoom)
@@ -144,7 +154,7 @@ export function useRoomList() {
       client.removeListener(RoomEvent.Timeline, onTimeline)
       client.removeListener(MatrixEventEvent.Decrypted, onDecrypted)
     }
-  }, [refresh, setInitialLoading])
+  }, [refresh, scheduleRefresh, setInitialLoading])
 
   let filteredRooms = rooms
 

@@ -12,6 +12,15 @@ export function TypingIndicator({ roomId }: TypingIndicatorProps) {
   const client = useMatrixClient()
   const [typingUsers, setTypingUsers] = useState<string[]>([])
 
+  // Auto-clear typing indicator after 5 seconds if server stops sending events
+  useEffect(() => {
+    if (typingUsers.length === 0) return
+    const timer = setTimeout(() => {
+      setTypingUsers([])
+    }, 5000)
+    return () => clearTimeout(timer)
+  }, [typingUsers])
+
   useEffect(() => {
     if (!client) return
 

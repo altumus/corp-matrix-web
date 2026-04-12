@@ -52,7 +52,7 @@ function findMentionEventIds(roomId: string): string[] {
 }
 
 export function MentionNavigator({ roomId }: MentionNavigatorProps) {
-  const scrollToEvent = useTimelineScroll()
+  const { scrollToEvent } = useTimelineScroll()
   const [, setSearchParams] = useSearchParams()
   const [mentionIds, setMentionIds] = useState<string[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
