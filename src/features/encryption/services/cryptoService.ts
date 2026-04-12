@@ -1,5 +1,6 @@
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
 import type { VerificationRequest } from 'matrix-js-sdk/lib/crypto-api/index.js'
+import { ImportRoomKeyStage } from 'matrix-js-sdk/lib/crypto-api/index.js'
 import type { DeviceInfo, KeyBackupInfo } from '../types.js'
 
 export async function getDeviceList(): Promise<DeviceInfo[]> {
@@ -103,4 +104,23 @@ export async function requestOwnUserVerification(): Promise<VerificationRequest>
   if (!crypto) throw new Error('Crypto not initialized')
 
   return await crypto.requestOwnUserVerification()
+}
+
+export async function importRoomKeysFromFile(file: File, passphrase: string): Promise<number> {
+  const client = getMatrixClient()
+  if (!client) throw new Error('Client not initialized')
+  const crypto = client.getCrypto()
+  if (!crypto) throw new Error('Crypto not initialized')
+
+  const text = await file.text()
+  let imported = 0
+  // matrix-js-sdk handles JSON and encrypted formats
+  await crypto.importRoomKeysAsJson(text, {
+    progressCallback: (stage) => {
+      if (stage.stage === ImportRoomKeyStage.LoadKeys) {
+        imported = stage.successes
+      }
+    },
+  })
+  return imported // number of imported keys
 }

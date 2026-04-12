@@ -12,7 +12,6 @@ export const logger = {
     if (isDev) console.warn(...args)
   },
   error: (...args: unknown[]) => {
-    // Errors always go through — caught by ErrorBoundary or Sentry in prod
-    console.error(...args)
+    console.error('[Corp Matrix]', ...args)
   },
 }

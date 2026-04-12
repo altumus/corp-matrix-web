@@ -1,0 +1,78 @@
+# Federation test: Two Synapse servers for testing cross-server communication.
+#
+# Usage:
+#   cd federation-test
+#   docker compose up -d
+#
+# Servers:
+#   synapse1 (server1.localhost:8008) — main server
+#   synapse2 (server2.localhost:8009) — federated server
+#
+# After startup:
+#   1. Register users on both servers (via API or Element)
+#   2. Invite user@server2 from user@server1
+#   3. Verify messages, E2E encryption, presence work cross-server
+
+services:
+  synapse1:
+    image: matrixdotorg/synapse:latest
+    container_name: synapse1
+    ports:
+      - "8008:8008"
+    volumes:
+      - ./synapse1-data:/data
+    environment:
+      SYNAPSE_SERVER_NAME: server1.localhost
+      SYNAPSE_REPORT_STATS: "no"
+      SYNAPSE_CONFIG_DIR: /data
+    entrypoint: >
+      sh -c "
+        if [ ! -f /data/homeserver.yaml ]; then
+          /start.py generate
+          # Enable federation, registration, and shared secret
+          echo '
+      enable_registration: true
+      enable_registration_without_verification: true
+      registration_shared_secret: \"test-shared-secret-1\"
+
+      # Federation
+      federation_domain_whitelist:
+        - server2.localhost
+
+      # Allow federation over plain HTTP (for local testing only!)
+      federation_verify_certificates: false
+
+      # Listeners — add federation listener
+      ' >> /data/homeserver.yaml
+        fi
+        /start.py
+      "
+
+  synapse2:
+    image: matrixdotorg/synapse:latest
+    container_name: synapse2
+    ports:
+      - "8009:8008"
+    volumes:
+      - ./synapse2-data:/data
+    environment:
+      SYNAPSE_SERVER_NAME: server2.localhost
+      SYNAPSE_REPORT_STATS: "no"
+      SYNAPSE_CONFIG_DIR: /data
+    entrypoint: >
+      sh -c "
+        if [ ! -f /data/homeserver.yaml ]; then
+          /start.py generate
+          echo '
+      enable_registration: true
+      enable_registration_without_verification: true
+      registration_shared_secret: \"test-shared-secret-2\"
+
+      federation_domain_whitelist:
+        - server1.localhost
+
+      federation_verify_certificates: false
+      ' >> /data/homeserver.yaml
+        fi
+        /start.py
+      "
