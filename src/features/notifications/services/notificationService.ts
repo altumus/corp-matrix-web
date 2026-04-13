@@ -44,18 +44,27 @@ export async function requestNotificationPermission(): Promise<boolean> {
   return permission === 'granted'
 }
 
-/** Strip HTML tags and decode entities for clean notification body */
+/** Strip HTML tags, markdown syntax, and decode entities for clean notification body */
 function sanitizeNotificationBody(text: string): string {
   return text
-    .replace(/<[^>]*>/g, '')           // strip HTML tags
+    .replace(/<[^>]*>/g, '')                    // strip HTML tags
+    .replace(/```[\s\S]*?```/g, '[код]')        // code blocks → [код]
+    .replace(/`([^`]+)`/g, '$1')                // inline code → content
+    .replace(/\*\*(.+?)\*\*/g, '$1')            // **bold** → bold
+    .replace(/\*(.+?)\*/g, '$1')                // *italic* → italic
+    .replace(/~~(.+?)~~/g, '$1')                // ~~strike~~ → strike
+    .replace(/^> /gm, '')                       // > quote → quote
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')    // [text](url) → text
+    .replace(/#{1,6}\s/g, '')                    // # heading → heading
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
-    .replace(/\s+/g, ' ')             // collapse whitespace
+    .replace(/\n/g, ' ')
+    .replace(/\s+/g, ' ')                       // collapse whitespace
     .trim()
-    .slice(0, 200)                     // limit length
+    .slice(0, 200)                              // limit length
 }
 
 export async function showDesktopNotification(title: string, body: string, roomId?: string) {

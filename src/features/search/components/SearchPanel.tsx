@@ -45,6 +45,7 @@ export function SearchPanel() {
           onKeyDown={handleKeyDown}
           placeholder={t('search.placeholder')}
           autoFocus
+          autoComplete="off"
         />
         <div className={styles.tabs}>
           <button

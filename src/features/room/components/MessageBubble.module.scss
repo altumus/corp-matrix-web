@@ -118,6 +118,31 @@
   margin-bottom: var(--spacing-xxs);
 }
 
+.avatarClickable {
+  cursor: pointer;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  transition: opacity var(--transition-fast);
+
+  &:hover {
+    opacity: 0.8;
+  }
+}
+
+.senderClickable {
+  display: block;
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-md);
+  color: var(--color-accent);
+  margin-bottom: var(--spacing-xxs);
+  cursor: pointer;
+  text-align: left;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
 .meta {
   display: inline-flex;
   align-items: center;

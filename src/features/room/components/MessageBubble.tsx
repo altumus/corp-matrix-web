@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import type { TimelineEvent } from '../types.js';
 import { Avatar } from '../../../shared/ui/index.js';
+import { UserProfilePopup } from './UserProfilePopup.js';
 import {
 	MessageContextMenu,
 	type ContextMenuAction,
@@ -67,6 +68,7 @@ export function MessageBubble({
 		selectedText: string;
 	} | null>(null);
 	const [showReactionPicker, setShowReactionPicker] = useState(false);
+	const [profilePopup, setProfilePopup] = useState<DOMRect | null>(null);
 	const [showForwardDialog, setShowForwardDialog] = useState(false);
 	const [showReactionDetails, setShowReactionDetails] = useState(false);
 	const [optimisticReactions, setOptimisticReactions] = useState<Map<string, Set<string>> | null>(null);
@@ -490,7 +492,13 @@ export function MessageBubble({
 				</div>
 			)}
 			{!isOwnMessage && showAvatar ? (
-				<Avatar src={event.senderAvatar} name={event.senderName} size='sm' />
+				<button
+					className={styles.avatarClickable}
+					onClick={(e) => setProfilePopup(e.currentTarget.getBoundingClientRect())}
+					aria-label={event.senderName}
+				>
+					<Avatar src={event.senderAvatar} name={event.senderName} size='sm' />
+				</button>
 			) : !isOwnMessage ? (
 				<div className={styles.avatarPlaceholder} />
 			) : null}
@@ -500,7 +508,12 @@ export function MessageBubble({
 				className={`${styles.bubble} ${isHighlighted ? styles.highlighted : ''}`}
 			>
 				{!isOwnMessage && showAvatar && (
-					<span className={styles.sender}>{event.senderName}</span>
+					<button
+						className={styles.senderClickable}
+						onClick={(e) => setProfilePopup(e.currentTarget.getBoundingClientRect())}
+					>
+						{event.senderName}
+					</button>
 				)}
 
 				{event.replyToEvent && event.replyTo && (
@@ -600,6 +613,14 @@ export function MessageBubble({
 						onClose={() => setLightbox(null)}
 					/>
 				</Suspense>
+			)}
+			{profilePopup && (
+				<UserProfilePopup
+					userId={event.sender}
+					roomId={event.roomId}
+					onClose={() => setProfilePopup(null)}
+					anchorRect={profilePopup}
+				/>
 			)}
 		</div>
 	);

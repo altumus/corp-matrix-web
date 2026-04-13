@@ -94,6 +94,7 @@ export function RoomSearch() {
         onFocus={() => { if (hasQuery) setOpen(true) }}
         onKeyDown={handleKeyDown}
         placeholder={t('rooms.search')}
+        autoComplete="off"
       />
 
       {open && hasQuery && (

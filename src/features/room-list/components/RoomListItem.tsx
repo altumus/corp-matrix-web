@@ -30,12 +30,29 @@ function SavedMessagesIcon() {
   )
 }
 
+/** Strip markdown syntax to plain text for previews */
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/```[\s\S]*?```/g, '[код]')       // code blocks → [код]
+    .replace(/`([^`]+)`/g, '$1')                // inline code → content
+    .replace(/\*\*(.+?)\*\*/g, '$1')            // **bold** → bold
+    .replace(/\*(.+?)\*/g, '$1')                // *italic* → italic
+    .replace(/~~(.+?)~~/g, '$1')                // ~~strike~~ → strike
+    .replace(/^> /gm, '')                       // > quote → quote
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')    // [text](url) → text
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')   // ![alt](url) → alt
+    .replace(/#{1,6}\s/g, '')                    // # heading → heading
+    .replace(/\n/g, ' ')                         // newlines → space
+    .replace(/\s+/g, ' ')                        // collapse spaces
+    .trim()
+}
+
 function getMessagePreview(room: RoomListEntry, myUserId: string | null, youLabel: string): string {
   if (!room.lastMessage) return ''
   // Replace SDK's UTD placeholder with a cleaner message
   const msg = room.lastMessage.startsWith('** Unable to decrypt')
     ? 'Зашифрованное сообщение'
-    : room.lastMessage
+    : stripMarkdown(room.lastMessage)
   const isMyMessage = myUserId && room.lastMessageSenderId === myUserId
   if (room.isSavedMessages) return msg
   if (room.isDirect) {

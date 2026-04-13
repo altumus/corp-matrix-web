@@ -88,11 +88,13 @@ export function EncryptionSettings() {
         <div style={{ display: 'flex', gap: 'var(--spacing-sm)', alignItems: 'flex-end' }}>
           <div style={{ flex: 1 }}>
             <Input
-              type="password"
+              type="text"
               value={recoveryKey}
               onChange={(e) => setRecoveryKey(e.target.value)}
               placeholder="EsTc aHph ..."
               label="Recovery Key"
+              autoComplete="off"
+              name="recovery-key-input"
             />
           </div>
           <Button
