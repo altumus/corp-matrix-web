@@ -150,7 +150,18 @@ export function MessageContent({
             dangerouslySetInnerHTML={{ __html: sanitizeHtml(formattedBody) }}
           />
         ) : (
-          <p className={styles.textContent}>{body}</p>
+          <div
+            className={styles.textContent}
+            dangerouslySetInnerHTML={{
+              __html: sanitizeHtml(
+                body
+                  .replace(/&/g, '&amp;')
+                  .replace(/</g, '&lt;')
+                  .replace(/>/g, '&gt;')
+                  .replace(/\n/g, '<br />')
+              ),
+            }}
+          />
         ))}
       {isEdited && <span className={styles.edited}>(изм.)</span>}
     </div>

@@ -5,12 +5,34 @@ import { useThread } from '../hooks/useThread.js'
 import { Avatar } from '../../../shared/ui/index.js'
 import { sendTextMessage } from '../../messaging/services/messageService.js'
 import { useIsMobile } from '../../../shared/hooks/useMediaQuery.js'
+import { sanitizeHtml } from '../../../shared/lib/sanitizeHtml.js'
+import type { TimelineEvent } from '../types.js'
 import styles from './ThreadPanel.module.scss'
 
 interface ThreadPanelProps {
   roomId: string
   threadRootId: string
   onClose: () => void
+}
+
+/** Render message body — use formatted_body (HTML) when available, fallback to plain text */
+function MessageBody({ event, className }: { event: TimelineEvent; className: string }) {
+  const formattedBody = event.content.formatted_body as string | undefined
+  const format = event.content.format as string | undefined
+  const body = (event.content.body as string) || ''
+
+  if (formattedBody && format === 'org.matrix.custom.html') {
+    return (
+      <div
+        className={className}
+        dangerouslySetInnerHTML={{ __html: sanitizeHtml(formattedBody) }}
+      />
+    )
+  }
+
+  // Plain text — wrap in sanitizeHtml to get hashtag highlighting + line breaks
+  const html = sanitizeHtml(body.replace(/\n/g, '<br />'))
+  return <div className={className} dangerouslySetInnerHTML={{ __html: html }} />
 }
 
 export function ThreadPanel({ roomId, threadRootId, onClose }: ThreadPanelProps) {
@@ -66,7 +88,7 @@ export function ThreadPanel({ roomId, threadRootId, onClose }: ThreadPanelProps)
           <Avatar src={rootEvent.senderAvatar} name={rootEvent.senderName} size="sm" />
           <div className={styles.rootContent}>
             <span className={styles.rootSender}>{rootEvent.senderName}</span>
-            <span className={styles.rootBody}>{(rootEvent.content.body as string) || ''}</span>
+            <MessageBody event={rootEvent} className={styles.rootBody} />
           </div>
         </div>
       )}
@@ -82,7 +104,7 @@ export function ThreadPanel({ roomId, threadRootId, onClose }: ThreadPanelProps)
                   {new Date(ev.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </time>
               </div>
-              <span className={styles.replyBody}>{(ev.content.body as string) || ''}</span>
+              <MessageBody event={ev} className={styles.replyBody} />
             </div>
           </div>
         ))}

@@ -9,6 +9,7 @@ import { useIncomingVerification } from '../../features/encryption/hooks/useInco
 import { IncomingVerificationDialog } from '../../features/encryption/components/IncomingVerificationDialog.js'
 import { useIsMobile } from '../../shared/hooks/useMediaQuery.js'
 import { useIdleLogout } from '../../shared/hooks/useIdleLogout.js'
+import { useViewportHeight } from '../../shared/hooks/useViewportHeight.js'
 import { useKeyboardShortcuts } from '../../shared/hooks/useKeyboardShortcuts.js'
 import { useEffect } from 'react'
 import { useComposerStore } from '../../features/messaging/store/composerStore.js'
@@ -19,6 +20,7 @@ export function MainLayout() {
   useNotifications()
   useIdleLogout()
   useKeyboardShortcuts()
+  useViewportHeight()
 
   // Cleanup stale drafts once after layout mounts
   const cleanupStaleDrafts = useComposerStore((s) => s.cleanupStaleDrafts)

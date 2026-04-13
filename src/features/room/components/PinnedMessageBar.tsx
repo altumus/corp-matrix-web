@@ -4,6 +4,7 @@ import { RoomStateEvent } from 'matrix-js-sdk'
 import type { MatrixEvent } from 'matrix-js-sdk'
 import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { useTimelineScroll } from '../context/TimelineScrollContext.js'
+import { sanitizeHtml } from '../../../shared/lib/sanitizeHtml.js'
 import styles from './PinnedMessageBar.module.scss'
 
 interface PinnedMessageBarProps {
@@ -111,7 +112,18 @@ export function PinnedMessageBar({ roomId }: PinnedMessageBarProps) {
       <Pin size={16} className={styles.pinIcon} />
       <button className={styles.content} onClick={handleClick}>
         <span className={styles.sender}>{current.sender}</span>
-        <span className={styles.body}>{current.body}</span>
+        <span
+          className={styles.body}
+          dangerouslySetInnerHTML={{
+            __html: sanitizeHtml(
+              current.body
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/\n/g, ' ')
+            ),
+          }}
+        />
       </button>
       {pinnedMessages.length > 1 && (
         <div className={styles.nav}>

@@ -106,21 +106,75 @@ export async function requestOwnUserVerification(): Promise<VerificationRequest>
   return await crypto.requestOwnUserVerification()
 }
 
-export async function importRoomKeysFromFile(file: File, _passphrase: string): Promise<number> {
+/**
+ * Decrypt a megolm key export file (the format used by Element/FluffyChat).
+ * Format: "-----BEGIN MEGOLM SESSION DATA-----" + base64 + "-----END..."
+ * Encryption: PBKDF2-SHA-512 → AES-256-CTR + HMAC-SHA-256
+ */
+async function decryptMegolmKeyExport(data: string, passphrase: string): Promise<string> {
+  // Strip PEM-like header/footer
+  const lines = data.split('\n').map((l) => l.trim())
+  const start = lines.findIndex((l) => l.includes('BEGIN MEGOLM SESSION DATA'))
+  const end = lines.findIndex((l) => l.includes('END MEGOLM SESSION DATA'))
+  if (start === -1 || end === -1) throw new Error('Invalid key export format')
+
+  const base64 = lines.slice(start + 1, end).join('')
+  const buf = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0))
+
+  // Parse binary: version(1) + salt(16) + iv(16) + rounds(4) + ciphertext(...) + hmac(32)
+  if (buf[0] !== 1) throw new Error(`Unsupported export version: ${buf[0]}`)
+  const salt = buf.slice(1, 17)
+  const iv = buf.slice(17, 33)
+  const rounds = new DataView(buf.buffer, buf.byteOffset + 33, 4).getUint32(0, false)
+  const ciphertext = buf.slice(37, buf.length - 32)
+  const hmacExpected = buf.slice(buf.length - 32)
+
+  // Derive key: PBKDF2-SHA-512 → 64 bytes (32 AES + 32 HMAC)
+  const enc = new TextEncoder()
+  const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(passphrase), 'PBKDF2', false, ['deriveBits'])
+  const derived = new Uint8Array(
+    await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations: rounds, hash: 'SHA-512' }, keyMaterial, 512),
+  )
+  const aesKeyBuf = derived.slice(0, 32)
+  const hmacKeyBuf = derived.slice(32)
+
+  // Verify HMAC-SHA-256 over everything except the HMAC itself
+  const hmacKey = await crypto.subtle.importKey('raw', hmacKeyBuf, { name: 'HMAC', hash: 'SHA-256' }, false, ['verify'])
+  const dataToVerify = buf.slice(0, buf.length - 32)
+  const hmacValid = await crypto.subtle.verify('HMAC', hmacKey, hmacExpected, dataToVerify)
+  if (!hmacValid) throw new Error('Неверный пароль или повреждённый файл')
+
+  // Decrypt AES-CTR-256
+  const aesKey = await crypto.subtle.importKey('raw', aesKeyBuf, 'AES-CTR', false, ['decrypt'])
+  const decrypted = await crypto.subtle.decrypt({ name: 'AES-CTR', counter: iv, length: 64 }, aesKey, ciphertext)
+  return new TextDecoder().decode(decrypted)
+}
+
+export async function importRoomKeysFromFile(file: File, passphrase: string): Promise<number> {
   const client = getMatrixClient()
   if (!client) throw new Error('Client not initialized')
   const crypto = client.getCrypto()
   if (!crypto) throw new Error('Crypto not initialized')
 
   const text = await file.text()
+  let jsonText: string
+
+  if (text.includes('BEGIN MEGOLM SESSION DATA')) {
+    // Encrypted export (FluffyChat / Element format) — decrypt with passphrase
+    if (!passphrase) throw new Error('Файл зашифрован — введите пароль')
+    jsonText = await decryptMegolmKeyExport(text, passphrase)
+  } else {
+    // Plain JSON export
+    jsonText = text
+  }
+
   let imported = 0
-  // matrix-js-sdk handles JSON and encrypted formats
-  await crypto.importRoomKeysAsJson(text, {
+  await crypto.importRoomKeysAsJson(jsonText, {
     progressCallback: (stage) => {
       if (stage.stage === ImportRoomKeyStage.LoadKeys) {
         imported = stage.successes
       }
     },
   })
-  return imported // number of imported keys
+  return imported
 }

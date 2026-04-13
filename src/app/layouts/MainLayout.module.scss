@@ -3,7 +3,7 @@
 .layout {
   display: flex;
   flex-direction: column;
-  height: 100dvh;
+  height: calc(var(--vh, 1dvh) * 100);
   overflow: hidden;
 }
 
@@ -12,6 +12,7 @@
   flex: 1;
   overflow: hidden;
   position: relative;
+  min-height: 0;
 }
 
 .sidebar {
@@ -36,6 +37,7 @@
   flex-direction: column;
   overflow: hidden;
   background: var(--color-bg-primary);
+  min-height: 0;
 }
 
 .contentMobile {
