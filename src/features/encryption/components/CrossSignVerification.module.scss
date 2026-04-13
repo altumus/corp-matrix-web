@@ -79,4 +79,32 @@
 .backRow {
   display: flex;
   justify-content: center;
+  gap: var(--spacing-sm);
+}
+
+.emojiGrid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.emojiItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.emoji {
+  font-size: 32px;
+  line-height: 1;
+}
+
+.emojiName {
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  text-align: center;
 }

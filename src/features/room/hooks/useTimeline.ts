@@ -146,8 +146,16 @@ function collectEvents(room: Room): TimelineEvent[] {
         reactionCount = rels?.getRelations().length || 0
       } catch { /* relations API may not be available */ }
 
+      // Also invalidate cache if decryption status changed (event was decrypted after key restore)
+      const isEncrypted = e.isEncrypted()
+      const isStillFailed = isEncrypted && e.getType() === 'm.room.encrypted'
       const cached = cache.get(id)
-      if (cached && cached.editTs === editTs && (cached.reactionCount ?? 0) === reactionCount) {
+      if (
+        cached &&
+        cached.editTs === editTs &&
+        (cached.reactionCount ?? 0) === reactionCount &&
+        cached.ev.isDecryptionFailure === isStillFailed // ← re-map if decryption status changed
+      ) {
         const tc = threadCounts.get(id)
         if (tc !== cached.ev.threadReplyCount) {
           cached.ev.threadReplyCount = tc
@@ -274,6 +282,8 @@ export function useTimeline(roomId: string) {
       if (activeRoomIdRef.current !== roomId) return
       const room = roomRef.current
       if (!room) return
+      // Clear cache so newly-decrypted events get re-mapped with actual content
+      eventCache.delete(room)
       prevEventIdsRef.current = ''
       refreshEvents()
     }

@@ -27,12 +27,16 @@ export function EncryptionSettings() {
     setBackupInfo(info)
     setLoading(false)
 
-    // Check if current device is cross-signed
+    // Check if current device is verified (cross-signed)
     const crypto = client?.getCrypto()
-    if (crypto) {
+    if (crypto && client) {
       try {
-        const status = await crypto.getCrossSigningStatus()
-        setIsDeviceVerified(status.privateKeysInSecretStorage)
+        const myUserId = client.getUserId()
+        const myDeviceId = client.getDeviceId()
+        if (myUserId && myDeviceId) {
+          const deviceStatus = await crypto.getDeviceVerificationStatus(myUserId, myDeviceId)
+          setIsDeviceVerified(deviceStatus?.crossSigningVerified ?? false)
+        }
       } catch { /* ignore */ }
     }
   }, [client])
@@ -52,9 +56,10 @@ export function EncryptionSettings() {
       await crypto.loadSessionBackupPrivateKeyFromSecretStorage()
       await crypto.checkKeyBackupAndEnable()
       try { await crypto.bootstrapCrossSigning({ setupNewCrossSigning: false }) } catch { /* best-effort */ }
-      toast('Ключи восстановлены. Старые сообщения будут расшифрованы.', 'success')
+      toast('Ключи восстановлены. Перезагрузка для расшифровки сообщений...', 'success')
       setRecoveryKey('')
-      refresh()
+      // Reload page so all rooms re-fetch and decrypt events with restored keys
+      setTimeout(() => window.location.reload(), 1500)
     } catch (err) {
       const msg = err instanceof Error ? err.message : ''
       if (msg.includes('does not match') || msg.includes('MAC mismatch')) {

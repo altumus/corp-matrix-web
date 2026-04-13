@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 
 const STORAGE_KEY = 'corp-matrix-frequent-emoji'
 const MAX_TRACKED = 20
-const DEFAULTS = ['👍', '❤️', '😂', '😮', '😢', '🙏']
+const DEFAULTS = ['👍', '👀', '🔥', '🤝', '❤️', '😂']
 
 interface EmojiCount {
   emoji: string
