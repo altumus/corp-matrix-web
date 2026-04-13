@@ -95,7 +95,9 @@ function isThreadReply(e: MatrixEvent): boolean {
 
 function countThreadReplies(room: Room): Map<string, number> {
   const counts = new Map<string, number>()
-  const allTimelines = room.getUnfilteredTimelineSet().getTimelines()
+  let allTimelines
+  try { allTimelines = room.getUnfilteredTimelineSet()?.getTimelines() } catch { return counts }
+  if (!allTimelines) return counts
   for (const tl of allTimelines) {
     for (const e of tl.getEvents()) {
       const rel = e.getContent()?.['m.relates_to'] as Record<string, unknown> | undefined
@@ -123,10 +125,18 @@ function getCacheForRoom(room: Room): Map<string, { ev: TimelineEvent; editTs: n
 function collectEvents(room: Room): TimelineEvent[] {
   const mapped: TimelineEvent[] = []
   const seen = new Set<string>()
+
+  // Guard: room may not be fully initialized after reload (crypto still loading)
+  let allTimelines
+  try {
+    allTimelines = room.getUnfilteredTimelineSet()?.getTimelines()
+  } catch {
+    return []
+  }
+  if (!allTimelines) return []
+
   const threadCounts = countThreadReplies(room)
   const cache = getCacheForRoom(room)
-
-  const allTimelines = room.getUnfilteredTimelineSet().getTimelines()
   for (const tl of allTimelines) {
     for (const e of tl.getEvents()) {
       if (!TIMELINE_EVENT_TYPES.includes(e.getType())) continue
