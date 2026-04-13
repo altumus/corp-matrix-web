@@ -68,25 +68,70 @@ export function useCombinedSearch(query: string): CombinedSearchResult {
     }
   }, [])
 
+  const searchMessagesLocal = useCallback((term: string): MessageResult[] => {
+    const client = getMatrixClient()
+    if (!client) return []
+
+    const lowerTerm = term.toLowerCase()
+    const results: MessageResult[] = []
+
+    for (const room of client.getRooms()) {
+      if (room.getMyMembership() !== 'join') continue
+      let timelines
+      try {
+        timelines = room.getUnfilteredTimelineSet()?.getTimelines()
+      } catch { continue }
+      if (!timelines) continue
+
+      for (const tl of timelines) {
+        for (const ev of tl.getEvents()) {
+          const type = ev.getType()
+          if (type !== 'm.room.message' && type !== 'm.room.encrypted') continue
+          if (ev.isRedacted()) continue
+          const body = (ev.getContent()?.body as string) || ''
+          if (!body || !body.toLowerCase().includes(lowerTerm)) continue
+
+          const member = room.getMember(ev.getSender()!)
+          results.push({
+            eventId: ev.getId()!,
+            roomId: room.roomId,
+            roomName: room.name || room.roomId,
+            senderName: member?.name || ev.getSender()!,
+            body,
+            timestamp: ev.getTs(),
+          })
+        }
+      }
+    }
+
+    results.sort((a, b) => b.timestamp - a.timestamp)
+    return results.slice(0, 20)
+  }, [])
+
   const searchMessages = useCallback(async (term: string, id: number) => {
     const client = getMatrixClient()
     if (!client) return
 
     setLoadingMessages(true)
     try {
-      const body: ISearchRequestBody = {
-        search_categories: {
-          room_events: {
-            search_term: term,
-            order_by: SearchOrderBy.Recent,
+      // Local search (works for encrypted rooms with decrypted events)
+      const localResults = searchMessagesLocal(term)
+
+      // Server-side search (works for unencrypted rooms, may return more results)
+      let serverResults: MessageResult[] = []
+      try {
+        const body: ISearchRequestBody = {
+          search_categories: {
+            room_events: {
+              search_term: term,
+              order_by: SearchOrderBy.Recent,
+            },
           },
-        },
-      }
-      const response = await client.search({ body })
-      if (abortRef.current !== id) return
-      const roomEvents = response?.search_categories?.room_events
-      setMessages(
-        (roomEvents?.results || []).slice(0, 10).map((r: ISearchResult) => {
+        }
+        const response = await client.search({ body })
+        if (abortRef.current !== id) return
+        const roomEvents = response?.search_categories?.room_events
+        serverResults = (roomEvents?.results || []).slice(0, 10).map((r: ISearchResult) => {
           const ev = r.result
           const room = client.getRoom(ev.room_id)
           const member = room?.getMember(ev.sender)
@@ -98,14 +143,22 @@ export function useCombinedSearch(query: string): CombinedSearchResult {
             body: (ev.content as Record<string, unknown>)?.body as string || '',
             timestamp: ev.origin_server_ts,
           }
-        }),
-      )
+        })
+      } catch { /* server search may fail for encrypted-only servers */ }
+
+      if (abortRef.current !== id) return
+
+      // Merge: deduplicate by eventId, prefer local (has decrypted content)
+      const seen = new Set(localResults.map((r) => r.eventId))
+      const merged = [...localResults, ...serverResults.filter((r) => !seen.has(r.eventId))]
+      merged.sort((a, b) => b.timestamp - a.timestamp)
+      setMessages(merged.slice(0, 20))
     } catch {
       if (abortRef.current === id) setMessages([])
     } finally {
       if (abortRef.current === id) setLoadingMessages(false)
     }
-  }, [])
+  }, [searchMessagesLocal])
 
   useEffect(() => {
     const id = ++abortRef.current

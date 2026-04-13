@@ -204,6 +204,16 @@ export function useTimeline(roomId: string) {
   const prevEventIdsRef = useRef('')
   const prevFirstIdRef = useRef<string | null>(null)
   const decryptDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [prevRoomId, setPrevRoomId] = useState(roomId)
+
+  // Synchronous state reset during render — eliminates the stale-state frame
+  // that useEffect (which fires after paint) cannot prevent.
+  if (roomId !== prevRoomId) {
+    setPrevRoomId(roomId)
+    setLoading(true)
+    setEvents([])
+    setPrependCount(0)
+  }
 
   const refreshEvents = useCallback(() => {
     const room = roomRef.current
@@ -254,7 +264,6 @@ export function useTimeline(roomId: string) {
     activeRoomIdRef.current = roomId
     prevFirstIdRef.current = null
     prevEventIdsRef.current = ''
-    setPrependCount(0)
     paginatingRef.current = false
 
     if (!client) return

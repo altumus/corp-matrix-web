@@ -62,9 +62,14 @@
   color: var(--color-text-secondary);
   transition: all var(--transition-fast);
 
-  &:hover {
+  &:hover:not(:disabled) {
     background: var(--color-bg-hover);
     color: var(--color-text-primary);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
   }
 }
 
@@ -75,19 +80,13 @@
   text-align: center;
 }
 
-.closeBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: var(--radius-sm);
-  color: var(--color-text-secondary);
-  flex-shrink: 0;
-  transition: all var(--transition-fast);
+.barLoading {
+  .content {
+    cursor: default;
+    opacity: 0.7;
 
-  &:hover {
-    background: var(--color-bg-hover);
-    color: var(--color-text-primary);
+    &:hover {
+      background: none;
+    }
   }
 }

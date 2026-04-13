@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useSearchParams } from 'react-router'
 import { useRoomListStore } from '../../room-list/store/roomListStore.js'
 import { useRoom } from '../hooks/useRoom.js'
@@ -11,6 +11,7 @@ import { MentionNavigator } from './MentionNavigator.js'
 import { MessageComposer } from '../../messaging/components/MessageComposer.js'
 import { RoomDetailsPanel } from './RoomDetailsPanel.js'
 import { ThreadPanel } from './ThreadPanel.js'
+import { RoomSearchBar } from './RoomSearchBar.js'
 import { Spinner } from '../../../shared/ui/index.js'
 import { RightPanelCtx, type RightPanel } from '../context/RightPanelContext.js'
 import styles from './RoomView.module.scss'
@@ -23,6 +24,7 @@ export default function RoomView() {
   const { uploadFiles } = useMediaUpload(roomId ?? '')
   const focusEventId = searchParams.get('eventId') || undefined
   const [rightPanel, setRightPanel] = useState<RightPanel>(null)
+  const [showSearch, setShowSearch] = useState(false)
   const setSelectedRoom = useRoomListStore((s) => s.setSelectedRoom)
 
   useEffect(() => {
@@ -30,7 +32,24 @@ export default function RoomView() {
       setSelectedRoom(roomId)
     }
     setRightPanel(null)
+    setShowSearch(false)
   }, [roomId, setSelectedRoom])
+
+  // Ctrl+F opens in-room search
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault()
+        setShowSearch((v) => !v)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  const handleSearchNavigate = useCallback((eventId: string) => {
+    setSearchParams({ eventId }, { replace: true })
+  }, [setSearchParams])
 
   const clearFocusEvent = () => {
     if (searchParams.has('eventId')) {
@@ -62,7 +81,14 @@ export default function RoomView() {
       <MediaUploader onFiles={uploadFiles}>
         <div className={styles.wrapper}>
           <div className={styles.container}>
-            <RoomHeader room={room} />
+            <RoomHeader room={room} onSearchToggle={() => setShowSearch((v) => !v)} />
+            {showSearch && (
+              <RoomSearchBar
+                roomId={room.roomId}
+                onClose={() => setShowSearch(false)}
+                onNavigate={handleSearchNavigate}
+              />
+            )}
             <GroupCallView />
             <Timeline
               roomId={room.roomId}

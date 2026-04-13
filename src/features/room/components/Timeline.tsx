@@ -80,6 +80,8 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
   }, [roomId, setScrollState])
 
   const listItems = useMemo(() => buildListItems(events), [events])
+  const listItemsRef = useRef(listItems)
+  listItemsRef.current = listItems
 
   useEffect(() => {
     scrollRestoredRef.current = false
@@ -160,17 +162,38 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
 
   const scrollHighlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const scrollToEvent = useCallback((eventId: string) => {
-    const index = listItems.findIndex((item) => item.key === eventId)
-    if (index === -1) return
+  const highlightAndScroll = useCallback((eventId: string, items: ListItem[]) => {
+    const index = items.findIndex((item) => item.key === eventId)
+    if (index === -1) return false
+    isAtBottomRef.current = false
+    setIsAtBottom(false)
     virtuosoRef.current?.scrollToIndex({ index, align: 'center', behavior: 'smooth' })
     setHighlightedEventId(eventId)
     if (scrollHighlightTimerRef.current) clearTimeout(scrollHighlightTimerRef.current)
     scrollHighlightTimerRef.current = setTimeout(() => {
       setHighlightedEventId(null)
       scrollHighlightTimerRef.current = null
-    }, 2000)
-  }, [listItems])
+    }, 10000)
+    return true
+  }, [])
+
+  const waitForRender = useCallback(() =>
+    new Promise<void>((r) => setTimeout(r, 200)), [])
+
+  const scrollToEvent = useCallback(async (eventId: string) => {
+    // Try to scroll immediately
+    if (highlightAndScroll(eventId, listItemsRef.current)) return
+
+    // Event not in loaded timeline — paginate back until found
+    const maxAttempts = 10
+    for (let i = 0; i < maxAttempts; i++) {
+      await paginateBackRef.current()
+      // Wait for React to re-render with new listItems
+      await waitForRender()
+      // Check latest listItems via ref
+      if (highlightAndScroll(eventId, listItemsRef.current)) return
+    }
+  }, [highlightAndScroll, waitForRender])
 
   // Cleanup scrollToEvent timer on unmount
   useEffect(() => {

@@ -12,6 +12,7 @@ import {
 	Trash2,
 	CheckSquare,
 	MessageSquare,
+	Pin,
 } from 'lucide-react';
 import type { TimelineEvent } from '../types.js';
 import { Avatar } from '../../../shared/ui/index.js';
@@ -325,6 +326,31 @@ export function MessageBubble({
 				onClick: () => {
 					setContextMenu(null);
 					startSelecting(event.eventId);
+				},
+			},
+			{
+				id: 'pin',
+				icon: <Pin size={16} />,
+				label: (() => {
+					const room = client?.getRoom(event.roomId);
+					const pinEvent = room?.currentState.getStateEvents('m.room.pinned_events', '');
+					const pinned = (pinEvent?.getContent()?.pinned as string[]) || [];
+					return pinned.includes(event.eventId)
+						? t('messages.unpin', { defaultValue: 'Открепить' })
+						: t('messages.pin', { defaultValue: 'Закрепить' });
+				})(),
+				onClick: () => {
+					const room = client?.getRoom(event.roomId);
+					if (!client || !room) return;
+					const pinEvent = room.currentState.getStateEvents('m.room.pinned_events', '');
+					const pinned = [...((pinEvent?.getContent()?.pinned as string[]) || [])];
+					const idx = pinned.indexOf(event.eventId);
+					if (idx >= 0) {
+						pinned.splice(idx, 1);
+					} else {
+						pinned.push(event.eventId);
+					}
+					client.sendStateEvent(event.roomId, 'm.room.pinned_events' as never, { pinned }, '').catch(() => {});
 				},
 			},
 			{

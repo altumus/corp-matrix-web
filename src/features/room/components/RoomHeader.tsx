@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, UserPlus, Phone, Video, Users } from 'lucide-react'
+import { ArrowLeft, UserPlus, Phone, Video, Users, Search } from 'lucide-react'
 import { useCallStore } from '../../calls/store/callStore.js'
 import { useGroupCallStore } from '../../calls/store/groupCallStore.js'
 import { useActiveGroupCall } from '../../calls/hooks/useGroupCall.js'
@@ -17,9 +17,10 @@ import styles from './RoomHeader.module.scss'
 
 interface RoomHeaderProps {
   room: RoomSummary
+  onSearchToggle?: () => void
 }
 
-export function RoomHeader({ room }: RoomHeaderProps) {
+export function RoomHeader({ room, onSearchToggle }: RoomHeaderProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [showInvite, setShowInvite] = useState(false)
@@ -133,6 +134,13 @@ export function RoomHeader({ room }: RoomHeaderProps) {
           )}
         </>
       )}
+      <button
+        className={styles.inviteBtn}
+        onClick={onSearchToggle}
+        title={t('search.inRoom', { defaultValue: 'Поиск по чату' }) + ' (Ctrl+F)'}
+      >
+        <Search size={18} />
+      </button>
       <button
         className={styles.inviteBtn}
         onClick={() => setShowInvite(true)}

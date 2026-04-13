@@ -54,8 +54,16 @@ export function RoomSearch() {
         setOpen(false)
       }
     }
+    const handleFocusSearch = () => {
+      inputRef.current?.focus()
+      setOpen(true)
+    }
     document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
+    window.addEventListener('focus-room-search', handleFocusSearch)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      window.removeEventListener('focus-room-search', handleFocusSearch)
+    }
   }, [])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

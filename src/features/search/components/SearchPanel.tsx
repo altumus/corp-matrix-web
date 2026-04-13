@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useDebounce } from '../../../shared/hooks/useDebounce.js'
 import { useMessageSearch } from '../hooks/useMessageSearch.js'
@@ -18,17 +18,29 @@ export function SearchPanel() {
 
   const messageSearch = useMessageSearch()
   const userSearch = useUserSearch()
+  const didMountRef = useRef(false)
 
-  const handleSearch = () => {
+  useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true
+      return
+    }
+    if (!debouncedQuery.trim()) return
     if (tab === 'messages') {
       messageSearch.search(debouncedQuery)
     } else {
       userSearch.search(debouncedQuery)
     }
-  }
+  }, [debouncedQuery, tab])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') handleSearch()
+    if (e.key === 'Enter' && query.trim()) {
+      if (tab === 'messages') {
+        messageSearch.search(query.trim())
+      } else {
+        userSearch.search(query.trim())
+      }
+    }
   }
 
   const isLoading = tab === 'messages' ? messageSearch.loading : userSearch.loading

@@ -1,7 +1,7 @@
 import { createContext, useContext } from 'react'
 
 export interface TimelineScrollApi {
-  scrollToEvent: (eventId: string) => void
+  scrollToEvent: (eventId: string) => void | Promise<void>
   scrollToBottom: () => void
 }
 
