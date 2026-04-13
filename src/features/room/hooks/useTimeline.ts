@@ -203,6 +203,7 @@ export function useTimeline(roomId: string) {
   const activeRoomIdRef = useRef(roomId)
   const prevEventIdsRef = useRef('')
   const prevFirstIdRef = useRef<string | null>(null)
+  const decryptDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const refreshEvents = useCallback(() => {
     const room = roomRef.current
@@ -294,8 +295,14 @@ export function useTimeline(roomId: string) {
       if (!room) return
       // Clear cache so newly-decrypted events get re-mapped with actual content
       eventCache.delete(room)
-      prevEventIdsRef.current = ''
-      refreshEvents()
+      // Debounce: batch rapid decryption events into a single refresh
+      // to avoid "too many re-renders" when opening encrypted rooms
+      if (decryptDebounceRef.current) clearTimeout(decryptDebounceRef.current)
+      decryptDebounceRef.current = setTimeout(() => {
+        decryptDebounceRef.current = null
+        prevEventIdsRef.current = ''
+        refreshEvents()
+      }, 100)
     }
 
     client.on(RoomEvent.Timeline, onTimelineEvent)
@@ -303,6 +310,10 @@ export function useTimeline(roomId: string) {
     client.on(MatrixEventEvent.Decrypted, onDecrypted)
 
     return () => {
+      if (decryptDebounceRef.current) {
+        clearTimeout(decryptDebounceRef.current)
+        decryptDebounceRef.current = null
+      }
       client.removeListener(RoomEvent.Timeline, onTimelineEvent)
       client.removeListener(RoomEvent.Redaction, onRedaction)
       client.removeListener(MatrixEventEvent.Decrypted, onDecrypted)
