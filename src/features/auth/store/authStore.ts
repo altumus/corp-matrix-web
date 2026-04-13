@@ -80,17 +80,19 @@ async function cleanupOldDevices(): Promise<void> {
   // intentionally no-op — keep function signature for backwards compat
 }
 
-async function bootstrapCrossSigning(): Promise<void> {
+async function bootstrapCrossSigning(setupNew = true): Promise<void> {
   const client = getMatrixClient()
   const crypto = client?.getCrypto()
   if (!crypto) return
 
   try {
-    const crossSigningStatus = await crypto.getCrossSigningStatus()
-    if (crossSigningStatus.privateKeysInSecretStorage) return // already set up
+    if (setupNew) {
+      const crossSigningStatus = await crypto.getCrossSigningStatus()
+      if (crossSigningStatus.privateKeysInSecretStorage) return // already set up
+    }
 
     await crypto.bootstrapCrossSigning({
-      setupNewCrossSigning: true,
+      setupNewCrossSigning: setupNew,
     })
   } catch {
     // best-effort — cross-signing may not be supported
@@ -119,7 +121,12 @@ async function resolvePostAuthStatus(isNewAccount = false): Promise<AuthStatus> 
       setSecretStorageKey(cachedKey)
     }
 
-    // For existing accounts — check backup status
+    // For existing accounts — bootstrap cross-signing with existing keys
+    // (setupNew=false: uses keys from SSSS, doesn't create new ones)
+    // This cross-signs the current device so other clients (FluffyChat/Element)
+    // see it as verified.
+    await bootstrapCrossSigning(false)
+
     await crypto.checkKeyBackupAndEnable()
 
     const activeVersion = await crypto.getActiveSessionBackupVersion()
@@ -154,7 +161,12 @@ async function resolvePostAuthStatus(isNewAccount = false): Promise<AuthStatus> 
   return 'authenticated'
 }
 
+let syncGuardInstalled = false
+
 function installSyncErrorGuard(set: (s: Partial<AuthState>) => void) {
+  if (syncGuardInstalled) return
+  syncGuardInstalled = true
+
   const client = getMatrixClient()
   if (!client) return
 

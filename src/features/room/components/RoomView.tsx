@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react'
-import { useParams, useSearchParams, useNavigate } from 'react-router'
+import { useState, useEffect } from 'react'
+import { useParams, useSearchParams } from 'react-router'
 import { useRoomListStore } from '../../room-list/store/roomListStore.js'
 import { useRoom } from '../hooks/useRoom.js'
 import { useMediaUpload } from '../../media/hooks/useMediaUpload.js'
@@ -13,27 +13,11 @@ import { RoomDetailsPanel } from './RoomDetailsPanel.js'
 import { ThreadPanel } from './ThreadPanel.js'
 import { Spinner } from '../../../shared/ui/index.js'
 import { RightPanelCtx, type RightPanel } from '../context/RightPanelContext.js'
-import { useIsTouchDevice } from '../../../shared/hooks/useMediaQuery.js'
 import styles from './RoomView.module.scss'
-
-const SESSION_KEY = 'app_navigated'
 
 export default function RoomView() {
   const { roomId } = useParams<{ roomId: string }>()
-  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const redirected = useRef(false)
-  const isTouch = useIsTouchDevice()
-
-  useEffect(() => {
-    if (isTouch) return
-    if (redirected.current) return
-    if (!sessionStorage.getItem(SESSION_KEY)) {
-      sessionStorage.setItem(SESSION_KEY, '1')
-      redirected.current = true
-      navigate('/rooms', { replace: true })
-    }
-  }, [navigate, isTouch])
 
   const { room, loading } = useRoom(roomId)
   const { uploadFiles } = useMediaUpload(roomId ?? '')

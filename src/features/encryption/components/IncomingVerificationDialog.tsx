@@ -4,6 +4,7 @@ import { ShieldCheck } from 'lucide-react'
 import type { VerificationRequest } from 'matrix-js-sdk/lib/crypto-api/index.js'
 import { VerifierEvent } from 'matrix-js-sdk/lib/crypto-api/verification.js'
 import type { ShowSasCallbacks, EmojiMapping } from 'matrix-js-sdk/lib/crypto-api/verification.js'
+import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
 import { Modal, Button } from '../../../shared/ui/index.js'
 import { toast } from '../../../shared/ui/Toast/toastService.js'
 import styles from './IncomingVerificationDialog.module.scss'
@@ -44,7 +45,18 @@ export function IncomingVerificationDialog({ request, onClose }: IncomingVerific
         }
       })
 
-      verifier.verify().then(() => {
+      verifier.verify().then(async () => {
+        // After SAS verification succeeds — bootstrap cross-signing so this
+        // device gets signed by the user's master key. Without this,
+        // FluffyChat/Element will still show "unverified device".
+        try {
+          const client = getMatrixClient()
+          const crypto = client?.getCrypto()
+          if (crypto) {
+            await crypto.bootstrapCrossSigning({ setupNewCrossSigning: false })
+          }
+        } catch { /* best-effort */ }
+
         setPhase('done')
         toast('Устройство подтверждено', 'success')
         setTimeout(onClose, 1500)

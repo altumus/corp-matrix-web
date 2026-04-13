@@ -4,6 +4,36 @@ import { EventType, MsgType, RelationType } from 'matrix-js-sdk';
 import type { RoomMessageEventContent, ReactionEventContent } from 'matrix-js-sdk/lib/@types/events.js';
 import type { SendMessageOptions } from '../types.js';
 
+function markdownToHtml(text: string): string | null {
+	// Only generate HTML if text contains markdown syntax
+	if (!/[`*~>]/.test(text)) return null;
+
+	let html = text;
+	// Code blocks (must be first — protect content inside)
+	html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+	// Inline code
+	html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+	// Bold
+	html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+	// Italic (single *)
+	html = html.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>');
+	// Strikethrough
+	html = html.replace(/~~(.+?)~~/g, '<del>$1</del>');
+	// Blockquote
+	html = html.replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>');
+	// Newlines (but not inside pre)
+	html = html.replace(/\n/g, '<br />');
+	// Fix: remove <br /> inside <pre>
+	html = html.replace(/<pre><code>([\s\S]*?)<\/code><\/pre>/g, (_match, code: string) => {
+		return `<pre><code>${code.replace(/<br \/>/g, '\n')}</code></pre>`;
+	});
+
+	// If nothing changed, no markdown was present
+	if (html === text.replace(/\n/g, '<br />')) return null;
+
+	return html;
+}
+
 interface TextMessagePayload {
 	body: string;
 	msgtype: MsgType;
@@ -28,6 +58,12 @@ export async function sendTextMessage(opts: SendMessageOptions): Promise<void> {
 	if (opts.formattedBody) {
 		content.format = 'org.matrix.custom.html';
 		content.formatted_body = opts.formattedBody;
+	} else {
+		const formatted = markdownToHtml(opts.body);
+		if (formatted) {
+			content.format = 'org.matrix.custom.html';
+			content.formatted_body = formatted;
+		}
 	}
 
 	if (opts.replyToEventId) {
@@ -177,13 +213,13 @@ export async function forwardMessage(
 	const originalContent = matrixEvent.getContent();
 	const senderId = matrixEvent.getSender()!;
 	const senderMember = room.getMember(senderId);
-	const senderName = senderMember?.name || senderId;
+	const senderName = senderMember?.name || senderId || 'Unknown';
 
 	const msgtype = (originalContent.msgtype as MsgType) || MsgType.Text;
 	const body = (originalContent.body as string) || '';
 
 	const esc = (s: string) =>
-		s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+		s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 	const messageLink = `https://matrix.to/#/${encodeURIComponent(fromRoomId)}/${encodeURIComponent(eventId)}`;
 

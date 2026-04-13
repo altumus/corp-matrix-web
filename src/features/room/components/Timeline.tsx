@@ -125,13 +125,26 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
     }
   }, [focusEventId, focusIndex, onFocusHandled])
 
+  const scrollHighlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const scrollToEvent = useCallback((eventId: string) => {
     const index = listItems.findIndex((item) => item.key === eventId)
     if (index === -1) return
     virtuosoRef.current?.scrollToIndex({ index, align: 'center', behavior: 'smooth' })
     setHighlightedEventId(eventId)
-    setTimeout(() => setHighlightedEventId(null), 2000)
+    if (scrollHighlightTimerRef.current) clearTimeout(scrollHighlightTimerRef.current)
+    scrollHighlightTimerRef.current = setTimeout(() => {
+      setHighlightedEventId(null)
+      scrollHighlightTimerRef.current = null
+    }, 2000)
   }, [listItems])
+
+  // Cleanup scrollToEvent timer on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollHighlightTimerRef.current) clearTimeout(scrollHighlightTimerRef.current)
+    }
+  }, [])
 
   const scrollToBottom = useCallback(() => {
     virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' })

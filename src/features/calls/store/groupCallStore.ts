@@ -55,10 +55,14 @@ function updateParticipants(groupCall: GroupCall): Participant[] {
   }))
 }
 
+const attachedGroupCalls = new WeakSet<GroupCall>()
+
 function attachGroupCallListeners(
   groupCall: GroupCall,
   set: (s: Partial<GroupCallStore>) => void,
 ) {
+  if (attachedGroupCalls.has(groupCall)) return
+  attachedGroupCalls.add(groupCall)
   groupCall.on(GroupCallEvent.ParticipantsChanged, () => {
     set({ participants: updateParticipants(groupCall) })
   })

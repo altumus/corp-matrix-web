@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { Mic, Square, Trash2 } from 'lucide-react'
 import { useMediaUpload } from '../../media/hooks/useMediaUpload.js'
 import { toast } from '../../../shared/ui/Toast/toastService.js'
@@ -74,9 +74,11 @@ export function VoiceRecorder({ roomId, onCancel }: VoiceRecorderProps) {
   }, [onCancel])
 
   // Auto-start on mount
-  if (!recording && !recorderRef.current) {
-    start()
-  }
+  useEffect(() => {
+    if (!recording && !recorderRef.current) {
+      start()
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60)

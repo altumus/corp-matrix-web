@@ -54,6 +54,8 @@ export function KeyRestoreScreen() {
 
       await crypto.loadSessionBackupPrivateKeyFromSecretStorage()
       await crypto.checkKeyBackupAndEnable()
+      // Cross-sign this device so FluffyChat/Element see it as verified
+      try { await crypto.bootstrapCrossSigning({ setupNewCrossSigning: false }) } catch { /* best-effort */ }
       completeKeyRestore()
     } catch (err) {
       const msg = err instanceof Error ? err.message : ''

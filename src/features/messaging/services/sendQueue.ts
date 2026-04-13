@@ -97,15 +97,22 @@ function scheduleProcess(): void {
   }, 500)
 }
 
-export function startQueueProcessor(): void {
-  // Process on online event
-  window.addEventListener('online', () => {
-    logger.log('[sendQueue] Network back, processing queue')
-    scheduleProcess()
-  })
+let onlineHandlerAttached = false
+let queueIntervalId: ReturnType<typeof setInterval> | null = null
 
-  // Process every minute as fallback
-  setInterval(() => {
+export function startQueueProcessor(): void {
+  // Process on online event (guard against duplicate listeners)
+  if (!onlineHandlerAttached) {
+    window.addEventListener('online', () => {
+      logger.log('[sendQueue] Network back, processing queue')
+      scheduleProcess()
+    })
+    onlineHandlerAttached = true
+  }
+
+  // Process every minute as fallback (cleanup previous interval)
+  if (queueIntervalId) clearInterval(queueIntervalId)
+  queueIntervalId = setInterval(() => {
     if (navigator.onLine) processQueue()
   }, 60_000)
 

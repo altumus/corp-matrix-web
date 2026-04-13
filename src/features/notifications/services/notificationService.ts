@@ -103,7 +103,12 @@ export function playNotificationSound() {
   notificationSound.play().catch(() => {})
 }
 
+let notificationListenersSetup = false
+
 export function setupNotificationListeners() {
+  if (notificationListenersSetup) return
+  notificationListenersSetup = true
+
   const client = getMatrixClient()
   if (!client) return
 

@@ -75,6 +75,9 @@ export function CrossSignVerification({ onBack }: CrossSignVerificationProps) {
           if (request.phase === 4) {
             const crypto2 = client?.getCrypto()
             if (crypto2) {
+              // Cross-sign this device with user's master key so other clients
+              // (FluffyChat/Element) trust it. Without this, device stays "unverified".
+              try { await crypto2.bootstrapCrossSigning({ setupNewCrossSigning: false }) } catch { /* best-effort */ }
               try { await crypto2.checkKeyBackupAndEnable() } catch { /* best-effort */ }
             }
             setPhase('done')
