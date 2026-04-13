@@ -1,5 +1,4 @@
 import { useState, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 import { Upload } from 'lucide-react'
 import { Modal, Input, Button } from '../../../shared/ui/index.js'
 import { importRoomKeysFromFile } from '../services/cryptoService.js'
@@ -10,7 +9,6 @@ interface ImportKeysDialogProps {
 }
 
 export function ImportKeysDialog({ onClose }: ImportKeysDialogProps) {
-  const { t } = useTranslation()
   const [file, setFile] = useState<File | null>(null)
   const [passphrase, setPassphrase] = useState('')
   const [loading, setLoading] = useState(false)

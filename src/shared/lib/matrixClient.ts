@@ -115,7 +115,7 @@ export async function saveRecoveryKey(key: Uint8Array): Promise<void> {
   const encrypted = await crypto.subtle.encrypt(
     { name: 'AES-GCM', iv },
     cryptoKey,
-    key,
+    key as unknown as BufferSource,
   )
 
   const blob: EncryptedBlob = {

@@ -64,7 +64,7 @@ export async function showDesktopNotification(title: string, body: string, roomI
 
   const cleanBody = sanitizeNotificationBody(body)
 
-  const options: NotificationOptions = {
+  const options: NotificationOptions & { renotify?: boolean } = {
     body: cleanBody,
     icon: '/corp-logo.png',
     tag: roomId,

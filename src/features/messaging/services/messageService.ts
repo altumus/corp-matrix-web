@@ -83,7 +83,7 @@ export async function sendTextMessage(opts: SendMessageOptions): Promise<void> {
 	}
 
 	if (opts.roomMention) {
-		(content as Record<string, unknown>)['m.mentions'] = { room: true };
+		(content as unknown as Record<string, unknown>)['m.mentions'] = { room: true };
 	}
 
 	await client.sendMessage(opts.roomId, content as unknown as RoomMessageEventContent);

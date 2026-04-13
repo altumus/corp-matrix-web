@@ -106,7 +106,7 @@ export async function requestOwnUserVerification(): Promise<VerificationRequest>
   return await crypto.requestOwnUserVerification()
 }
 
-export async function importRoomKeysFromFile(file: File, passphrase: string): Promise<number> {
+export async function importRoomKeysFromFile(file: File, _passphrase: string): Promise<number> {
   const client = getMatrixClient()
   if (!client) throw new Error('Client not initialized')
   const crypto = client.getCrypto()

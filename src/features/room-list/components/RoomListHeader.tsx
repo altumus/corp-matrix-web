@@ -60,7 +60,7 @@ export function RoomListHeader() {
 
     // 3. Check m.direct account_data for self-mapping
     try {
-      const directData = client.getAccountData('m.direct')
+      const directData = client.getAccountData('m.direct' as any)
       const directMap = (directData?.getContent() as Record<string, string[]> | undefined) || {}
       const selfRooms = directMap[myUserId]
       if (selfRooms && selfRooms.length > 0) {
@@ -86,10 +86,10 @@ export function RoomListHeader() {
 
       // Update m.direct so subsequent lookups find this room
       try {
-        const directData = client.getAccountData('m.direct')
+        const directData = client.getAccountData('m.direct' as any)
         const directMap = (directData?.getContent() as Record<string, string[]> | undefined) || {}
         directMap[myUserId] = [...(directMap[myUserId] || []), room_id]
-        await client.setAccountData('m.direct', directMap)
+        await client.setAccountData('m.direct' as any, directMap as any)
       } catch { /* ignore */ }
 
       setSelectedRoom(room_id)

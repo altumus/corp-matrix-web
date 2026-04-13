@@ -42,6 +42,7 @@ function collectThreadEvents(roomId: string, threadRootId: string): TimelineEven
         replyTo: undefined,
         replyToEvent: undefined,
         threadRootId: isRoot ? undefined : threadRootId,
+        isDecryptionFailure: false,
         reactions: new Map(),
       })
     }

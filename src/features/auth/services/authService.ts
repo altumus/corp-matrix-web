@@ -92,7 +92,7 @@ export async function loginWithPassword(
       user_id: response.user_id,
       access_token: response.access_token,
       device_id: response.device_id,
-      refresh_token: (response as Record<string, unknown>).refresh_token as string | undefined,
+      refresh_token: (response as unknown as Record<string, unknown>).refresh_token as string | undefined,
     },
     baseUrl,
   )

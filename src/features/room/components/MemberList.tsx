@@ -44,7 +44,7 @@ export function MemberList({ roomId }: MemberListProps) {
     const users = (powerLevels.users || {}) as Record<string, number>
     const defaultLevel = (powerLevels.users_default as number) || 0
     const myUserId = client.getUserId()
-    const myLevel = (myUserId && users[myUserId]) ?? defaultLevel
+    const myLevel = Number((myUserId && users[myUserId]) ?? defaultLevel)
 
     const list = room.getJoinedMembers().map((m) => {
       const pl = users[m.userId] ?? defaultLevel
@@ -97,7 +97,7 @@ export function MemberList({ roomId }: MemberListProps) {
       <div className={styles.count}>{members.length} {t('rooms.members').toLowerCase()}</div>
       {members.map((m) => {
         const isMe = m.userId === myUserId
-        const canActOnThis = !isMe && (canKick || canBan || canPromote) && m.powerLevel < myPL
+        const canActOnThis = !isMe && (canKick || canBan || canPromote) && Number(m.powerLevel) < Number(myPL)
         return (
           <div key={m.userId + refresh} className={styles.member}>
             <MemberAvatar userId={m.userId} name={m.name} src={m.avatarUrl} />

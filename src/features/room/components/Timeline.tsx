@@ -191,8 +191,7 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
             : savedState ? undefined
             : listItems.length - 1
           }
-          stateChanged={(snapshot: unknown) => setScrollState(roomId, snapshot)}
-          restoreStateFrom={savedState as never}
+          {...({ stateChanged: (snapshot: unknown) => setScrollState(roomId, snapshot), restoreStateFrom: savedState } as any)}
           alignToBottom
           atBottomStateChange={(atBottom) => {
             isAtBottomRef.current = atBottom

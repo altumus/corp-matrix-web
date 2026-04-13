@@ -77,7 +77,7 @@ export async function sendFileMessage(
   }
 
   if (caption) {
-    (content as Record<string, unknown>).filename = file.name
+    (content as unknown as Record<string, unknown>).filename = file.name
   }
 
   await client.sendMessage(roomId, content as unknown as RoomMessageEventContent)
