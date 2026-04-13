@@ -3,6 +3,7 @@ import { Phone, PhoneOff, Video } from 'lucide-react'
 import type { MatrixCall } from 'matrix-js-sdk'
 import { Avatar } from '../../../shared/ui/index.js'
 import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
+import { playIncomingRingtone, stopRingtone } from '../services/ringtoneService.js'
 import styles from './IncomingCallDialog.module.scss'
 
 interface IncomingCallDialogProps {
@@ -15,7 +16,7 @@ export function IncomingCallDialog({ call, onAccept, onReject }: IncomingCallDia
   const client = useMatrixClient()
   const [callerName, setCallerName] = useState('Звонок')
   const [callerAvatar, setCallerAvatar] = useState<string | null>(null)
-  const isVideoOffer = call.type === 'video' || call.type === 'voice' ? false : false
+  const isVideoOffer = call.type === 'video'
 
   useEffect(() => {
     if (!client) return
@@ -27,6 +28,12 @@ export function IncomingCallDialog({ call, onAccept, onReject }: IncomingCallDia
       setCallerName(call.invitee)
     }
   }, [call, client])
+
+  // Play ringtone while incoming call dialog is shown
+  useEffect(() => {
+    playIncomingRingtone()
+    return () => { stopRingtone() }
+  }, [])
 
   return (
     <div className={styles.overlay}>
@@ -41,21 +48,21 @@ export function IncomingCallDialog({ call, onAccept, onReject }: IncomingCallDia
         <div className={styles.actions}>
           <button
             className={`${styles.btn} ${styles.reject}`}
-            onClick={onReject}
+            onClick={() => { stopRingtone(); onReject() }}
             aria-label="Отклонить"
           >
             <PhoneOff size={24} />
           </button>
           <button
             className={`${styles.btn} ${styles.accept}`}
-            onClick={() => onAccept(false)}
+            onClick={() => { stopRingtone(); onAccept(false) }}
             aria-label="Принять"
           >
             <Phone size={24} />
           </button>
           <button
             className={`${styles.btn} ${styles.acceptVideo}`}
-            onClick={() => onAccept(true)}
+            onClick={() => { stopRingtone(); onAccept(true) }}
             aria-label="Принять с видео"
           >
             <Video size={24} />

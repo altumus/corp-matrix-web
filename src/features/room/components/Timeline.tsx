@@ -58,18 +58,42 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
   const lastEventIdRef = useRef<string | null>(null)
 
   const setScrollState = useRoomListStore((s) => s.setScrollState)
-  const savedState = useMemo(() => useRoomListStore.getState().scrollStates[roomId], [roomId])
 
-  // Save scroll state on unmount / room change via getState() (Virtuoso v4 API)
+  // Save/restore scroll position on room switch.
+  // We only persist scrollTop (a plain number) because full Virtuoso snapshots
+  // break when the item list changes between save and restore (different
+  // firstItemIndex after pagination causes Virtuoso to access undefined items).
+  const savedScrollTop = useMemo(
+    () => useRoomListStore.getState().scrollStates[roomId] as number | undefined,
+    [roomId],
+  )
+  const scrollRestoredRef = useRef(false)
+
+  // Save scroll position on unmount / room change
   useEffect(() => {
+    const ref = virtuosoRef
     return () => {
-      virtuosoRef.current?.getState((snapshot) => {
-        setScrollState(roomId, snapshot)
+      ref.current?.getState((snapshot) => {
+        setScrollState(roomId, snapshot.scrollTop)
       })
     }
   }, [roomId, setScrollState])
 
   const listItems = useMemo(() => buildListItems(events), [events])
+
+  useEffect(() => {
+    scrollRestoredRef.current = false
+  }, [roomId])
+
+  // Restore scroll position once items are rendered
+  useEffect(() => {
+    if (scrollRestoredRef.current || savedScrollTop === undefined) return
+    if (listItems.length === 0) return
+    scrollRestoredRef.current = true
+    requestAnimationFrame(() => {
+      virtuosoRef.current?.scrollTo({ top: savedScrollTop })
+    })
+  }, [savedScrollTop, listItems.length])
 
   const dateItemsInPrepend = useMemo(() => {
     if (prependCount === 0 || events.length === 0) return 0
@@ -197,10 +221,9 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
           firstItemIndex={firstItemIndex}
           initialTopMostItemIndex={
             focusIndex >= 0 ? focusIndex
-            : savedState ? undefined
+            : savedScrollTop !== undefined ? undefined
             : listItems.length - 1
           }
-          restoreStateFrom={savedState as any}
           alignToBottom
           atBottomStateChange={(atBottom) => {
             isAtBottomRef.current = atBottom

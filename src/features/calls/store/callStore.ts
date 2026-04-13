@@ -3,6 +3,7 @@ import { CallEvent, type MatrixCall } from 'matrix-js-sdk'
 import { CallState } from 'matrix-js-sdk/lib/webrtc/call.js'
 import { createOutboundCall } from '../services/callService.js'
 import { toast } from '../../../shared/ui/Toast/toastService.js'
+import { playOutgoingRingback, stopRingtone } from '../services/ringtoneService.js'
 
 export type CallStatus = 'idle' | 'connecting' | 'ringing' | 'connected' | 'ended'
 
@@ -30,9 +31,12 @@ function attachListeners(call: MatrixCall, set: (s: Partial<CallStore>) => void)
   call.on(CallEvent.State, (state: CallState) => {
     let status: CallStatus = 'connecting'
     if (state === CallState.Ringing) status = 'ringing'
-    else if (state === CallState.Connected) status = 'connected'
-    else if (state === CallState.Ended) {
+    else if (state === CallState.Connected) {
+      status = 'connected'
+      stopRingtone()
+    } else if (state === CallState.Ended) {
       status = 'ended'
+      stopRingtone()
       setTimeout(() => {
         set({ activeCall: null, status: 'idle' })
       }, 1500)
@@ -41,6 +45,7 @@ function attachListeners(call: MatrixCall, set: (s: Partial<CallStore>) => void)
   })
 
   call.on(CallEvent.Hangup, () => {
+    stopRingtone()
     set({ status: 'ended' })
     setTimeout(() => {
       set({ activeCall: null, status: 'idle' })
@@ -70,7 +75,9 @@ export const useCallStore = create<CallStore>((set, get) => ({
     attachListeners(call, set)
     try {
       await call.placeVoiceCall()
+      playOutgoingRingback()
     } catch (err) {
+      stopRingtone()
       toast(err instanceof Error ? err.message : 'Не удалось начать звонок', 'error')
       set({ activeCall: null, status: 'idle' })
     }
@@ -86,7 +93,9 @@ export const useCallStore = create<CallStore>((set, get) => ({
     attachListeners(call, set)
     try {
       await call.placeVideoCall()
+      playOutgoingRingback()
     } catch (err) {
+      stopRingtone()
       toast(err instanceof Error ? err.message : 'Не удалось начать звонок', 'error')
       set({ activeCall: null, status: 'idle' })
     }
@@ -106,6 +115,7 @@ export const useCallStore = create<CallStore>((set, get) => ({
   end: () => {
     const call = get().activeCall
     if (!call) return
+    stopRingtone()
     try {
       call.hangup('user_hangup' as never, false)
     } catch { /* already ended */ }

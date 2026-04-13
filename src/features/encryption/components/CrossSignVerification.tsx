@@ -12,15 +12,17 @@ import styles from './CrossSignVerification.module.scss'
 
 interface CrossSignVerificationProps {
   onBack: () => void
+  onComplete?: () => void
 }
 
 type Phase = 'waiting' | 'qr' | 'emoji' | 'restoring' | 'done' | 'error'
 
-export function CrossSignVerification({ onBack }: CrossSignVerificationProps) {
+export function CrossSignVerification({ onBack, onComplete }: CrossSignVerificationProps) {
   const { t } = useTranslation()
   const client = useMatrixClient()
   const completeKeyRestore = useAuthStore((s) => s.completeKeyRestore)
   const [phase, setPhase] = useState<Phase>('waiting')
+  const phaseRef = useRef<Phase>('waiting')
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
   const [emojis, setEmojis] = useState<EmojiMapping[]>([])
   const [sasCallbacks, setSasCallbacks] = useState<ShowSasCallbacks | null>(null)
@@ -28,6 +30,11 @@ export function CrossSignVerification({ onBack }: CrossSignVerificationProps) {
   const [loading, setLoading] = useState(false)
   const requestRef = useRef<VerificationRequest | null>(null)
   const startedRef = useRef(false)
+
+  const updatePhase = useCallback((p: Phase) => {
+    phaseRef.current = p
+    setPhase(p)
+  }, [])
 
   const finishVerification = useCallback(async () => {
     const crypto = client?.getCrypto()
@@ -39,17 +46,21 @@ export function CrossSignVerification({ onBack }: CrossSignVerificationProps) {
       const alreadyActive = await crypto.getActiveSessionBackupVersion().catch(() => null)
       if (!alreadyActive) {
         // Wait for the verified device to gossip the backup decryption key
-        setPhase('restoring')
+        updatePhase('restoring')
         const restored = await waitForBackupAfterVerification(30_000)
         if (!restored) {
           toast('Устройство подтверждено, но ключи бэкапа не получены. Старые сообщения могут быть недоступны.', 'warning')
         }
       }
     }
-    setPhase('done')
+    updatePhase('done')
     toast('Устройство подтверждено', 'success')
-    setTimeout(() => completeKeyRestore(), 1500)
-  }, [client, completeKeyRestore])
+    if (onComplete) {
+      setTimeout(() => onComplete(), 1500)
+    } else {
+      setTimeout(() => completeKeyRestore(), 1500)
+    }
+  }, [client, completeKeyRestore, onComplete, updatePhase])
 
   useEffect(() => {
     if (startedRef.current) return
@@ -60,7 +71,7 @@ export function CrossSignVerification({ onBack }: CrossSignVerificationProps) {
         const crypto = client?.getCrypto()
         if (!crypto || !client) {
           setErrorMsg(t('encryption.verificationFailed'))
-          setPhase('error')
+          updatePhase('error')
           return
         }
 
@@ -84,7 +95,7 @@ export function CrossSignVerification({ onBack }: CrossSignVerificationProps) {
                   { width: 256, margin: 2, errorCorrectionLevel: 'L' },
                 )
                 setQrDataUrl(dataUrl)
-                setPhase('qr')
+                updatePhase('qr')
               }
             } catch { /* QR not available, continue to SAS */ }
 
@@ -96,7 +107,7 @@ export function CrossSignVerification({ onBack }: CrossSignVerificationProps) {
                   if (sas.sas.emoji) {
                     setEmojis(sas.sas.emoji)
                     setSasCallbacks(sas)
-                    setPhase('emoji')
+                    updatePhase('emoji')
                   }
                 })
 
@@ -105,10 +116,10 @@ export function CrossSignVerification({ onBack }: CrossSignVerificationProps) {
                 }).catch(() => {})
               }
             } catch {
-              // If both QR and SAS fail
-              if (phase !== 'qr') {
+              // If both QR and SAS fail — use ref to avoid stale closure
+              if (phaseRef.current !== 'qr') {
                 setErrorMsg('Не удалось начать верификацию')
-                setPhase('error')
+                updatePhase('error')
               }
             }
           }
@@ -121,17 +132,17 @@ export function CrossSignVerification({ onBack }: CrossSignVerificationProps) {
           // Cancelled
           if (request.phase === VerificationPhase.Cancelled) {
             setErrorMsg(t('encryption.verificationCancelled'))
-            setPhase('error')
+            updatePhase('error')
           }
         })
       } catch (err) {
         setErrorMsg(err instanceof Error ? err.message : t('encryption.verificationFailed'))
-        setPhase('error')
+        updatePhase('error')
       }
     }
 
     start()
-  }, [t, finishVerification, client, phase])
+  }, [t, finishVerification, client, updatePhase])
 
   const handleConfirmEmoji = async () => {
     setLoading(true)

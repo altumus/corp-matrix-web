@@ -1,7 +1,7 @@
 import { useState, useCallback, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { KeyRound, Smartphone, LogOut } from 'lucide-react'
-import { setSecretStorageKey } from '../../../shared/lib/matrixClient.js'
+import { setSecretStorageKey, saveRecoveryKey } from '../../../shared/lib/matrixClient.js'
 import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { decodeRecoveryKey } from 'matrix-js-sdk/lib/crypto-api/recovery-key.js'
 import { useAuthStore } from '../../auth/store/authStore.js'
@@ -51,6 +51,7 @@ export function KeyRestoreScreen() {
       }
 
       setSecretStorageKey(decodedKey)
+      await saveRecoveryKey(decodedKey)
 
       await crypto.loadSessionBackupPrivateKeyFromSecretStorage()
       await crypto.checkKeyBackupAndEnable()

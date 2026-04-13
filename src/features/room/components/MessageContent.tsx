@@ -1,6 +1,8 @@
 import { sanitizeHtml } from '../../../shared/lib/sanitizeHtml.js';
+import { linkifyPlainText } from '../../../shared/lib/linkify.js';
 import { AuthImage } from '../../../shared/ui/index.js';
 import { PollMessage } from './PollMessage.js';
+import { VoiceMessage } from './VoiceMessage.js';
 import type { MediaType } from '../../media/components/Lightbox.js';
 import styles from './MessageBubble.module.scss';
 
@@ -107,18 +109,14 @@ export function MessageContent({
         </div>
       )}
       {msgtype === 'm.audio' && (
-        <div
-          className={styles.audioMessage}
-          onClick={() =>
-            onLightbox({
-              mxcUrl: content.url as string,
-              filename: body || 'audio',
-              mediaType: 'audio',
-            })
+        <VoiceMessage
+          mxcUrl={content.url as string}
+          duration={
+            typeof (content.info as Record<string, unknown>)?.duration === 'number'
+              ? ((content.info as Record<string, unknown>).duration as number) / 1000
+              : undefined
           }
-        >
-          🎤 <span>Голосовое сообщение</span>
-        </div>
+        />
       )}
       {(() => {
         const isPoll =
@@ -154,11 +152,7 @@ export function MessageContent({
             className={styles.textContent}
             dangerouslySetInnerHTML={{
               __html: sanitizeHtml(
-                body
-                  .replace(/&/g, '&amp;')
-                  .replace(/</g, '&lt;')
-                  .replace(/>/g, '&gt;')
-                  .replace(/\n/g, '<br />')
+                linkifyPlainText(body),
               ),
             }}
           />

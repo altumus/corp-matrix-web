@@ -1,4 +1,4 @@
-import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
+import { getMatrixClient, saveRecoveryKey, setSecretStorageKey } from '../../../shared/lib/matrixClient.js'
 import type { VerificationRequest } from 'matrix-js-sdk/lib/crypto-api/index.js'
 import { ImportRoomKeyStage } from 'matrix-js-sdk/lib/crypto-api/index.js'
 import type { DeviceInfo, KeyBackupInfo } from '../types.js'
@@ -71,7 +71,7 @@ export async function getKeyBackupInfo(): Promise<KeyBackupInfo> {
   }
 }
 
-export async function setupKeyBackup(): Promise<void> {
+export async function setupKeyBackup(): Promise<string | null> {
   const client = getMatrixClient()
   if (!client) throw new Error('Client not initialized')
 
@@ -84,6 +84,25 @@ export async function setupKeyBackup(): Promise<void> {
   }
 
   await crypto.resetKeyBackup()
+
+  // Generate recovery key so user can restore on other devices
+  try {
+    const recoveryKey = await crypto.createRecoveryKeyFromPassphrase()
+    if (recoveryKey.privateKey) {
+      await saveRecoveryKey(recoveryKey.privateKey)
+      setSecretStorageKey(recoveryKey.privateKey)
+      await crypto.bootstrapSecretStorage({
+        createSecretStorageKey: () => Promise.resolve(recoveryKey),
+        setupNewSecretStorage: true,
+      })
+      // Return human-readable recovery key for display
+      const { encodeRecoveryKey } = await import('matrix-js-sdk/lib/crypto-api/recovery-key.js')
+      return encodeRecoveryKey(recoveryKey.privateKey) ?? null
+    }
+  } catch {
+    // Recovery key generation failed — backup still works for current device
+  }
+  return null
 }
 
 export async function startVerification(userId: string, deviceId: string): Promise<void> {
@@ -208,7 +227,7 @@ export async function importRoomKeysFromFile(file: File, passphrase: string): Pr
   let imported = 0
   await crypto.importRoomKeysAsJson(jsonText, {
     progressCallback: (stage) => {
-      if (stage.stage === ImportRoomKeyStage.LoadKeys) {
+      if (stage.stage === ImportRoomKeyStage.LoadKeys && typeof stage.successes === 'number') {
         imported = stage.successes
       }
     },

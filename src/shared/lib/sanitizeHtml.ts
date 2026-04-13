@@ -23,8 +23,31 @@ export function sanitizeHtml(dirty: string): string {
     FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onfocus', 'onblur'],
   })
 
+  // Linkify bare URLs that are not already inside an <a> tag.
+  // Split by existing tags to only process text nodes.
+  const linked = clean.replace(
+    /(<a\s[^>]*>[\s\S]*?<\/a>)|(?:https?:\/\/[^\s<>"'`,;)}\]]+)/gi,
+    (match, insideAnchor) => {
+      // Already inside <a>...</a> — keep as-is
+      if (insideAnchor) return insideAnchor
+      // Bare URL — wrap in <a>
+      let href = match
+      const trailingMatch = href.match(/[.),:;!?]+$/)
+      let trailing = ''
+      if (trailingMatch) {
+        const last = trailingMatch[0]
+        // Keep trailing paren if balanced (Wikipedia-style URLs)
+        if (!(last === ')' && (href.match(/\(/g)?.length ?? 0) >= (href.match(/\)/g)?.length ?? 0))) {
+          trailing = last
+          href = href.slice(0, -last.length)
+        }
+      }
+      return `<a href="${href}" target="_blank" rel="noopener noreferrer">${href}</a>${trailing}`
+    },
+  )
+
   // Highlight hashtags in text nodes only (don't touch attributes/inside tags)
-  return clean.replace(
+  return linked.replace(
     /(^|>|\s)(#[а-яА-ЯёЁa-zA-Z0-9_]{2,})/g,
     (_, prefix, tag) => `${prefix}<span class="hashtag">${tag}</span>`,
   )

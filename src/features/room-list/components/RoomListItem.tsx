@@ -108,6 +108,7 @@ export function RoomListItem({ room }: RoomListItemProps) {
   const myUserId = client?.getUserId() ?? null
   const dmPartnerId = room.isDirect && !room.isSavedMessages ? getDmPartnerId(room.roomId) : null
   const presence = usePresence(dmPartnerId)
+  const isOnline = presence ? (presence.online || (presence.lastActiveAgo !== null && presence.lastActiveAgo < 60000)) : false
 
   const handleClick = () => {
     setSelectedRoom(room.roomId)
@@ -305,7 +306,7 @@ export function RoomListItem({ room }: RoomListItemProps) {
             src={room.avatarUrl}
             name={room.name}
             size="md"
-            online={presence ? presence.online : undefined}
+            online={presence ? isOnline : undefined}
           />
         )}
         <div className={styles.content}>

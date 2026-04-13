@@ -39,13 +39,20 @@ export function RoomHeader({ room }: RoomHeaderProps) {
     navigate('/rooms')
   }
 
+  const isOnline = (() => {
+    if (!presence) return false
+    if (presence.online) return true
+    // Recently active (< 1 min) counts as online
+    if (presence.lastActiveAgo !== null && presence.lastActiveAgo < 60000) return true
+    return false
+  })()
+
   const subtitle = (() => {
     if (room.topic) return room.topic
     if (presence) {
-      if (presence.online) return t('rooms.online')
+      if (isOnline) return t('rooms.online')
       if (presence.lastActiveAgo) {
         const mins = Math.floor(presence.lastActiveAgo / 60000)
-        if (mins < 1) return t('rooms.online')
         if (mins < 60) return t('rooms.lastSeen', { time: `${mins} мин. назад` })
         const hours = Math.floor(mins / 60)
         if (hours < 24) return t('rooms.lastSeen', { time: `${hours} ч. назад` })
@@ -67,7 +74,7 @@ export function RoomHeader({ room }: RoomHeaderProps) {
         src={room.avatarUrl}
         name={room.name}
         size="sm"
-        online={presence ? presence.online : undefined}
+        online={presence ? isOnline : undefined}
       />
       <button className={styles.info} onClick={openDetails}>
         <h2 className={styles.name}>
@@ -75,7 +82,7 @@ export function RoomHeader({ room }: RoomHeaderProps) {
           {room.isEncrypted && <EncryptionBadge verified={trust !== false} />}
         </h2>
         {subtitle ? (
-          <p className={`${styles.topic} ${presence?.online ? styles.onlineText : ''}`}>
+          <p className={`${styles.topic} ${isOnline ? styles.onlineText : ''}`}>
             {subtitle}
           </p>
         ) : (

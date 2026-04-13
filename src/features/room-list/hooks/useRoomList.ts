@@ -11,12 +11,37 @@ function getLastMessage(room: Room): { body: string; sender: string; senderId: s
   const timeline = room.getLiveTimeline().getEvents()
   for (let i = timeline.length - 1; i >= 0; i--) {
     const event = timeline[i]
-    if (event.getType() === 'm.room.message') {
+    const type = event.getType()
+
+    if (type === 'm.room.message') {
       const content = event.getContent()
       const senderId = event.getSender()!
       const sender = room.getMember(senderId)?.name || senderId
       return {
         body: (content.body as string) || '',
+        sender,
+        senderId,
+        ts: event.getTs(),
+      }
+    }
+
+    // Encrypted events that haven't been decrypted yet
+    if (type === 'm.room.encrypted') {
+      const senderId = event.getSender()!
+      const sender = room.getMember(senderId)?.name || senderId
+      return {
+        body: 'Зашифрованное сообщение',
+        sender,
+        senderId,
+        ts: event.getTs(),
+      }
+    }
+
+    if (type === 'm.sticker') {
+      const senderId = event.getSender()!
+      const sender = room.getMember(senderId)?.name || senderId
+      return {
+        body: 'Стикер',
         sender,
         senderId,
         ts: event.getTs(),
@@ -93,7 +118,7 @@ function getMentionFallback(room: Room, myUserId: string): number {
 }
 
 // Module-level entry cache — invalidate per room when activity changes
-const entryCache = new Map<string, { entry: RoomListEntry; lastTs: number; unread: number }>()
+const entryCache = new Map<string, { entry: RoomListEntry; lastTs: number; unread: number; lastBody: string }>()
 
 function cachedRoomToEntry(room: Room): RoomListEntry | null {
   const roomId = room.roomId
@@ -101,14 +126,18 @@ function cachedRoomToEntry(room: Room): RoomListEntry | null {
   const unread = room.getUnreadNotificationCount() || 0
   const cached = entryCache.get(roomId)
 
-  // Cache hit if timestamp and unread count haven't changed
-  if (cached && cached.lastTs === lastTs && cached.unread === unread) {
+  // Also check last message body — it changes when encrypted events get decrypted
+  const lastMsg = getLastMessage(room)
+  const lastBody = lastMsg.body
+
+  // Cache hit if timestamp, unread count, and last message body haven't changed
+  if (cached && cached.lastTs === lastTs && cached.unread === unread && cached.lastBody === lastBody) {
     return cached.entry
   }
 
   const entry = roomToEntry(room)
   if (entry) {
-    entryCache.set(roomId, { entry, lastTs, unread })
+    entryCache.set(roomId, { entry, lastTs, unread, lastBody })
   }
   return entry
 }

@@ -263,19 +263,24 @@ export function useTimeline(roomId: string) {
     if (!room) return
 
     roomRef.current = room
-    setEvents(collectEvents(room))
-    setLoading(false)
+    const initialEvents = collectEvents(room)
+    setEvents(initialEvents)
     setPaginating(false)
     sendReadReceipt()
 
     const timeline = room.getLiveTimeline()
-    const hasMessages = timeline.getEvents().some((e) => TIMELINE_EVENT_TYPES.includes(e.getType()))
-    if (!hasMessages && timeline.getPaginationToken(Direction.Backward)) {
+    if (initialEvents.length === 0 && timeline.getPaginationToken(Direction.Backward)) {
       client.paginateEventTimeline(timeline, { backwards: true, limit: 100 }).then(() => {
         if (activeRoomIdRef.current === roomId) {
           setEvents(collectEvents(room))
         }
-      }).catch(() => {})
+      }).catch(() => {}).finally(() => {
+        if (activeRoomIdRef.current === roomId) {
+          setLoading(false)
+        }
+      })
+    } else {
+      setLoading(false)
     }
 
     const onTimelineEvent = () => {

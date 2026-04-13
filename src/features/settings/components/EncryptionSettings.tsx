@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getKeyBackupInfo } from '../../encryption/services/cryptoService.js'
-import { setSecretStorageKey } from '../../../shared/lib/matrixClient.js'
+import { setSecretStorageKey, saveRecoveryKey } from '../../../shared/lib/matrixClient.js'
 import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { decodeRecoveryKey } from 'matrix-js-sdk/lib/crypto-api/recovery-key.js'
 import { KeyBackupSetup } from '../../encryption/components/KeyBackupSetup.js'
@@ -53,6 +53,7 @@ export function EncryptionSettings() {
     try {
       const decodedKey = decodeRecoveryKey(recoveryKey.trim())
       setSecretStorageKey(decodedKey)
+      await saveRecoveryKey(decodedKey)
       await crypto.loadSessionBackupPrivateKeyFromSecretStorage()
       await crypto.checkKeyBackupAndEnable()
       try { await crypto.bootstrapCrossSigning({ setupNewCrossSigning: false }) } catch { /* best-effort */ }
@@ -132,7 +133,7 @@ export function EncryptionSettings() {
               {t('encryption.verifyDevice', { defaultValue: 'Верифицировать другое устройство' })}
             </Button>
           ) : (
-            <CrossSignVerification onBack={() => setShowVerify(false)} />
+            <CrossSignVerification onBack={() => setShowVerify(false)} onComplete={() => window.location.reload()} />
           )}
         </div>
       )}

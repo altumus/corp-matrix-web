@@ -29,6 +29,7 @@ export default function RoomView() {
     if (roomId) {
       setSelectedRoom(roomId)
     }
+    setRightPanel(null)
   }, [roomId, setSelectedRoom])
 
   const clearFocusEvent = () => {

@@ -1,3 +1,5 @@
+@use '../../../shared/styles/mixins' as *;
+
 .panel {
   width: 320px;
   min-width: 320px;
@@ -87,6 +89,7 @@
   overflow-y: auto;
   min-height: 0;
   padding: var(--spacing-sm) 0;
+  @include scrollbar;
 }
 
 .reply {
@@ -112,9 +115,39 @@
   color: var(--color-text-primary);
 }
 
+.avatarClickable {
+  flex-shrink: 0;
+  cursor: pointer;
+  border-radius: var(--radius-full);
+  transition: opacity var(--transition-fast);
+
+  &:hover {
+    opacity: 0.8;
+  }
+}
+
+.senderClickable {
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-md);
+  color: var(--color-accent);
+  cursor: pointer;
+  transition: text-decoration var(--transition-fast);
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
 .replyTime {
   font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
+}
+
+.replyTimeInline {
+  float: right;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  margin-left: var(--spacing-sm);
 }
 
 .rootBody,
@@ -178,6 +211,39 @@
   }
 }
 
+.composerPreview {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-lg);
+  border-top: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-accent);
+  background: var(--color-bg-tertiary);
+  flex-shrink: 0;
+}
+
+.previewContent {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.previewLabel {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-accent);
+}
+
+.previewBody {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .composer {
   display: flex;
   align-items: flex-end;
@@ -200,7 +266,9 @@
   outline: none;
   min-height: 36px;
   max-height: 120px;
+  overflow-y: auto;
   transition: border-color var(--transition-fast);
+  @include scrollbar;
 
   &:focus {
     border-color: var(--color-accent);

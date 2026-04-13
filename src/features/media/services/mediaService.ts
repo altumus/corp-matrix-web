@@ -50,9 +50,16 @@ export async function sendFileMessage(
     info: ImageInfo
   }
 
-  const info: ImageInfo = {
+  const info: ImageInfo & { duration?: number } = {
     mimetype: file.type,
     size: file.size,
+  }
+
+  if (msgtype === MsgType.Audio) {
+    try {
+      const audioDuration = await getAudioDuration(file)
+      if (audioDuration) info.duration = Math.round(audioDuration * 1000) // ms per Matrix spec
+    } catch { /* best-effort */ }
   }
 
   if (msgtype === MsgType.Image) {
@@ -81,6 +88,18 @@ export async function sendFileMessage(
   }
 
   await client.sendMessage(roomId, content as unknown as RoomMessageEventContent)
+}
+
+function getAudioDuration(file: File): Promise<number | null> {
+  return new Promise((resolve) => {
+    const audio = new Audio()
+    audio.onloadedmetadata = () => {
+      resolve(isFinite(audio.duration) ? audio.duration : null)
+      URL.revokeObjectURL(audio.src)
+    }
+    audio.onerror = () => resolve(null)
+    audio.src = URL.createObjectURL(file)
+  })
 }
 
 function getImageDimensions(file: File): Promise<{ width: number; height: number } | null> {

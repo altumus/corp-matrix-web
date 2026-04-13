@@ -26,6 +26,9 @@ export const useSelectionStore = create<SelectionState>((set) => ({
       } else {
         next.add(eventId)
       }
+      if (next.size === 0) {
+        return { selecting: false, selectedIds: next }
+      }
       return { selectedIds: next }
     }),
 

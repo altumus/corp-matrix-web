@@ -8,6 +8,10 @@
 
 .incoming {
   justify-content: flex-start;
+
+  .checkbox {
+    order: 1;
+  }
 }
 
 .outgoing {

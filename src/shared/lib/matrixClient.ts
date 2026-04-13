@@ -176,6 +176,8 @@ export function createMatrixClient(opts: {
     refreshToken: opts.refreshToken,
     useAuthorizationHeader: true,
     store: storeInstance,
+    fallbackICEServerAllowed: true,
+    pendingEventOrdering: 'detached' as never,
     tokenRefreshFunction: opts.refreshToken
       ? async (refreshToken: string) => {
           const res = await fetch(`${opts.baseUrl}/_matrix/client/v3/refresh`, {
@@ -209,8 +211,6 @@ export function createMatrixClient(opts: {
       },
     } as never,
   })
-  // @ts-expect-error pendingEventOrdering exists on MatrixClient but not in ICreateClientOpts
-  clientInstance.pendingEventOrdering = 'detached'
   return clientInstance
 }
 
@@ -283,7 +283,7 @@ export async function startClient(): Promise<void> {
     }
   }
 
-  await clientInstance.startClient({ initialSyncLimit: 20 })
+  await clientInstance.startClient({ initialSyncLimit: 20, pendingEventOrdering: 'detached' as never })
 }
 
 export async function stopClient(): Promise<void> {
