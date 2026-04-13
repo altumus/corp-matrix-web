@@ -10,21 +10,16 @@ export function useIncomingVerification() {
   useEffect(() => {
     if (!client) return
 
-    const crypto = client.getCrypto()
-    if (!crypto) return
-
+    // Listen on CLIENT (not crypto) — MatrixClient re-emits all CryptoEvents
+    // via reEmitter. Listening on crypto directly can fail due to TypeScript
+    // cast issues with Rust crypto's EventEmitter implementation.
     const onRequest = (req: VerificationRequest) => {
       setRequest(req)
     }
 
-    const emitter = crypto as unknown as {
-      on: (event: string, handler: (...args: never[]) => void) => void
-      removeListener: (event: string, handler: (...args: never[]) => void) => void
-    }
-
-    emitter.on(CryptoEvent.VerificationRequestReceived, onRequest as never)
+    client.on(CryptoEvent.VerificationRequestReceived as any, onRequest)
     return () => {
-      emitter.removeListener(CryptoEvent.VerificationRequestReceived, onRequest as never)
+      client.removeListener(CryptoEvent.VerificationRequestReceived as any, onRequest)
     }
   }, [client])
 
