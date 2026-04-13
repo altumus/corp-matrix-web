@@ -2,24 +2,21 @@ import { useEffect, useRef } from 'react'
 import { useAuthStore } from '../../features/auth/store/authStore.js'
 
 const STORAGE_KEY = 'corp-matrix-idle-timeout'
-const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
 const ACTIVITY_EVENTS = ['mousemove', 'keydown', 'click', 'touchstart', 'scroll']
 
 export function getIdleTimeout(): number {
   const stored = localStorage.getItem(STORAGE_KEY)
-  if (stored) {
+  if (stored !== null) {
     const n = parseInt(stored, 10)
-    if (n > 0) return n
+    return isNaN(n) ? 0 : n
   }
-  return DEFAULT_TIMEOUT_MS
+  // Default: disabled (0)
+  return 0
 }
 
 export function setIdleTimeout(ms: number): void {
-  if (ms <= 0) {
-    localStorage.removeItem(STORAGE_KEY)
-  } else {
-    localStorage.setItem(STORAGE_KEY, String(ms))
-  }
+  // Always persist — including 0 (disabled), so the setting survives reload
+  localStorage.setItem(STORAGE_KEY, String(Math.max(0, ms)))
 }
 
 /**
