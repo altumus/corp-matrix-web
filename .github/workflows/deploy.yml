@@ -18,6 +18,7 @@ jobs:
             set -e
             echo "=== 1/6 Pulling latest code ==="
             cd /opt/corp-matrix
+            git checkout -- package-lock.json
             git pull origin release
             echo "✅ Git pull done"
 
