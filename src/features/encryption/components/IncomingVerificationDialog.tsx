@@ -5,7 +5,8 @@ import type { VerificationRequest } from 'matrix-js-sdk/lib/crypto-api/index.js'
 import { VerifierEvent } from 'matrix-js-sdk/lib/crypto-api/verification.js'
 import type { ShowSasCallbacks, EmojiMapping } from 'matrix-js-sdk/lib/crypto-api/verification.js'
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
-import { Modal, Button } from '../../../shared/ui/index.js'
+import { waitForBackupAfterVerification } from '../services/cryptoService.js'
+import { Modal, Button, Spinner } from '../../../shared/ui/index.js'
 import { toast } from '../../../shared/ui/Toast/toastService.js'
 import styles from './IncomingVerificationDialog.module.scss'
 
@@ -14,7 +15,7 @@ interface IncomingVerificationDialogProps {
   onClose: () => void
 }
 
-type Phase = 'pending' | 'waiting' | 'emoji' | 'done'
+type Phase = 'pending' | 'waiting' | 'emoji' | 'restoring' | 'done'
 
 export function IncomingVerificationDialog({ request, onClose }: IncomingVerificationDialogProps) {
   const { t } = useTranslation()
@@ -54,6 +55,16 @@ export function IncomingVerificationDialog({ request, onClose }: IncomingVerific
           const crypto = client?.getCrypto()
           if (crypto) {
             await crypto.bootstrapCrossSigning({ setupNewCrossSigning: false })
+            await crypto.checkKeyBackupAndEnable().catch(() => {})
+
+            const alreadyActive = await crypto.getActiveSessionBackupVersion().catch(() => null)
+            if (!alreadyActive) {
+              setPhase('restoring')
+              const restored = await waitForBackupAfterVerification(30_000)
+              if (!restored) {
+                toast('Устройство подтверждено, но ключи бэкапа не получены', 'warning')
+              }
+            }
           }
         } catch { /* best-effort */ }
 
@@ -145,6 +156,15 @@ export function IncomingVerificationDialog({ request, onClose }: IncomingVerific
                 {t('verification.match', { defaultValue: 'Совпадают' })}
               </Button>
             </div>
+          </>
+        )}
+
+        {phase === 'restoring' && (
+          <>
+            <div className={styles.icon}>
+              <Spinner size={32} />
+            </div>
+            <p className={styles.text}>Получение ключей шифрования...</p>
           </>
         )}
 

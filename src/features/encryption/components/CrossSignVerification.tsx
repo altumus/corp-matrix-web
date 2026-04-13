@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import QRCode from 'qrcode'
-import { VerificationRequestEvent, VerifierEvent } from 'matrix-js-sdk/lib/crypto-api/verification.js'
+import { VerificationRequestEvent, VerifierEvent, VerificationPhase } from 'matrix-js-sdk/lib/crypto-api/verification.js'
 import type { VerificationRequest, ShowSasCallbacks, EmojiMapping } from 'matrix-js-sdk/lib/crypto-api/verification.js'
 import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
-import { requestOwnUserVerification } from '../services/cryptoService.js'
+import { requestOwnUserVerification, waitForBackupAfterVerification } from '../services/cryptoService.js'
 import { useAuthStore } from '../../auth/store/authStore.js'
 import { toast } from '../../../shared/ui/Toast/toastService.js'
 import { Button, Spinner } from '../../../shared/ui/index.js'
@@ -14,7 +14,7 @@ interface CrossSignVerificationProps {
   onBack: () => void
 }
 
-type Phase = 'waiting' | 'qr' | 'emoji' | 'done' | 'error'
+type Phase = 'waiting' | 'qr' | 'emoji' | 'restoring' | 'done' | 'error'
 
 export function CrossSignVerification({ onBack }: CrossSignVerificationProps) {
   const { t } = useTranslation()
@@ -34,6 +34,17 @@ export function CrossSignVerification({ onBack }: CrossSignVerificationProps) {
     if (crypto) {
       try { await crypto.bootstrapCrossSigning({ setupNewCrossSigning: false }) } catch { /* best-effort */ }
       try { await crypto.checkKeyBackupAndEnable() } catch { /* best-effort */ }
+
+      // Check if backup is already active (e.g. keys were cached locally)
+      const alreadyActive = await crypto.getActiveSessionBackupVersion().catch(() => null)
+      if (!alreadyActive) {
+        // Wait for the verified device to gossip the backup decryption key
+        setPhase('restoring')
+        const restored = await waitForBackupAfterVerification(30_000)
+        if (!restored) {
+          toast('Устройство подтверждено, но ключи бэкапа не получены. Старые сообщения могут быть недоступны.', 'warning')
+        }
+      }
     }
     setPhase('done')
     toast('Устройство подтверждено', 'success')
@@ -62,8 +73,8 @@ export function CrossSignVerification({ onBack }: CrossSignVerificationProps) {
         requestRef.current = request
 
         request.on(VerificationRequestEvent.Change, async () => {
-          // Ready = 2: other device accepted → try QR first, fallback to SAS emoji
-          if (request.phase === 2) {
+          // Ready: other device accepted → try QR first, fallback to SAS emoji
+          if (request.phase === VerificationPhase.Ready) {
             // Try QR code first
             try {
               const qrBytes = await request.generateQRCode()
@@ -102,13 +113,13 @@ export function CrossSignVerification({ onBack }: CrossSignVerificationProps) {
             }
           }
 
-          // Done = 4 (from QR scan)
-          if (request.phase === 4) {
+          // Done (from QR scan)
+          if (request.phase === VerificationPhase.Done) {
             await finishVerification()
           }
 
-          // Cancelled = 5
-          if (request.phase === 5) {
+          // Cancelled
+          if (request.phase === VerificationPhase.Cancelled) {
             setErrorMsg(t('encryption.verificationCancelled'))
             setPhase('error')
           }
@@ -183,6 +194,14 @@ export function CrossSignVerification({ onBack }: CrossSignVerificationProps) {
               Совпадают
             </Button>
           </div>
+        </div>
+      )}
+
+      {phase === 'restoring' && (
+        <div className={styles.centered}>
+          <Spinner size={32} />
+          <p className={styles.text}>Получение ключей шифрования...</p>
+          <p className={styles.qrHint}>Ожидаем передачу ключей от другого устройства для расшифровки истории сообщений</p>
         </div>
       )}
 

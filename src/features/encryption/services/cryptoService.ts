@@ -96,6 +96,43 @@ export async function startVerification(userId: string, deviceId: string): Promi
   await crypto.requestDeviceVerification(userId, deviceId)
 }
 
+/**
+ * After device verification, wait for the verified device to gossip the backup
+ * decryption key via m.secret.send to-device events. These arrive during sync
+ * cycles, so we poll until the backup becomes active or timeout.
+ */
+export async function waitForBackupAfterVerification(timeoutMs = 30_000): Promise<boolean> {
+  const client = getMatrixClient()
+  const crypto = client?.getCrypto()
+  if (!crypto || !client) return false
+
+  // Already active?
+  try {
+    const active = await crypto.getActiveSessionBackupVersion()
+    if (active) return true
+  } catch { /* ignore */ }
+
+  const CHECK_INTERVAL = 3_000
+  const maxAttempts = Math.ceil(timeoutMs / CHECK_INTERVAL)
+
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise((r) => setTimeout(r, CHECK_INTERVAL))
+
+    // Try loading backup key from SSSS (works if the SSSS key was gossiped)
+    try {
+      await crypto.loadSessionBackupPrivateKeyFromSecretStorage()
+    } catch { /* ignore — key might not be in SSSS yet */ }
+
+    try {
+      await crypto.checkKeyBackupAndEnable()
+      const active = await crypto.getActiveSessionBackupVersion()
+      if (active) return true
+    } catch { /* ignore */ }
+  }
+
+  return false
+}
+
 export async function requestOwnUserVerification(): Promise<VerificationRequest> {
   const client = getMatrixClient()
   if (!client) throw new Error('Client not initialized')
