@@ -58,7 +58,16 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
   const lastEventIdRef = useRef<string | null>(null)
 
   const setScrollState = useRoomListStore((s) => s.setScrollState)
-  const savedState = useRoomListStore((s) => s.getScrollState(roomId))
+  const savedState = useMemo(() => useRoomListStore.getState().scrollStates[roomId], [roomId])
+
+  // Save scroll state on unmount / room change via getState() (Virtuoso v4 API)
+  useEffect(() => {
+    return () => {
+      virtuosoRef.current?.getState((snapshot) => {
+        setScrollState(roomId, snapshot)
+      })
+    }
+  }, [roomId, setScrollState])
 
   const listItems = useMemo(() => buildListItems(events), [events])
 
@@ -191,7 +200,7 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
             : savedState ? undefined
             : listItems.length - 1
           }
-          {...({ stateChanged: (snapshot: unknown) => setScrollState(roomId, snapshot), restoreStateFrom: savedState } as any)}
+          restoreStateFrom={savedState as any}
           alignToBottom
           atBottomStateChange={(atBottom) => {
             isAtBottomRef.current = atBottom

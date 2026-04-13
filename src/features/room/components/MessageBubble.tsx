@@ -379,6 +379,14 @@ export function MessageBubble({
 		return result.sort((a, b) => b.ts - a.ts);
 	}, [contextMenu, event.roomId, event.eventId, myUserId, client]);
 
+	const displayReactions = optimisticReactions ?? event.reactions;
+
+	// Clear optimistic state when fresh server reactions arrive
+	// NOTE: must be called before early returns to satisfy React's rules of hooks
+	useEffect(() => {
+		setOptimisticReactions(null);
+	}, [event.reactions]);
+
 	const timeEl = (
 		<time
 			className={styles.time}
@@ -452,13 +460,6 @@ export function MessageBubble({
 			toggleSelection(event.eventId);
 		}
 	};
-
-	const displayReactions = optimisticReactions ?? event.reactions;
-
-	// Clear optimistic state when fresh server reactions arrive
-	useEffect(() => {
-		setOptimisticReactions(null);
-	}, [event.reactions]);
 
 	const handleReactionClick = (key: string) => {
 		const current = new Map(displayReactions);
