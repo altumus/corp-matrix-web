@@ -38,10 +38,37 @@
   width: 24px;
 
   input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    accent-color: var(--color-accent);
+    appearance: none;
+    -webkit-appearance: none;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2px solid var(--color-text-tertiary);
+    background: transparent;
     cursor: pointer;
+    transition: all var(--transition-fast);
+    position: relative;
+
+    &:checked {
+      background: var(--color-accent);
+      border-color: var(--color-accent);
+
+      &::after {
+        content: '✓';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: white;
+        font-size: 13px;
+        font-weight: 700;
+        line-height: 1;
+      }
+    }
+
+    &:hover:not(:checked) {
+      border-color: var(--color-accent);
+    }
   }
 }
 

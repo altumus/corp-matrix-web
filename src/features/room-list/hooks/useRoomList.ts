@@ -50,6 +50,69 @@ function getDmPartnerAvatar(room: Room, myUserId: string): string | null {
   return other?.getMxcAvatarUrl() ?? null
 }
 
+// Module-level cache for mention detection (invalidated on refresh)
+const mentionCache = new Map<string, number>() // roomId → highlightCount override
+let lastMentionScan = 0
+
+function getMentionFallback(room: Room, myUserId: string): number {
+  const roomId = room.roomId
+
+  // Only re-scan if room has unread AND we haven't scanned recently (1s cooldown)
+  const now = Date.now()
+  if (now - lastMentionScan < 1000 && mentionCache.has(roomId)) {
+    return mentionCache.get(roomId)!
+  }
+
+  const unread = room.getUnreadNotificationCount()
+  if (unread === 0) {
+    mentionCache.set(roomId, 0)
+    return 0
+  }
+
+  // Only scan last 50 events (not entire timeline)
+  const timeline = room.getLiveTimeline().getEvents()
+  const start = Math.max(0, timeline.length - 50)
+  const readUpTo = room.getEventReadUpTo(myUserId)
+  let pastRead = !readUpTo
+
+  for (let i = start; i < timeline.length; i++) {
+    const ev = timeline[i]
+    if (ev.getId() === readUpTo) { pastRead = true; continue }
+    if (!pastRead || ev.getSender() === myUserId) continue
+    const mentions = ev.getContent()['m.mentions'] as { user_ids?: string[]; room?: boolean } | undefined
+    if (mentions?.user_ids?.includes(myUserId) || mentions?.room) {
+      mentionCache.set(roomId, 1)
+      lastMentionScan = now
+      return 1
+    }
+  }
+
+  mentionCache.set(roomId, 0)
+  lastMentionScan = now
+  return 0
+}
+
+// Module-level entry cache — invalidate per room when activity changes
+const entryCache = new Map<string, { entry: RoomListEntry; lastTs: number; unread: number }>()
+
+function cachedRoomToEntry(room: Room): RoomListEntry | null {
+  const roomId = room.roomId
+  const lastTs = room.getLastActiveTimestamp() || 0
+  const unread = room.getUnreadNotificationCount() || 0
+  const cached = entryCache.get(roomId)
+
+  // Cache hit if timestamp and unread count haven't changed
+  if (cached && cached.lastTs === lastTs && cached.unread === unread) {
+    return cached.entry
+  }
+
+  const entry = roomToEntry(room)
+  if (entry) {
+    entryCache.set(roomId, { entry, lastTs, unread })
+  }
+  return entry
+}
+
 function roomToEntry(room: Room): RoomListEntry | null {
   const lastMsg = getLastMessage(room)
   const client = getMatrixClient()
@@ -65,22 +128,8 @@ function roomToEntry(room: Room): RoomListEntry | null {
   }
 
   let highlightCount = room.getRoomUnreadNotificationCount(NotificationCountType.Highlight) || 0
-
-  // Client-side fallback: scan unread timeline events for m.mentions
-  // when server reports 0 (happens with API/bot-sent mentions)
-  if (highlightCount === 0 && room.getUnreadNotificationCount() > 0 && myUserId) {
-    const timeline = room.getLiveTimeline().getEvents()
-    const readUpTo = room.getEventReadUpTo(myUserId)
-    let pastRead = !readUpTo
-    for (const ev of timeline) {
-      if (ev.getId() === readUpTo) { pastRead = true; continue }
-      if (!pastRead || ev.getSender() === myUserId) continue
-      const mentions = ev.getContent()['m.mentions'] as { user_ids?: string[]; room?: boolean } | undefined
-      if (mentions?.user_ids?.includes(myUserId) || mentions?.room) {
-        highlightCount = 1
-        break
-      }
-    }
+  if (highlightCount === 0) {
+    highlightCount = getMentionFallback(room, myUserId)
   }
 
   return {
@@ -122,7 +171,7 @@ export function useRoomList() {
         if (createEvent?.getContent()?.type === 'm.space') return false
         return true
       })
-      .map(roomToEntry).filter((e): e is RoomListEntry => e !== null)
+      .map(cachedRoomToEntry).filter((e): e is RoomListEntry => e !== null)
       .sort((a, b) => {
         if (a.isSavedMessages && !b.isSavedMessages) return -1
         if (!a.isSavedMessages && b.isSavedMessages) return 1

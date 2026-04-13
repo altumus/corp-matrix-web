@@ -14,13 +14,15 @@ import {
 	MessageSquare,
 } from 'lucide-react';
 import type { TimelineEvent } from '../types.js';
-import { Avatar, AuthImage } from '../../../shared/ui/index.js';
-import { sanitizeHtml } from '../../../shared/lib/sanitizeHtml.js';
+import { Avatar } from '../../../shared/ui/index.js';
 import {
 	MessageContextMenu,
 	type ContextMenuAction,
 	type ReceiptEntry,
 } from '../../messaging/components/MessageContextMenu.js';
+import { MessageContent } from './MessageContent.js';
+import { ReactionBar } from './ReactionBar.js';
+import { ReplyPreview } from './ReplyPreview.js';
 // Lazy-load heavy emoji-mart bundle (~500kb)
 const EmojiPicker = lazy(() =>
   import('../../messaging/components/EmojiPicker.js').then((m) => ({ default: m.EmojiPicker })),
@@ -44,7 +46,6 @@ const Lightbox = lazy(() =>
   import('../../media/components/Lightbox.js').then((m) => ({ default: m.Lightbox })),
 );
 import { ReadReceipts } from './ReadReceipts.js';
-import { PollMessage } from './PollMessage.js';
 import { useLongPress } from '../../../shared/hooks/useLongPress.js';
 import styles from './MessageBubble.module.scss';
 
@@ -426,7 +427,6 @@ export function MessageBubble({
 	}
 
 	const content = event.content;
-	const msgtype = content.msgtype as string;
 	const rawBody = (content.body as string) || '';
 	const body = event.replyTo ? stripReplyFallback(rawBody) : rawBody;
 	const rawFormatted = content.formatted_body as string | undefined;
@@ -504,148 +504,35 @@ export function MessageBubble({
 				)}
 
 				{event.replyToEvent && event.replyTo && (
-					<div
-						className={styles.replyQuote}
-						onClick={() => scrollToEvent(event.replyTo!)}
-						role='button'
-						tabIndex={0}
-						onKeyDown={(e) => {
-							if (e.key === 'Enter') scrollToEvent(event.replyTo!);
-						}}
-					>
-						<span className={styles.replyQuoteSender}>
-							{event.replyToEvent.sender}
-						</span>
-						<span className={styles.replyQuoteBody}>
-							{event.replyToEvent.body}
-						</span>
-					</div>
+					<ReplyPreview
+						sender={event.replyToEvent.sender}
+						body={event.replyToEvent.body}
+						onNavigate={() => scrollToEvent(event.replyTo!)}
+					/>
 				)}
 
-				<div className={styles.content}>
-					{msgtype === 'm.image' &&
-						(() => {
-							const info = content.info as
-								| { w?: number; h?: number }
-								| undefined;
-							const w = info?.w || 300;
-							const h = info?.h || 200;
-							const maxW = 400;
-							const maxH = 300;
-							const scale = Math.min(1, maxW / w, maxH / h);
-							const displayW = Math.round(w * scale);
-							const displayH = Math.round(h * scale);
-							return (
-								<div onClick={() => setLightbox({ mxcUrl: content.url as string, filename: body || 'image', mediaType: 'image' })}>
-									<AuthImage
-										mxcUrl={content.url as string}
-										alt={body}
-										className={styles.imageMessage}
-										loading='lazy'
-										width={displayW}
-										height={displayH}
-										style={{ width: displayW, height: displayH }}
-									/>
-								</div>
-							);
-						})()}
-					{msgtype === 'm.video' &&
-						(() => {
-							const info = content.info as
-								| { w?: number; h?: number }
-								| undefined;
-							const w = info?.w || 300;
-							const h = info?.h || 200;
-							const maxW = 400;
-							const maxH = 300;
-							const scale = Math.min(1, maxW / w, maxH / h);
-							const displayW = Math.round(w * scale);
-							const displayH = Math.round(h * scale);
-							return (
-								<div onClick={() => setLightbox({ mxcUrl: content.url as string, filename: body || 'video', mediaType: 'video' })}>
-									<AuthImage
-										mxcUrl={content.url as string}
-										alt={body}
-										className={styles.imageMessage}
-										width={displayW}
-										height={displayH}
-										style={{ width: displayW, height: displayH }}
-									/>
-								</div>
-							);
-						})()}
-					{msgtype === 'm.file' && (
-						<div
-							className={styles.fileMessage}
-							onClick={() => setLightbox({ mxcUrl: content.url as string, filename: body || 'file', mediaType: 'file' })}
-						>
-							📎 <span>{body}</span>
-						</div>
-					)}
-					{msgtype === 'm.audio' && (
-						<div
-							className={styles.audioMessage}
-							onClick={() => setLightbox({ mxcUrl: content.url as string, filename: body || 'audio', mediaType: 'audio' })}
-						>
-							🎤 <span>Голосовое сообщение</span>
-						</div>
-					)}
-					{(() => {
-						const isPoll = event.type === 'org.matrix.msc3381.poll.start'
-							|| event.type === 'm.poll.start'
-							|| !!content['org.matrix.msc3381.poll']
-							|| !!content['m.poll']
-							|| !!content['org.matrix.msc3381.poll.start']
-							|| !!content['m.poll.start'];
-						return isPoll ? <PollMessage eventId={event.eventId} roomId={event.roomId} content={content} /> : null;
-					})()}
-					{(() => {
-						const isPoll = !!content['org.matrix.msc3381.poll']
-							|| !!content['m.poll']
-							|| !!content['org.matrix.msc3381.poll.start']
-							|| !!content['m.poll.start']
-							|| event.type === 'org.matrix.msc3381.poll.start'
-							|| event.type === 'm.poll.start';
-						return !isPoll && (msgtype === 'm.text' || msgtype === 'm.notice' || !msgtype);
-					})() &&
-						(formattedBody ? (
-							<div
-								className={styles.textContent}
-								dangerouslySetInnerHTML={{ __html: sanitizeHtml(formattedBody) }}
-							/>
-						) : (
-							<p className={styles.textContent}>{body}</p>
-						))}
-					{event.isEdited && <span className={styles.edited}>(изм.)</span>}
-				</div>
+				<MessageContent
+					content={content}
+					eventType={event.type}
+					eventId={event.eventId}
+					roomId={event.roomId}
+					body={body}
+					formattedBody={formattedBody}
+					isEdited={event.isEdited}
+					onLightbox={setLightbox}
+				/>
 
 				<span className={styles.meta}>
 					{event.isEdited && <span className={styles.editedMeta}>изм.</span>}
 					{timeEl}
 				</span>
 
-				{displayReactions.size > 0 && (
-					<div className={styles.reactions}>
-						{[...displayReactions.entries()].map(([key, senders]) => {
-							const myReaction = myUserId ? senders.has(myUserId) : false;
-							return (
-								<button
-									key={key}
-									className={`${styles.reaction} ${myReaction ? styles.reactionMine : ''}`}
-									onClick={() => handleReactionClick(key)}
-									onContextMenu={(e) => {
-										e.preventDefault();
-										e.stopPropagation();
-										setShowReactionDetails(true);
-									}}
-									title={[...senders].join(', ')}
-								>
-									{key} <span>{senders.size}</span>
-								</button>
-							);
-						})}
-					</div>
-				)}
+				<ReactionBar
+					reactions={displayReactions}
+					myUserId={myUserId ?? null}
+					onReactionClick={handleReactionClick}
+					onShowDetails={() => setShowReactionDetails(true)}
+				/>
 				{(event.threadReplyCount ?? 0) > 0 && (
 					<button
 						className={styles.threadBadge}

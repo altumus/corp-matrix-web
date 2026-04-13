@@ -1,7 +1,7 @@
 import { chromium } from 'playwright';
 import fs from 'fs';
 import { CONFIG, bugs, consoleErrors, networkErrors, testLog } from './lib/config.js';
-import { log, listen, loginAs, runTest, snap } from './lib/helpers.js';
+import { log, listen, loginAs, runTest, snap, bug } from './lib/helpers.js';
 import { setup, cleanupAfterRun } from './lib/setup.js';
 
 // Import all test functions
@@ -34,6 +34,7 @@ import { testTimelineNoJitter, testPinMessageLive, testThreadBackButton } from '
 import { testStressMessages } from './tests/stress.js';
 import { startFederationServers, stopFederationServers, testFederationInvite, testFederationMessage, testFederationAvatar } from './tests/federation.js'
 import { testSsoButtonVisibility, testSsoCallbackRoute, testGroupCallButton, testGroupCallNotInDM, testKeyImportButton, testKeyImportDialog, testScrollPositionPreserved, testIosSafeArea, testConnectionBannerExists, testDockerfileExists } from './tests/new-functionality.js'
+import { testMessageBubbleSplit, testRoomListCache, testTokenStorageSecurity, testMentionFallbackPerf, testMessageRenderAfterSplit, testRoomListPerformance } from './tests/architecture.js'
 
 // ═══════════════════════════════════════════════════════════════
 // CONSOLE & NETWORK ERROR REPORTS
@@ -51,6 +52,9 @@ function reportConsoleErrors() {
     /room_keys\/version/,                  // Key backup not configured
     /ERR_INTERNET_DISCONNECTED/,           // Intentional from testNetworkReconnect
     /Failed to fetch/,                     // Transient during offline/reconnect tests
+    /does not recognize the .* prop/,      // React DOM prop warnings from 3rd party libs
+    /One time key.*already exists/,        // Crypto OTK collision on repeated test logins
+    /Failed to process outgoing/,          // Crypto key upload noise during tests
   ];
   const filtered = consoleErrors.filter(e =>
     !ignoredPatterns.some(p => p.test(e.text))
@@ -335,6 +339,14 @@ async function main() {
       await runTest('IOS_SAFE_AREA',       page, () => testIosSafeArea(page));
       await runTest('CONNECTION_BANNER',   page, () => testConnectionBannerExists(page));
       await runTest('DOCKERFILE',          page, () => testDockerfileExists());
+
+      // ══════ Phase 7i: Architecture & Performance ══════
+      await runTest('BUBBLE_SPLIT',         page, () => testMessageBubbleSplit());
+      await runTest('ROOM_LIST_CACHE',      page, () => testRoomListCache());
+      await runTest('TOKEN_STORAGE',        page, () => testTokenStorageSecurity());
+      await runTest('MENTION_FALLBACK',     page, () => testMentionFallbackPerf());
+      await runTest('RENDER_AFTER_SPLIT',   page, () => testMessageRenderAfterSplit(page));
+      await runTest('ROOM_LIST_PERF',       page, () => testRoomListPerformance(page));
 
       // ══════ Phase 8: Responsive ══════
       await runTest('RESPONSIVE_MOBILE', page, () => testResponsive(page, { width: 375, height: 812 }, 'mobile'));

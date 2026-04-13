@@ -44,20 +44,43 @@ export async function requestNotificationPermission(): Promise<boolean> {
   return permission === 'granted'
 }
 
+/** Strip HTML tags and decode entities for clean notification body */
+function sanitizeNotificationBody(text: string): string {
+  return text
+    .replace(/<[^>]*>/g, '')           // strip HTML tags
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')             // collapse whitespace
+    .trim()
+    .slice(0, 200)                     // limit length
+}
+
 export async function showDesktopNotification(title: string, body: string, roomId?: string) {
   if (Notification.permission !== 'granted') return
   if (document.hasFocus()) return
 
+  const cleanBody = sanitizeNotificationBody(body)
+
   const options: NotificationOptions = {
-    body,
+    body: cleanBody,
     icon: '/corp-logo.png',
     tag: roomId,
+    // Renotify so updated messages in same room re-alert
+    renotify: !!roomId,
   }
 
+  // Prefer SW-based notification — avoids duplication across tabs
+  // (SW deduplicates by tag, multiple tabs share one SW)
   if ('serviceWorker' in navigator) {
     try {
       const registration = await navigator.serviceWorker.ready
-      await registration.showNotification(title, options)
+      await registration.showNotification(title, {
+        ...options,
+        data: { roomId },
+      })
       return
     } catch {
       // fallback below
@@ -121,8 +144,12 @@ export function setupNotificationListeners() {
           if (targetEvent && targetEvent.getSender() === client.getUserId()) {
             const reactorMember = room.getMember(sender!)
             const reactorName = reactorMember?.name || sender || ''
+            const roomName = room.name || ''
+            const reactTitle = roomName && roomName !== reactorName
+              ? `${reactorName} — ${roomName}`
+              : reactorName
             showDesktopNotification(
-              reactorName,
+              reactTitle,
               `${reactionKey || '👍'} реакция на ваше сообщение`,
               room.roomId,
             )
@@ -157,8 +184,15 @@ export function setupNotificationListeners() {
       const body = (content.body as string) || ''
       const senderMember = room.getMember(sender!)
       const senderName = senderMember?.name || sender || ''
+      const roomName = room.name || ''
 
-      showDesktopNotification(senderName, body, room.roomId)
+      // Format: "Sender — Room" for groups, just "Sender" for DMs
+      const isDm = room.getJoinedMemberCount() <= 2
+      const title = isDm || !roomName || roomName === senderName
+        ? senderName
+        : `${senderName} — ${roomName}`
+
+      showDesktopNotification(title, body, room.roomId)
       playNotificationSound()
     },
   )

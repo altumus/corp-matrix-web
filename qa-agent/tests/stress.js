@@ -1,5 +1,5 @@
 import { CONFIG, consoleErrors } from '../lib/config.js';
-import { log, snap, bug, ensureInRoom } from '../lib/helpers.js';
+import { log, snap, bug, goto } from '../lib/helpers.js';
 import { sendMessage } from '../lib/api.js';
 
 export async function testStressMessages(page) {
@@ -8,6 +8,10 @@ export async function testStressMessages(page) {
     const user1 = CONFIG.users[0];
     const roomId = CONFIG.rooms.general;
     if (!user1?.token || !roomId) { log('STRESS_MESSAGES: SKIP (missing user/room)'); return; }
+
+    // Clear any leftover selection mode from previous tests
+    await page.keyboard.press('Escape').catch(() => {});
+    await page.waitForTimeout(300);
 
     const baselineErrors = consoleErrors.length;
 
@@ -18,7 +22,8 @@ export async function testStressMessages(page) {
 
     await page.waitForTimeout(2000);
 
-    if (!(await ensureInRoom(page))) return;
+    // Navigate to general room explicitly (ensureInRoom may stay in wrong room)
+    await goto(page, `/rooms/${encodeURIComponent(roomId)}`, '[class*="composer"]');
     await page.waitForTimeout(2000);
 
     // Scroll timeline a few times

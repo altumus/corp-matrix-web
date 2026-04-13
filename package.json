@@ -1,7 +1,14 @@
 {
 	"name": "corp-matrix-web",
-	"private": true,
+	"private": false,
 	"version": "1.0.0",
+	"license": "MIT",
+	"author": "Altumus Contributors",
+	"description": "Secure corporate messenger built on the Matrix protocol",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/altumus/corp-matrix-web"
+	},
 	"type": "module",
 	"scripts": {
 		"dev": "vite",
