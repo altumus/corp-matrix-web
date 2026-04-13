@@ -15,11 +15,33 @@ jobs:
           username: root
           password: ${{ secrets.VPS_PASSWORD }}
           script: |
+            set -e
+            echo "=== 1/6 Pulling latest code ==="
             cd /opt/corp-matrix
             git pull origin release
+            echo "✅ Git pull done"
+
+            echo "=== 2/6 Setting environment ==="
             echo "VITE_VAPID_PUBLIC_KEY=${{ secrets.VAPID_PUBLIC_KEY }}" > .env
-            npm install
+            echo "✅ .env written"
+
+            echo "=== 3/6 Installing dependencies ==="
+            npm install --production=false
+            echo "✅ npm install done"
+
+            echo "=== 4/6 Building application ==="
             npm run build
+            echo "✅ Build done — $(du -sh dist | cut -f1) total"
+
+            echo "=== 5/6 Updating push gateway ==="
             cd push-gateway
             npm install
-            pm2 restart push-gateway
+            pm2 restart push-gateway || pm2 start index.js --name push-gateway
+            echo "✅ Push gateway restarted"
+
+            echo "=== 6/6 Verifying ==="
+            cd /opt/corp-matrix
+            ls -la dist/index.html && echo "✅ index.html exists" || echo "❌ index.html MISSING"
+            pm2 status
+            echo ""
+            echo "🚀 Deploy complete at $(date)"
