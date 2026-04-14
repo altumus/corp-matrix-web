@@ -350,7 +350,7 @@ export function MessageBubble({
 					} else {
 						pinned.push(event.eventId);
 					}
-					client.sendStateEvent(event.roomId, 'm.room.pinned_events' as never, { pinned }, '').catch(() => {});
+					client.sendStateEvent(event.roomId, 'm.room.pinned_events' as any, { pinned } as any, '').catch(() => {});
 				},
 			},
 			{
