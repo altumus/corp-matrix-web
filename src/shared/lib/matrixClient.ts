@@ -177,7 +177,6 @@ export function createMatrixClient(opts: {
     useAuthorizationHeader: true,
     store: storeInstance,
     fallbackICEServerAllowed: true,
-    pendingEventOrdering: 'detached' as any,
     tokenRefreshFunction: opts.refreshToken
       ? async (refreshToken: string) => {
           const res = await fetch(`${opts.baseUrl}/_matrix/client/v3/refresh`, {
@@ -210,6 +209,7 @@ export function createMatrixClient(opts: {
         cachedSecretStorageKey = key
       },
     } as never,
+    ...({ pendingEventOrdering: 'detached' } as any),
   })
   return clientInstance
 }
