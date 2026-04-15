@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import type { TimelineEvent } from '../types.js'
 import { MessageBubble } from './MessageBubble.js'
 import { SystemMessage } from './SystemMessage.js'
@@ -9,7 +10,7 @@ interface TimelineItemProps {
   isHighlighted?: boolean
 }
 
-export function TimelineItem({ event, showAvatar, isHighlighted }: TimelineItemProps) {
+export const TimelineItem = memo(function TimelineItem({ event, showAvatar, isHighlighted }: TimelineItemProps) {
   if (event.type === 'm.room.member' || event.type === 'm.room.create') {
     return <SystemMessage event={event} />
   }
@@ -24,4 +25,9 @@ export function TimelineItem({ event, showAvatar, isHighlighted }: TimelineItemP
       <MessageBubble event={event} showAvatar={showAvatar} isHighlighted={isHighlighted} />
     </div>
   )
-}
+}, (prev, next) =>
+  prev.event.eventId === next.event.eventId &&
+  prev.showAvatar === next.showAvatar &&
+  prev.isHighlighted === next.isHighlighted &&
+  prev.event.reactions === next.event.reactions
+)

@@ -118,6 +118,15 @@ export function MessageContent({
           }
         />
       )}
+      {(msgtype === 'm.image' || msgtype === 'm.video' || msgtype === 'm.file' || msgtype === 'm.audio') &&
+        content.filename && body && body !== (content.filename as string) && (
+          <div
+            className={styles.textContent}
+            dangerouslySetInnerHTML={{
+              __html: sanitizeHtml(linkifyPlainText(body)),
+            }}
+          />
+      )}
       {(() => {
         const isPoll =
           eventType === 'org.matrix.msc3381.poll.start' ||

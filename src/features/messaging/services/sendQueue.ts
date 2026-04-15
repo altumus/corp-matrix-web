@@ -2,10 +2,13 @@ import { openDB, type IDBPDatabase } from 'idb'
 import { sendTextMessage } from './messageService.js'
 import type { SendMessageOptions } from '../types.js'
 import { logger } from '../../../shared/lib/logger.js'
+import { toast } from '../../../shared/ui/Toast/toastService.js'
 
 const DB_NAME = 'corp-matrix-send-queue'
 const DB_VERSION = 1
 const STORE = 'pending'
+const MAX_QUEUE_SIZE = 20
+const MAX_ATTEMPTS = 10
 
 interface QueuedMessage {
   id: string
@@ -31,6 +34,14 @@ async function getDb(): Promise<IDBPDatabase> {
 
 export async function enqueueMessage(opts: SendMessageOptions): Promise<string> {
   const database = await getDb()
+
+  // Enforce queue size limit
+  const existing = await database.getAll(STORE) as QueuedMessage[]
+  if (existing.length >= MAX_QUEUE_SIZE) {
+    toast('Очередь сообщений переполнена. Дождитесь восстановления сети.', 'warning', 6000)
+    throw new Error('Send queue is full')
+  }
+
   const id = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
   const queued: QueuedMessage = {
     id,
@@ -53,6 +64,11 @@ export async function getQueuedMessages(): Promise<QueuedMessage[]> {
   return await database.getAll(STORE)
 }
 
+export async function clearQueue(): Promise<void> {
+  const database = await getDb()
+  await database.clear(STORE)
+}
+
 let processing = false
 
 async function processQueue(): Promise<void> {
@@ -67,9 +83,11 @@ async function processQueue(): Promise<void> {
   logger.log(`[sendQueue] Processing ${messages.length} pending messages`)
 
   for (const msg of messages) {
-    if (msg.attempts >= 5) {
-      logger.warn(`[sendQueue] Giving up on message ${msg.id} after 5 attempts`)
+    if (msg.attempts >= MAX_ATTEMPTS) {
+      logger.warn(`[sendQueue] Giving up on message ${msg.id} after ${MAX_ATTEMPTS} attempts`)
       await dequeueMessage(msg.id)
+      const preview = msg.opts.body.slice(0, 50)
+      toast(`Сообщение не доставлено: «${preview}${msg.opts.body.length > 50 ? '…' : ''}»`, 'error', 8000)
       continue
     }
 

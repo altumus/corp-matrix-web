@@ -18,8 +18,12 @@ export default function LoginPage() {
   const [_loadingFlows, setLoadingFlows] = useState(false)
 
   useEffect(() => {
-    stopClient().then(() => clearCryptoStore()).catch(() => {})
-  }, [])
+    // Only stop client and clear crypto store if user is not authenticated.
+    // Prevents accidental key destruction when navigating to /login while logged in.
+    if (status === 'unauthenticated') {
+      stopClient().then(() => clearCryptoStore()).catch(() => {})
+    }
+  }, [status])
 
   useEffect(() => {
     const url = homeserver.trim()

@@ -52,6 +52,7 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
   const clearDraft = useComposerStore((s) => s.clearDraft)
   const loadDraftFromServer = useComposerStore((s) => s.loadDraftFromServer)
   const [text, setText] = useState('')
+  const [sending, setSending] = useState(false)
 
   // Load draft when entering a room
   useEffect(() => {
@@ -99,13 +100,17 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
     const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault()
+        // If text was modified, ask for confirmation before discarding
+        if (text.trim() && text.trim() !== editTarget.body && !confirm(t('messages.discardEdit', { defaultValue: 'Отменить редактирование? Изменения будут потеряны.' }))) {
+          return
+        }
         clearEdit()
         setText('')
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [editTarget, clearEdit])
+  }, [editTarget, clearEdit, text, t])
 
   const insertMention = useCallback((candidate: MentionCandidate) => {
     const textarea = textareaRef.current
@@ -187,30 +192,35 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    if (!text.trim()) return
+    if (!text.trim() || sending) return
 
-    if (editTarget) {
-      if (text.trim() !== editTarget.body) {
-        try {
-          await editMessage(roomId, editTarget.eventId, text.trim())
-        } catch {
-          return // keep text in composer on failure
+    setSending(true)
+    try {
+      if (editTarget) {
+        if (text.trim() !== editTarget.body) {
+          try {
+            await editMessage(roomId, editTarget.eventId, text.trim())
+          } catch {
+            return // keep text in composer on failure
+          }
         }
+        setText('')
+        clearDraft(roomId)
+        clearEdit()
+      } else {
+        const ok = await send(text, replyTarget?.eventId, replyTarget?.quotedText, replyTarget?.quotedText ? replyTarget.sender : undefined)
+        if (!ok) return // keep text in composer on failure
+        setText('')
+        clearDraft(roomId)
+        clearReply()
       }
-      setText('')
-      clearDraft(roomId)
-      clearEdit()
-    } else {
-      const ok = await send(text, replyTarget?.eventId, replyTarget?.quotedText, replyTarget?.quotedText ? replyTarget.sender : undefined)
-      if (!ok) return // keep text in composer on failure
-      setText('')
-      clearDraft(roomId)
-      clearReply()
-    }
 
-    closeMention()
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto'
+      closeMention()
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto'
+      }
+    } finally {
+      setSending(false)
     }
   }
 
@@ -308,7 +318,9 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
     const file = pendingFile
     setPendingFile(null)
     await upload(file, caption)
-  }, [pendingFile, upload])
+    setText('')
+    clearDraft(roomId)
+  }, [pendingFile, upload, roomId, clearDraft])
 
   const handleCancelSend = useCallback(() => {
     setPendingFile(null)
@@ -328,16 +340,22 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
     }
 
     // Multiple files or non-image → upload sequentially
+    const caption = text.trim() || undefined
     for (const file of fileArr) {
       try {
-        await upload(file)
+        await upload(file, caption)
       } catch {
         // continue with next file
       }
     }
 
+    if (caption) {
+      setText('')
+      clearDraft(roomId)
+    }
+
     e.target.value = ''
-  }, [upload])
+  }, [upload, text, roomId, clearDraft])
 
   const selecting = useSelectionStore((s) => s.selecting)
   const selectedIds = useSelectionStore((s) => s.selectedIds)
@@ -534,13 +552,13 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
             placeholder={uploading ? t('messages.uploading') : t('messages.placeholder')}
             aria-label={t('messages.placeholder')}
             rows={1}
-            disabled={uploading}
+            disabled={uploading || sending}
           />
           {text.trim() ? (
             <button
               type="submit"
               className={styles.sendBtn}
-              disabled={uploading}
+              disabled={uploading || sending}
               title={t('messages.send')}
               aria-label={t('messages.send')}
             >
@@ -574,6 +592,7 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
           file={pendingFile}
           onConfirm={handleConfirmSend}
           onCancel={handleCancelSend}
+          initialCaption={text.trim()}
         />
       )}
 

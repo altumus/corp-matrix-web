@@ -46,7 +46,8 @@ function buildListItems(events: TimelineEvent[]): ListItem[] {
 const START_INDEX = 100_000
 
 export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps) {
-  const { events, loading, paginateBack, prependCount } = useTimeline(roomId)
+  const isAtBottomRef = useRef(true)
+  const { events, loading, paginateBack, prependCount } = useTimeline(roomId, isAtBottomRef)
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   const [highlightedEventId, setHighlightedEventId] = useState<string | null>(null)
   const [announcement, setAnnouncement] = useState('')
@@ -54,7 +55,6 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
   const [newMessageCount, setNewMessageCount] = useState(0)
   const focusHandledRef = useRef<string | null>(null)
   const paginateBackRef = useRef(paginateBack)
-  const isAtBottomRef = useRef(true)
   const lastEventIdRef = useRef<string | null>(null)
 
   const setScrollState = useRoomListStore((s) => s.setScrollState)
@@ -255,10 +255,10 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
           }}
           followOutput={(isAtB) => {
             isAtBottomRef.current = isAtB
-            return isAtB ? 'smooth' : false
+            return isAtB ? 'auto' : false
           }}
           startReached={handleStartReached}
-          increaseViewportBy={{ top: 1500, bottom: 0 }}
+          increaseViewportBy={{ top: 1500, bottom: 300 }}
           itemContent={(_, item) => {
             if (item.type === 'date') {
               return <DateSeparator timestamp={item.timestamp!} />

@@ -57,11 +57,13 @@ export default function RoomView() {
     }
   }
 
+  const setActiveThread = useRoomListStore((s) => s.setActiveThread)
+
   const ctx = {
     panel: rightPanel,
-    openDetails: () => setRightPanel({ type: 'details' }),
-    openThread: (threadRootId: string) => setRightPanel({ type: 'thread', threadRootId }),
-    closePanel: () => setRightPanel(null),
+    openDetails: () => { setRightPanel({ type: 'details' }); setActiveThread(null) },
+    openThread: (threadRootId: string) => { setRightPanel({ type: 'thread', threadRootId }); setActiveThread(threadRootId) },
+    closePanel: () => { setRightPanel(null); setActiveThread(null) },
   }
 
   if (loading) {

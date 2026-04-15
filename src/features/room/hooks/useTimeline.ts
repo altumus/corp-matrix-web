@@ -192,7 +192,7 @@ function collectEvents(room: Room): TimelineEvent[] {
   return mapped
 }
 
-export function useTimeline(roomId: string) {
+export function useTimeline(roomId: string, isAtBottomRef?: React.RefObject<boolean>) {
   const client = useMatrixClient()
   const [events, setEvents] = useState<TimelineEvent[]>([])
   const [loading, setLoading] = useState(true)
@@ -296,7 +296,10 @@ export function useTimeline(roomId: string) {
       if (activeRoomIdRef.current !== roomId) return
       prevEventIdsRef.current = ''
       refreshEvents()
-      sendReadReceipt()
+      // Only mark as read if user is scrolled to the bottom (can see new messages)
+      if (!isAtBottomRef || isAtBottomRef.current) {
+        sendReadReceipt()
+      }
     }
     const onRedaction = () => {
       if (activeRoomIdRef.current !== roomId) return

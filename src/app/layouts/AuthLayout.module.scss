@@ -5,6 +5,8 @@
   min-height: 100dvh;
   background: var(--color-bg-secondary);
   padding: var(--spacing-xl);
+  padding-top: max(var(--spacing-xl), env(safe-area-inset-top));
+  padding-bottom: max(var(--spacing-xl), env(safe-area-inset-bottom));
 }
 
 .container {

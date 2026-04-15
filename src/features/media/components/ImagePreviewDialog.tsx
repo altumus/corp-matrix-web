@@ -7,12 +7,13 @@ interface ImagePreviewDialogProps {
   file: File
   onConfirm: (caption?: string) => void
   onCancel: () => void
+  initialCaption?: string
 }
 
-export function ImagePreviewDialog({ file, onConfirm, onCancel }: ImagePreviewDialogProps) {
+export function ImagePreviewDialog({ file, onConfirm, onCancel, initialCaption }: ImagePreviewDialogProps) {
   const { t } = useTranslation()
   const imgRef = useRef<HTMLImageElement>(null)
-  const [caption, setCaption] = useState('')
+  const [caption, setCaption] = useState(initialCaption || '')
 
   useEffect(() => {
     const url = URL.createObjectURL(file)

@@ -69,16 +69,13 @@ function sanitizeNotificationBody(text: string): string {
 
 export async function showDesktopNotification(title: string, body: string, roomId?: string) {
   if (Notification.permission !== 'granted') return
-  if (document.hasFocus()) return
 
   const cleanBody = sanitizeNotificationBody(body)
 
-  const options: NotificationOptions & { renotify?: boolean } = {
+  const options: NotificationOptions = {
     body: cleanBody,
     icon: '/corp-logo.png',
     tag: roomId,
-    // Renotify so updated messages in same room re-alert
-    renotify: !!roomId,
   }
 
   // Prefer SW-based notification — avoids duplication across tabs
@@ -136,6 +133,32 @@ export function setupNotificationListeners() {
     client.on(ClientEvent.Sync, onSync)
   }
 
+  // Cache for event sender lookups (avoids repeated server fetches)
+  const eventSenderCache = new Map<string, string>()
+  const MAX_CACHE_SIZE = 200
+
+  function cacheEventSender(eventId: string, senderId: string) {
+    if (eventSenderCache.size >= MAX_CACHE_SIZE) {
+      const firstKey = eventSenderCache.keys().next().value as string
+      eventSenderCache.delete(firstKey)
+    }
+    eventSenderCache.set(eventId, senderId)
+  }
+
+  async function getEventSender(roomId: string, eventId: string): Promise<string | null> {
+    const cached = eventSenderCache.get(eventId)
+    if (cached) return cached
+
+    try {
+      const result = await client.fetchRoomEvent(roomId, eventId)
+      const senderId = result?.sender as string | undefined
+      if (senderId) cacheEventSender(eventId, senderId)
+      return senderId || null
+    } catch {
+      return null
+    }
+  }
+
   client.on(
     RoomEvent.Timeline,
     (event: MatrixEvent, room: Room | undefined, _toStart: boolean | undefined, _removed: boolean, data: IRoomTimelineData) => {
@@ -154,8 +177,7 @@ export function setupNotificationListeners() {
         const targetEventId = relatesTo?.event_id as string | undefined
         const reactionKey = relatesTo?.key as string | undefined
         if (targetEventId && room) {
-          const targetEvent = room.findEventById(targetEventId)
-          if (targetEvent && targetEvent.getSender() === client.getUserId()) {
+          const showReactionNotification = () => {
             const reactorMember = room.getMember(sender!)
             const reactorName = reactorMember?.name || sender || ''
             const roomName = room.name || ''
@@ -169,11 +191,28 @@ export function setupNotificationListeners() {
             )
             playNotificationSound()
           }
+
+          const targetEvent = room.findEventById(targetEventId)
+          if (targetEvent && targetEvent.getSender() === client.getUserId()) {
+            showReactionNotification()
+          } else if (!targetEvent) {
+            // Event not in loaded timeline — check server
+            void getEventSender(room.roomId, targetEventId).then((targetSender) => {
+              if (targetSender === client.getUserId()) {
+                showReactionNotification()
+              }
+            })
+          }
         }
         return
       }
 
       if (eventType !== 'm.room.message') return
+
+      const content = event.getContent()
+      const mMentions = content['m.mentions'] as { user_ids?: string[]; room?: boolean } | undefined
+      const myUserId = client.getUserId()!
+      const isMentioned = !!(mMentions?.user_ids?.includes(myUserId) || mMentions?.room)
 
       // Muted rooms: skip unless user was @mentioned (Telegram-style)
       const pushRules = client.pushRules
@@ -182,9 +221,9 @@ export function setupNotificationListeners() {
       // Check if room is muted via tag (in addition to push rules)
       const roomTags = room.tags || {}
       const isMutedByTag = !!roomTags['m.mute']
-      if (isMutedByTag) return
+      if (isMutedByTag && !isMentioned) return
 
-      if (isMuted) {
+      if (isMuted && !isMentioned) {
         const actions = client.pushProcessor.actionsForEvent(event)
         if (!actions.tweaks?.highlight) return
       }
@@ -192,9 +231,17 @@ export function setupNotificationListeners() {
       const currentRoomId = useRoomListStore.getState().selectedRoomId
       const isInCurrentRoom = currentRoomId === room.roomId && document.hasFocus()
 
-      if (isInCurrentRoom) return
+      // Thread messages: notify even if user is in the room but not viewing this thread
+      const relatesTo = content['m.relates_to'] as { rel_type?: string; event_id?: string } | undefined
+      const isThreadMessage = relatesTo?.rel_type === 'm.thread'
 
-      const content = event.getContent()
+      if (isInCurrentRoom) {
+        if (!isThreadMessage) return
+        // In room but is the user viewing this specific thread?
+        const activeThread = useRoomListStore.getState().activeThreadRootId
+        if (activeThread === relatesTo?.event_id) return
+      }
+
       const body = (content.body as string) || ''
       const senderMember = room.getMember(sender!)
       const senderName = senderMember?.name || sender || ''
@@ -202,9 +249,13 @@ export function setupNotificationListeners() {
 
       // Format: "Sender — Room" for groups, just "Sender" for DMs
       const isDm = room.getJoinedMemberCount() <= 2
-      const title = isDm || !roomName || roomName === senderName
+      let title = isDm || !roomName || roomName === senderName
         ? senderName
         : `${senderName} — ${roomName}`
+
+      if (isMentioned) {
+        title = `@ ${title}`
+      }
 
       showDesktopNotification(title, body, room.roomId)
       playNotificationSound()

@@ -28,15 +28,43 @@ interface ComposerStore {
   cleanupStaleDrafts: () => void
 }
 
-let syncTimeout: ReturnType<typeof setTimeout> | null = null
+const DRAFT_LS_PREFIX = 'corp-matrix-draft:'
+
+// Per-room sync timers to avoid one room's timer overwriting another
+const syncTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+function saveDraftToLocalStorage(roomId: string, text: string) {
+  try {
+    if (text) {
+      localStorage.setItem(`${DRAFT_LS_PREFIX}${roomId}`, text)
+    } else {
+      localStorage.removeItem(`${DRAFT_LS_PREFIX}${roomId}`)
+    }
+  } catch { /* quota exceeded — best-effort */ }
+}
+
+function loadDraftFromLocalStorage(roomId: string): string {
+  try {
+    return localStorage.getItem(`${DRAFT_LS_PREFIX}${roomId}`) || ''
+  } catch {
+    return ''
+  }
+}
 
 function syncDraftToServer(roomId: string, text: string) {
-  if (syncTimeout) clearTimeout(syncTimeout)
-  syncTimeout = setTimeout(() => {
+  const existing = syncTimers.get(roomId)
+  if (existing) clearTimeout(existing)
+
+  const timer = setTimeout(() => {
+    syncTimers.delete(roomId)
     const client = getMatrixClient()
     if (!client) return
-    client.setRoomAccountData(roomId, 'org.matrix.draft' as never, { body: text } as never).catch(() => {})
+    client.setRoomAccountData(roomId, 'org.matrix.draft' as never, { body: text } as never).catch(() => {
+      // Server sync failed — localStorage fallback already saved
+    })
   }, 2000)
+
+  syncTimers.set(roomId, timer)
 }
 
 export const useComposerStore = create<ComposerStore>((set, get) => ({
@@ -50,6 +78,7 @@ export const useComposerStore = create<ComposerStore>((set, get) => ({
 
   setDraft: (roomId, text) => {
     set((s) => ({ drafts: { ...s.drafts, [roomId]: text } }))
+    saveDraftToLocalStorage(roomId, text)
     syncDraftToServer(roomId, text)
   },
 
@@ -61,6 +90,7 @@ export const useComposerStore = create<ComposerStore>((set, get) => ({
       delete drafts[roomId]
       return { drafts }
     })
+    saveDraftToLocalStorage(roomId, '')
     syncDraftToServer(roomId, '')
   },
 
@@ -74,9 +104,15 @@ export const useComposerStore = create<ComposerStore>((set, get) => ({
       const body = data?.getContent()?.body as string
       if (body) {
         set((s) => ({ drafts: { ...s.drafts, [roomId]: body } }))
+        return
       }
     } catch {
-      // no draft saved
+      // no draft saved on server
+    }
+    // Fallback to localStorage
+    const local = loadDraftFromLocalStorage(roomId)
+    if (local) {
+      set((s) => ({ drafts: { ...s.drafts, [roomId]: local } }))
     }
   },
 
@@ -91,8 +127,10 @@ export const useComposerStore = create<ComposerStore>((set, get) => ({
       const room = client.getRoom(roomId)
       if (room && room.getMyMembership() === 'join') {
         cleaned[roomId] = text
+      } else {
+        // Clean up localStorage too
+        saveDraftToLocalStorage(roomId, '')
       }
-      // Otherwise drop — room left/deleted
     }
 
     set({ drafts: cleaned })

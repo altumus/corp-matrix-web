@@ -175,7 +175,13 @@ function installSyncErrorGuard(set: (s: Partial<AuthState>) => void) {
       try {
         await client.whoami()
       } catch {
-        // Token invalid — force logout
+        // Token invalid — notify user before force logout
+        const { toast } = await import('../../../shared/ui/Toast/toastService.js')
+        toast('Сессия истекла. Необходимо войти снова.', 'error', 10000)
+        try {
+          const { clearQueue } = await import('../../messaging/services/sendQueue.js')
+          await clearQueue()
+        } catch { /* best-effort */ }
         await clearSession()
         set({ user: null, status: 'unauthenticated' })
       }
@@ -269,6 +275,11 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   logout: async () => {
     keyRestoreSkipped = false
+    // Clear offline send queue to prevent cross-account message leaks
+    try {
+      const { clearQueue } = await import('../../messaging/services/sendQueue.js')
+      await clearQueue()
+    } catch { /* best-effort */ }
     await logoutSession()
     set({ status: 'unauthenticated', user: null, error: null })
   },

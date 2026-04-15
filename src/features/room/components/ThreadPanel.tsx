@@ -5,6 +5,8 @@ import { useThread } from '../hooks/useThread.js'
 import { Avatar } from '../../../shared/ui/index.js'
 import { editMessage, sendReaction, redactMessage } from '../../messaging/services/messageService.js'
 import { useSendMessage } from '../../messaging/hooks/useSendMessage.js'
+import { useMentions, type MentionCandidate } from '../../messaging/hooks/useMentions.js'
+import { MentionPopup } from '../../messaging/components/MentionPopup.js'
 import { useIsMobile } from '../../../shared/hooks/useMediaQuery.js'
 import { MessageContent } from './MessageContent.js'
 import { ReplyPreview } from './ReplyPreview.js'
@@ -23,6 +25,13 @@ const Lightbox = lazy(() =>
 const EmojiPicker = lazy(() =>
   import('../../messaging/components/EmojiPicker.js').then((m) => ({ default: m.EmojiPicker })),
 )
+
+function getMentionContext(text: string, cursorPos: number): { query: string; start: number } | null {
+  const before = text.slice(0, cursorPos)
+  const match = before.match(/@([^\s@]*)$/)
+  if (!match) return null
+  return { query: match[1], start: before.length - match[0].length }
+}
 
 interface ThreadPanelProps {
   roomId: string
@@ -350,6 +359,31 @@ export function ThreadPanel({ roomId, threadRootId, onClose }: ThreadPanelProps)
   const repliesEndRef = useRef<HTMLDivElement>(null)
   const isMobile = useIsMobile()
   const { send } = useSendMessage(roomId)
+  const { candidates, active: mentionActive, open: openMention, close: closeMention } = useMentions(roomId)
+  const mentionStartRef = useRef<number>(-1)
+  const [mentionIndex, setMentionIndex] = useState(0)
+
+  const insertMention = useCallback((candidate: MentionCandidate) => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    const start = mentionStartRef.current
+    if (start === -1) return
+
+    const before = text.slice(0, start)
+    const after = text.slice(textarea.selectionStart)
+    const mention = `@${candidate.displayName} `
+    const newText = before + mention + after
+    setText(newText)
+    closeMention()
+    setMentionIndex(0)
+    mentionStartRef.current = -1
+
+    requestAnimationFrame(() => {
+      const pos = before.length + mention.length
+      textarea.setSelectionRange(pos, pos)
+      textarea.focus()
+    })
+  }, [text, closeMention])
 
   const handleReply = useCallback((target: ThreadReplyTarget) => {
     setReplyTarget(target)
@@ -472,20 +506,64 @@ export function ThreadPanel({ roomId, threadRootId, onClose }: ThreadPanelProps)
         </div>
       )}
 
-      <form className={styles.composer} onSubmit={handleSubmit}>
+      <form className={styles.composer} onSubmit={handleSubmit} style={{ position: 'relative' }}>
+        {mentionActive && candidates.length > 0 && (
+          <MentionPopup
+            candidates={candidates}
+            selectedIndex={mentionIndex}
+            onSelect={insertMention}
+          />
+        )}
         <textarea
           ref={textareaRef}
           className={styles.textarea}
           value={text}
           onChange={(e) => {
-            setText(e.target.value)
+            const value = e.target.value
+            setText(value)
             const ta = textareaRef.current
             if (ta) {
               ta.style.height = 'auto'
               ta.style.height = `${Math.min(ta.scrollHeight, 120)}px`
+
+              const cursorPos = ta.selectionStart
+              const ctx = getMentionContext(value, cursorPos)
+              if (ctx) {
+                mentionStartRef.current = ctx.start
+                openMention(ctx.query)
+                setMentionIndex(0)
+              } else {
+                closeMention()
+                mentionStartRef.current = -1
+              }
             }
           }}
-          onKeyDown={handleKeyDown}
+          onKeyDown={(e) => {
+            if (mentionActive && candidates.length > 0) {
+              if (e.key === 'ArrowDown') {
+                e.preventDefault()
+                setMentionIndex((i) => (i + 1) % candidates.length)
+                return
+              }
+              if (e.key === 'ArrowUp') {
+                e.preventDefault()
+                setMentionIndex((i) => (i - 1 + candidates.length) % candidates.length)
+                return
+              }
+              if (e.key === 'Enter' || e.key === 'Tab') {
+                e.preventDefault()
+                insertMention(candidates[mentionIndex])
+                return
+              }
+              if (e.key === 'Escape') {
+                e.preventDefault()
+                closeMention()
+                mentionStartRef.current = -1
+                return
+              }
+            }
+            handleKeyDown(e)
+          }}
           placeholder={t('messages.replyInThread')}
           rows={1}
         />

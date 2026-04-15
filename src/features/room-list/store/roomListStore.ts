@@ -10,6 +10,7 @@ interface RoomListState {
   initialLoading: boolean
   activeTab: RoomListTab
   scrollStates: Record<string, unknown>
+  activeThreadRootId: string | null
 
   setRooms: (rooms: RoomListEntry[]) => void
   setSearchQuery: (query: string) => void
@@ -19,6 +20,7 @@ interface RoomListState {
   updateRoom: (roomId: string, partial: Partial<RoomListEntry>) => void
   setScrollState: (roomId: string, state: unknown) => void
   getScrollState: (roomId: string) => unknown | undefined
+  setActiveThread: (threadRootId: string | null) => void
 }
 
 export const useRoomListStore = create<RoomListState>((set, get) => ({
@@ -28,6 +30,7 @@ export const useRoomListStore = create<RoomListState>((set, get) => ({
   initialLoading: true,
   activeTab: 'all',
   scrollStates: {},
+  activeThreadRootId: null,
 
   setRooms: (rooms) => set({ rooms }),
 
@@ -52,4 +55,6 @@ export const useRoomListStore = create<RoomListState>((set, get) => ({
     })),
 
   getScrollState: (roomId) => get().scrollStates[roomId],
+
+  setActiveThread: (threadRootId) => set({ activeThreadRootId: threadRootId }),
 }))
