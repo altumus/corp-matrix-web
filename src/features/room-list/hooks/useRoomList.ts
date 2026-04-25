@@ -51,26 +51,28 @@ function getLastMessage(room: Room): { body: string; sender: string; senderId: s
   return { body: '', sender: '', senderId: '', ts: room.getLastActiveTimestamp() }
 }
 
+function getActiveMembers(room: Room) {
+  return [
+    ...room.getJoinedMembers(),
+    ...room.getMembersWithMembership('invite'),
+  ]
+}
+
 function isDmRoom(room: Room): boolean {
-  const members = room.getJoinedMembers()
+  const members = getActiveMembers(room)
   if (members.length === 2) return true
   if (members.length <= 2 && room.getDMInviter()) return true
   return false
 }
 
 function isSelfDm(room: Room, myUserId: string): boolean {
-  const members = room.getJoinedMembers()
-  if (members.length === 1 && members[0].userId === myUserId) {
-    return true
-  }
-  if (members.length === 2 && members.every((m) => m.userId === myUserId)) {
-    return true
-  }
-  return false
+  const members = getActiveMembers(room)
+  if (members.length === 0) return false
+  return members.every((m) => m.userId === myUserId)
 }
 
 function getDmPartnerAvatar(room: Room, myUserId: string): string | null {
-  const members = room.getJoinedMembers()
+  const members = getActiveMembers(room)
   const other = members.find((m) => m.userId !== myUserId)
   return other?.getMxcAvatarUrl() ?? null
 }
