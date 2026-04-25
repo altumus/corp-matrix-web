@@ -1,0 +1,128 @@
+.layout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100dvh;
+  background: var(--color-bg-secondary);
+  padding: var(--spacing-xl);
+}
+
+.container {
+  width: 100%;
+  max-width: 480px;
+  background: var(--color-bg-primary);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-2xl);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.header {
+  text-align: center;
+}
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--color-accent-soft, var(--color-bg-secondary));
+  color: var(--color-accent);
+  margin-bottom: var(--spacing-md);
+}
+
+.title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  margin: 0 0 var(--spacing-sm);
+}
+
+.description {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin: 0;
+  line-height: var(--line-height-relaxed);
+}
+
+.warning {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xxs);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-warning) 12%, transparent);
+  border-left: 3px solid var(--color-warning);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-relaxed);
+
+  strong {
+    color: var(--color-warning);
+    font-weight: var(--font-weight-semibold);
+  }
+}
+
+.keyBox {
+  display: block;
+  padding: var(--spacing-md);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border, transparent);
+  border-radius: var(--radius-md);
+  font-family: var(--font-family-mono, monospace);
+  font-size: var(--font-size-md);
+  letter-spacing: 0.5px;
+  word-break: break-all;
+  white-space: pre-wrap;
+  user-select: all;
+  color: var(--color-text-primary);
+  text-align: center;
+}
+
+.actions {
+  display: flex;
+  gap: var(--spacing-sm);
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-xs);
+  }
+}
+
+.confirmCheckbox {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-relaxed);
+
+  input[type='checkbox'] {
+    margin-top: 3px;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+
+  &:hover {
+    background: var(--color-bg-secondary);
+  }
+}
+
+@media (max-width: 480px) {
+  .container {
+    padding: var(--spacing-xl);
+  }
+
+  .actions {
+    flex-direction: column;
+  }
+}

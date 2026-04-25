@@ -54,6 +54,17 @@ export async function clearSession(): Promise<void> {
   const db = await getDb()
   await db.delete(SESSION_STORE, 'current')
   await db.delete(SESSION_STORE, 'recoveryKey').catch(() => {})
+  await db.delete(SESSION_STORE, 'recoveryKeyAcknowledged').catch(() => {})
+}
+
+export async function setRecoveryKeyAcknowledged(): Promise<void> {
+  const db = await getDb()
+  await db.put(SESSION_STORE, true, 'recoveryKeyAcknowledged')
+}
+
+export async function isRecoveryKeyAcknowledged(): Promise<boolean> {
+  const db = await getDb()
+  return Boolean(await db.get(SESSION_STORE, 'recoveryKeyAcknowledged'))
 }
 
 // ─── Recovery key encryption ─────────────────────────────────────

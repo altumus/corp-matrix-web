@@ -43,6 +43,8 @@
 		"roomName": "Room name",
 		"roomTopic": "Topic",
 		"inviteUsers": "Invite users",
+		"inviteUsersPlaceholder": "Search by name or @user:server",
+		"willInviteByMxid": "Invite {{mxid}} by ID",
 		"invitations": "Invitations",
 		"accept": "Accept",
 		"decline": "Decline",
@@ -192,7 +194,20 @@
 		"verificationCancelled": "Verification was cancelled",
 		"retry": "Retry",
 		"back": "Back",
-		"skipForNow": "Skip for now — restore keys later in settings"
+		"skipForNow": "Skip for now — restore keys later in settings",
+		"welcome": {
+			"title": "Save your recovery key",
+			"description": "This is your recovery key. You'll need it to decrypt your message history when signing in on a new device or after clearing browser data.",
+			"warningTitle": "Shown only once",
+			"warningBody": "Store this key somewhere safe — a password manager, secure note, or print it out. Without it you won't be able to recover your encrypted history.",
+			"copy": "Copy",
+			"copied": "Copied",
+			"copiedToast": "Recovery key copied",
+			"copyFailed": "Failed to copy the key",
+			"download": "Download .txt",
+			"confirmCheckbox": "I have saved my recovery key in a safe place",
+			"continue": "Continue"
+		}
 	},
 	"search": {
 		"title": "Search",

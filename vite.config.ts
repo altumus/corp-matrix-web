@@ -82,5 +82,8 @@ export default defineConfig({
 	optimizeDeps: {
 		exclude: ['@matrix-org/matrix-sdk-crypto-wasm'],
 	},
+	server: {
+		allowedHosts: ['.trycloudflare.com', '.ngrok-free.app', '.ngrok.app'],
+	},
 });
 

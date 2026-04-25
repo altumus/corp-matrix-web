@@ -1,6 +1,7 @@
 import { create } from 'zustand'
-import { getMatrixClient, saveRecoveryKey, loadRecoveryKey, setSecretStorageKey, clearSession } from '../../../shared/lib/matrixClient.js'
+import { getMatrixClient, saveRecoveryKey, loadRecoveryKey, setSecretStorageKey, clearSession, isRecoveryKeyAcknowledged, setRecoveryKeyAcknowledged } from '../../../shared/lib/matrixClient.js'
 import { ClientEvent, SyncState } from 'matrix-js-sdk'
+import { encodeRecoveryKey } from 'matrix-js-sdk/lib/crypto-api/recovery-key.js'
 import type { AuthState, AuthStatus } from '../types.js'
 import {
   loginWithPassword,
@@ -38,18 +39,18 @@ function waitForInitialSync(timeoutMs = 10_000): Promise<void> {
   })
 }
 
-async function ensureKeyBackup(): Promise<void> {
+async function ensureKeyBackup(): Promise<string | null> {
   const client = getMatrixClient()
   const crypto = client?.getCrypto()
-  if (!crypto) return
+  if (!crypto) return null
 
   try {
     await crypto.checkKeyBackupAndEnable()
     const activeVersion = await crypto.getActiveSessionBackupVersion()
-    if (activeVersion) return // backup already active
+    if (activeVersion) return null // backup already active
 
     const backupInfo = await crypto.getKeyBackupInfo()
-    if (backupInfo?.version) return // backup exists but needs restore — don't auto-create
+    if (backupInfo?.version) return null // backup exists but needs restore — don't auto-create
 
     // No backup at all — create one and persist the recovery key
     await crypto.resetKeyBackup()
@@ -65,6 +66,7 @@ async function ensureKeyBackup(): Promise<void> {
           createSecretStorageKey: () => Promise.resolve(recoveryKey),
           setupNewSecretStorage: true,
         })
+        return recoveryKey.encodedPrivateKey ?? encodeRecoveryKey(recoveryKey.privateKey) ?? null
       }
     } catch {
       // Recovery key generation failed — backup still works for current device
@@ -72,6 +74,7 @@ async function ensureKeyBackup(): Promise<void> {
   } catch {
     // best-effort — don't block auth
   }
+  return null
 }
 
 // NOTE: cleanup is no longer automatic — moved to manual UI in DevicesSettings
@@ -99,20 +102,26 @@ async function bootstrapCrossSigning(setupNew = true): Promise<void> {
   }
 }
 
-async function resolvePostAuthStatus(isNewAccount = false): Promise<AuthStatus> {
+interface PostAuthResult {
+  status: AuthStatus
+  pendingRecoveryKey?: string | null
+}
+
+async function resolvePostAuthStatus(isNewAccount = false): Promise<PostAuthResult> {
   try {
     await waitForInitialSync(30_000)
 
     const client = getMatrixClient()
     const crypto = client?.getCrypto()
-    if (!crypto) return 'authenticated'
+    if (!crypto) return { status: 'authenticated' }
 
     // For new accounts — bootstrap cross-signing and create key backup
     if (isNewAccount) {
       await bootstrapCrossSigning()
-      await ensureKeyBackup()
+      const newKey = await ensureKeyBackup()
       cleanupOldDevices()
-      return 'authenticated'
+      if (newKey) return { status: 'show_recovery_key', pendingRecoveryKey: newKey }
+      return { status: 'authenticated' }
     }
 
     // Try to load cached recovery key from IndexedDB (saved during backup creation)
@@ -132,7 +141,7 @@ async function resolvePostAuthStatus(isNewAccount = false): Promise<AuthStatus> 
     const activeVersion = await crypto.getActiveSessionBackupVersion()
     if (activeVersion) {
       cleanupOldDevices()
-      return 'authenticated'
+      return resolveAcknowledgedOrShowKey(cachedKey)
     }
 
     // Backup exists but not active for this device — try auto-restore
@@ -144,21 +153,32 @@ async function resolvePostAuthStatus(isNewAccount = false): Promise<AuthStatus> 
         const nowActive = await crypto.getActiveSessionBackupVersion()
         if (nowActive) {
           cleanupOldDevices()
-          return 'authenticated'
+          return resolveAcknowledgedOrShowKey(cachedKey)
         }
       } catch {
         // Could not auto-restore — show the restore screen
       }
-      return 'needs_key_restore'
+      return { status: 'needs_key_restore' }
     }
 
     // No backup exists — auto-create one
-    await ensureKeyBackup()
+    const newKey = await ensureKeyBackup()
     cleanupOldDevices()
+    if (newKey) return { status: 'show_recovery_key', pendingRecoveryKey: newKey }
   } catch {
     // crypto not available — proceed
   }
-  return 'authenticated'
+  return { status: 'authenticated' }
+}
+
+// If a backup is active and we have the local key but the user never confirmed
+// they saved it (e.g. closed the tab during register) — re-show the screen.
+async function resolveAcknowledgedOrShowKey(cachedKey: Uint8Array | null): Promise<PostAuthResult> {
+  if (!cachedKey) return { status: 'authenticated' }
+  if (await isRecoveryKeyAcknowledged()) return { status: 'authenticated' }
+  const encoded = encodeRecoveryKey(cachedKey)
+  if (!encoded) return { status: 'authenticated' }
+  return { status: 'show_recovery_key', pendingRecoveryKey: encoded }
 }
 
 let syncGuardInstalled = false
@@ -195,24 +215,31 @@ function installSyncErrorGuard(set: (s: Partial<AuthState>) => void) {
 // overwriting status back to 'needs_key_restore'
 let keyRestoreSkipped = false
 
+function applyPostAuth(set: (s: Partial<AuthState>) => void, result: PostAuthResult) {
+  if (result.status === 'needs_key_restore' && !keyRestoreSkipped) {
+    set({ status: 'needs_key_restore' })
+  } else if (result.status === 'show_recovery_key' && result.pendingRecoveryKey) {
+    set({ status: 'show_recovery_key', pendingRecoveryKey: result.pendingRecoveryKey })
+  }
+}
+
 export const useAuthStore = create<AuthState>((set) => ({
   status: 'idle',
   user: null,
   error: null,
   homeserver: import.meta.env.VITE_MATRIX_HOMESERVER_URL || '',
+  pendingRecoveryKey: null,
 
   setHomeserver: (url: string) => set({ homeserver: url }),
 
   login: async (credentials) => {
-    set({ status: 'loading', error: null })
+    set({ status: 'loading', error: null, pendingRecoveryKey: null })
     keyRestoreSkipped = false
     try {
       const user = await loginWithPassword(credentials)
       set({ status: 'authenticated', user, error: null })
       installSyncErrorGuard(set)
-      resolvePostAuthStatus().then((s) => {
-        if (s === 'needs_key_restore' && !keyRestoreSkipped) set({ status: s })
-      })
+      resolvePostAuthStatus().then((r) => applyPostAuth(set, r))
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'auth.errors.unknownError'
@@ -221,15 +248,13 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   loginWithSso: async (homeserverUrl, loginToken) => {
-    set({ status: 'loading', error: null })
+    set({ status: 'loading', error: null, pendingRecoveryKey: null })
     keyRestoreSkipped = false
     try {
       const user = await loginWithSsoToken(homeserverUrl, loginToken)
       set({ status: 'authenticated', user, error: null })
       installSyncErrorGuard(set)
-      resolvePostAuthStatus().then((s) => {
-        if (s === 'needs_key_restore' && !keyRestoreSkipped) set({ status: s })
-      })
+      resolvePostAuthStatus().then((r) => applyPostAuth(set, r))
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'SSO login failed'
@@ -238,15 +263,13 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   register: async (credentials) => {
-    set({ status: 'loading', error: null })
+    set({ status: 'loading', error: null, pendingRecoveryKey: null })
     keyRestoreSkipped = false
     try {
       const user = await registerAccount(credentials)
       set({ status: 'authenticated', user, error: null })
       installSyncErrorGuard(set)
-      resolvePostAuthStatus(true).then((s) => {
-        if (s === 'needs_key_restore' && !keyRestoreSkipped) set({ status: s })
-      })
+      resolvePostAuthStatus(true).then((r) => applyPostAuth(set, r))
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'auth.errors.unknownError'
@@ -255,16 +278,14 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   restoreSession: async () => {
-    set({ status: 'loading', error: null })
+    set({ status: 'loading', error: null, pendingRecoveryKey: null })
     keyRestoreSkipped = false
     try {
       const user = await restoreExistingSession()
       if (user) {
         set({ status: 'authenticated', user })
         installSyncErrorGuard(set)
-        resolvePostAuthStatus().then((s) => {
-          if (s === 'needs_key_restore' && !keyRestoreSkipped) set({ status: s })
-        })
+        resolvePostAuthStatus().then((r) => applyPostAuth(set, r))
       } else {
         set({ status: 'unauthenticated' })
       }
@@ -281,12 +302,24 @@ export const useAuthStore = create<AuthState>((set) => ({
       await clearQueue()
     } catch { /* best-effort */ }
     await logoutSession()
-    set({ status: 'unauthenticated', user: null, error: null })
+    set({ status: 'unauthenticated', user: null, error: null, pendingRecoveryKey: null })
   },
 
   completeKeyRestore: () => {
     keyRestoreSkipped = true
     set({ status: 'authenticated' })
+    // User just typed the recovery key — they obviously have it,
+    // so don't pester them with the welcome screen on next login.
+    setRecoveryKeyAcknowledged().catch(() => { /* best-effort */ })
+  },
+
+  acknowledgeRecoveryKey: async () => {
+    try {
+      await setRecoveryKeyAcknowledged()
+    } catch {
+      // best-effort — proceed even if persistence fails
+    }
+    set({ status: 'authenticated', pendingRecoveryKey: null })
   },
 
   clearError: () => set({ error: null }),

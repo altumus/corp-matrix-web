@@ -16,13 +16,14 @@ export interface RegisterCredentials {
   password: string
 }
 
-export type AuthStatus = 'idle' | 'loading' | 'authenticated' | 'needs_key_restore' | 'unauthenticated'
+export type AuthStatus = 'idle' | 'loading' | 'authenticated' | 'needs_key_restore' | 'show_recovery_key' | 'unauthenticated'
 
 export interface AuthState {
   status: AuthStatus
   user: AuthUser | null
   error: string | null
   homeserver: string
+  pendingRecoveryKey: string | null
 
   setHomeserver: (url: string) => void
   login: (credentials: LoginCredentials) => Promise<void>
@@ -31,5 +32,6 @@ export interface AuthState {
   restoreSession: () => Promise<void>
   logout: () => Promise<void>
   completeKeyRestore: () => void
+  acknowledgeRecoveryKey: () => Promise<void>
   clearError: () => void
 }

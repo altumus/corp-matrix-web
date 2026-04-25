@@ -2,6 +2,7 @@ import { type ReactNode } from 'react'
 import { Navigate } from 'react-router'
 import { useSession } from '../hooks/useSession.js'
 import { KeyRestoreScreen } from '../../encryption/components/KeyRestoreScreen.js'
+import { RecoveryKeyWelcomeScreen } from '../../encryption/components/RecoveryKeyWelcomeScreen.js'
 import { Spinner } from '../../../shared/ui/index.js'
 
 interface AuthGuardProps {
@@ -25,6 +26,10 @@ export function AuthGuard({ children }: AuthGuardProps) {
 
   if (status === 'needs_key_restore') {
     return <KeyRestoreScreen />
+  }
+
+  if (status === 'show_recovery_key') {
+    return <RecoveryKeyWelcomeScreen />
   }
 
   return <>{children}</>
