@@ -25,28 +25,36 @@ services:
       SYNAPSE_SERVER_NAME: server1.localhost
       SYNAPSE_REPORT_STATS: "no"
       SYNAPSE_CONFIG_DIR: /data
-    entrypoint: >
-      sh -c "
+    entrypoint:
+      - sh
+      - -c
+      - |
         if [ ! -f /data/homeserver.yaml ]; then
           /start.py generate
-          # Enable federation, registration, and shared secret
-          echo '
-      enable_registration: true
-      enable_registration_without_verification: true
-      registration_shared_secret: \"test-shared-secret-1\"
+          python3 -c "
+        import re
+        p = '/data/homeserver.yaml'
+        t = open(p).read()
+        t = re.sub(
+            r'^trusted_key_servers:\n  - server_name: \"matrix.org\"\n',
+            'trusted_key_servers:\n  - server_name: \"matrix.org\"\n    accept_keys_insecurely: true\nsuppress_key_server_warning: true\n',
+            t, count=1, flags=re.MULTILINE,
+        )
+        open(p, 'w').write(t)
+        "
+          cat >> /data/homeserver.yaml <<'EOF'
 
-      # Federation
-      federation_domain_whitelist:
-        - server2.localhost
+        enable_registration: true
+        enable_registration_without_verification: true
+        registration_shared_secret: "test-shared-secret-1"
 
-      # Allow federation over plain HTTP (for local testing only!)
-      federation_verify_certificates: false
+        federation_domain_whitelist:
+          - server2.localhost
 
-      # Listeners — add federation listener
-      ' >> /data/homeserver.yaml
+        federation_verify_certificates: false
+        EOF
         fi
-        /start.py
-      "
+        exec /start.py
 
   synapse2:
     image: matrixdotorg/synapse:latest
@@ -59,20 +67,33 @@ services:
       SYNAPSE_SERVER_NAME: server2.localhost
       SYNAPSE_REPORT_STATS: "no"
       SYNAPSE_CONFIG_DIR: /data
-    entrypoint: >
-      sh -c "
+    entrypoint:
+      - sh
+      - -c
+      - |
         if [ ! -f /data/homeserver.yaml ]; then
           /start.py generate
-          echo '
-      enable_registration: true
-      enable_registration_without_verification: true
-      registration_shared_secret: \"test-shared-secret-2\"
+          python3 -c "
+        import re
+        p = '/data/homeserver.yaml'
+        t = open(p).read()
+        t = re.sub(
+            r'^trusted_key_servers:\n  - server_name: \"matrix.org\"\n',
+            'trusted_key_servers:\n  - server_name: \"matrix.org\"\n    accept_keys_insecurely: true\nsuppress_key_server_warning: true\n',
+            t, count=1, flags=re.MULTILINE,
+        )
+        open(p, 'w').write(t)
+        "
+          cat >> /data/homeserver.yaml <<'EOF'
 
-      federation_domain_whitelist:
-        - server1.localhost
+        enable_registration: true
+        enable_registration_without_verification: true
+        registration_shared_secret: "test-shared-secret-2"
 
-      federation_verify_certificates: false
-      ' >> /data/homeserver.yaml
+        federation_domain_whitelist:
+          - server1.localhost
+
+        federation_verify_certificates: false
+        EOF
         fi
-        /start.py
-      "
+        exec /start.py

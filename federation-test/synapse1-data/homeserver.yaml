@@ -9,7 +9,7 @@
 # For more information on how to configure Synapse, including a complete accounting of
 # each option, go to docs/usage/configuration/config_documentation.md or
 # https://element-hq.github.io/synapse/latest/usage/configuration/config_documentation.html
-server_name: "server2.localhost"
+server_name: "server1.localhost"
 pid_file: /data/homeserver.pid
 listeners:
   - port: 8008
@@ -25,13 +25,13 @@ database:
   name: sqlite3
   args:
     database: /data/homeserver.db
-log_config: "/data/server2.localhost.log.config"
+log_config: "/data/server1.localhost.log.config"
 media_store_path: /data/media_store
-registration_shared_secret: "hTK=z_xjPOV-E4O_4eMImF^fx4,gvoXeZ,=7R#6n28A,_aX0fR"
+registration_shared_secret: "HCKRY0fila0yq5WT=GU+y7;+Wxf4NtoO~M3LsP~t20lF+XzzWc"
 report_stats: false
-macaroon_secret_key: "X0RCHi.^#*4h#=lbjzU=UF3#eKz-iMQ9jATlT-BXKhiD9epopt"
-form_secret: "GNQvl5._ytFiQimBjP6kEik7#OE&Td-H9EGaT;i~~ch;WzTrjB"
-signing_key_path: "/data/server2.localhost.signing.key"
+macaroon_secret_key: "I;ZXFg1fHdW8*@j;yG+2;SjpM.tZ;Y1nyc=RoRcNvTj8RHsHjW"
+form_secret: "Gfcf3Zr2THO2qHTcMPzTzCp_F9^hY,aF4;;oNMSR7oM=Ie,Hrh"
+signing_key_path: "/data/server1.localhost.signing.key"
 trusted_key_servers:
   - server_name: "matrix.org"
     accept_keys_insecurely: true
@@ -42,9 +42,9 @@ suppress_key_server_warning: true
 
 enable_registration: true
 enable_registration_without_verification: true
-registration_shared_secret: "test-shared-secret-2"
+registration_shared_secret: "test-shared-secret-1"
 
 federation_domain_whitelist:
-  - server1.localhost
+  - server2.localhost
 
 federation_verify_certificates: false
