@@ -283,6 +283,12 @@ export function useTimeline(roomId: string, isAtBottomRef?: React.RefObject<bool
     const room = client.getRoom(roomId)
     if (!room) return
 
+    // Per-mount cancellation flag. activeRoomIdRef alone is insufficient:
+    // on A→B→A it goes back to A and lets stale requests from the FIRST
+    // mount write state into the SECOND mount, which intermittently flips
+    // loading off with empty events on rapid chat switches.
+    let cancelled = false
+
     roomRef.current = room
     // Pick up any events that arrived between the synchronous seed and effect mount.
     refreshEvents()
@@ -292,20 +298,18 @@ export function useTimeline(roomId: string, isAtBottomRef?: React.RefObject<bool
     const timeline = room.getLiveTimeline()
     if (collectEvents(room).length === 0 && timeline.getPaginationToken(Direction.Backward)) {
       client.paginateEventTimeline(timeline, { backwards: true, limit: 100 }).then(() => {
-        if (activeRoomIdRef.current === roomId) {
-          setEvents(collectEvents(room))
-        }
+        if (cancelled) return
+        setEvents(collectEvents(room))
       }).catch(() => {}).finally(() => {
-        if (activeRoomIdRef.current === roomId) {
-          setLoading(false)
-        }
+        if (cancelled) return
+        setLoading(false)
       })
     } else {
       setLoading(false)
     }
 
     const onTimelineEvent = () => {
-      if (activeRoomIdRef.current !== roomId) return
+      if (cancelled) return
       prevEventIdsRef.current = ''
       refreshEvents()
       // Only mark as read if user is scrolled to the bottom (can see new messages)
@@ -314,12 +318,12 @@ export function useTimeline(roomId: string, isAtBottomRef?: React.RefObject<bool
       }
     }
     const onRedaction = () => {
-      if (activeRoomIdRef.current !== roomId) return
+      if (cancelled) return
       prevEventIdsRef.current = ''
       refreshEvents()
     }
     const onDecrypted = () => {
-      if (activeRoomIdRef.current !== roomId) return
+      if (cancelled) return
       const room = roomRef.current
       if (!room) return
       // Clear cache so newly-decrypted events get re-mapped with actual content
@@ -329,6 +333,7 @@ export function useTimeline(roomId: string, isAtBottomRef?: React.RefObject<bool
       if (decryptDebounceRef.current) clearTimeout(decryptDebounceRef.current)
       decryptDebounceRef.current = setTimeout(() => {
         decryptDebounceRef.current = null
+        if (cancelled) return
         prevEventIdsRef.current = ''
         refreshEvents()
       }, 100)
@@ -339,6 +344,7 @@ export function useTimeline(roomId: string, isAtBottomRef?: React.RefObject<bool
     client.on(MatrixEventEvent.Decrypted, onDecrypted)
 
     return () => {
+      cancelled = true
       if (decryptDebounceRef.current) {
         clearTimeout(decryptDebounceRef.current)
         decryptDebounceRef.current = null
@@ -358,18 +364,21 @@ export function useTimeline(roomId: string, isAtBottomRef?: React.RefObject<bool
     const token = timeline.getPaginationToken(Direction.Backward)
     if (!token) return
 
+    const startedRoomId = room.roomId
     paginatingRef.current = true
     setPaginating(true)
     try {
       await client.paginateEventTimeline(timeline, { backwards: true, limit: 100 })
-      if (activeRoomIdRef.current === room.roomId) {
+      if (activeRoomIdRef.current === startedRoomId) {
         setEvents(collectEvents(room))
       }
     } catch {
       // pagination failed
     } finally {
-      paginatingRef.current = false
-      setPaginating(false)
+      if (activeRoomIdRef.current === startedRoomId) {
+        paginatingRef.current = false
+        setPaginating(false)
+      }
     }
   }, [client])
 
