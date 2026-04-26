@@ -5,7 +5,7 @@ import styles from './AttachMenu.module.scss'
 
 interface AttachMenuProps {
   onFileSelect: (accept: string) => void
-  onPoll: () => void
+  onPoll?: () => void
   onClose: () => void
 }
 
@@ -32,10 +32,12 @@ export function AttachMenu({ onFileSelect, onPoll, onClose }: AttachMenuProps) {
 
   return (
     <div ref={menuRef} className={styles.menu}>
-      <button className={styles.item} onClick={() => { onClose(); onPoll() }}>
-        <BarChart3 size={20} className={styles.iconPoll} />
-        <span>{t('messages.startPoll')}</span>
-      </button>
+      {onPoll && (
+        <button className={styles.item} onClick={() => { onClose(); onPoll() }}>
+          <BarChart3 size={20} className={styles.iconPoll} />
+          <span>{t('messages.startPoll')}</span>
+        </button>
+      )}
       <button className={styles.item} onClick={() => onFileSelect('image/*')}>
         <ImageIcon size={20} className={styles.iconImage} />
         <span>{t('messages.sendImage')}</span>

@@ -58,7 +58,7 @@ export function MessageContent({
                 loading="lazy"
                 width={displayW}
                 height={displayH}
-                style={{ width: displayW, height: displayH }}
+                style={{ maxWidth: displayW, width: '100%', height: 'auto' }}
               />
             </div>
           );
@@ -89,7 +89,7 @@ export function MessageContent({
                 className={styles.imageMessage}
                 width={displayW}
                 height={displayH}
-                style={{ width: displayW, height: displayH }}
+                style={{ maxWidth: displayW, width: '100%', height: 'auto' }}
               />
             </div>
           );

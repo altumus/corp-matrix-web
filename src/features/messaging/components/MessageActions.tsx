@@ -27,7 +27,7 @@ export function MessageActions({ eventId, roomId, sender, senderName, body }: Me
   }
 
   const handleReply = () => {
-    setReplyTarget({ eventId, sender: senderName, body })
+    setReplyTarget(roomId, { eventId, sender: senderName, body })
   }
 
   const handleRemove = () => {

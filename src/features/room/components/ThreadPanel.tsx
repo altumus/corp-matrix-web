@@ -1,18 +1,17 @@
-import { useRef, useState, useCallback, useEffect, lazy, Suspense, type FormEvent, type KeyboardEvent } from 'react'
+import { useRef, useState, useCallback, useEffect, lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
-import { X, Send, ArrowLeft, Copy, Quote, Reply, Forward, Link, Pencil, Trash2, Smile } from 'lucide-react'
+import { X, ArrowLeft, Copy, Quote, Reply, Forward, Link, Pencil, Trash2, Smile } from 'lucide-react'
 import { useThread } from '../hooks/useThread.js'
 import { Avatar } from '../../../shared/ui/index.js'
-import { editMessage, sendReaction, redactMessage } from '../../messaging/services/messageService.js'
-import { useSendMessage } from '../../messaging/hooks/useSendMessage.js'
-import { useMentions, type MentionCandidate } from '../../messaging/hooks/useMentions.js'
-import { MentionPopup } from '../../messaging/components/MentionPopup.js'
+import { sendReaction, redactMessage } from '../../messaging/services/messageService.js'
 import { useIsMobile } from '../../../shared/hooks/useMediaQuery.js'
 import { MessageContent } from './MessageContent.js'
 import { ReplyPreview } from './ReplyPreview.js'
 import { ReactionBar } from './ReactionBar.js'
 import { MessageContextMenu, type ContextMenuAction } from '../../messaging/components/MessageContextMenu.js'
 import { ForwardDialog } from '../../messaging/components/ForwardDialog.js'
+import { MessageComposer } from '../../messaging/components/MessageComposer.js'
+import { useComposerStore } from '../../messaging/store/composerStore.js'
 import type { TimelineEvent } from '../types.js'
 import type { MediaType } from '../../media/components/Lightbox.js'
 import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
@@ -25,13 +24,6 @@ const Lightbox = lazy(() =>
 const EmojiPicker = lazy(() =>
   import('../../messaging/components/EmojiPicker.js').then((m) => ({ default: m.EmojiPicker })),
 )
-
-function getMentionContext(text: string, cursorPos: number): { query: string; start: number } | null {
-  const before = text.slice(0, cursorPos)
-  const match = before.match(/@([^\s@]*)$/)
-  if (!match) return null
-  return { query: match[1], start: before.length - match[0].length }
-}
 
 interface ThreadPanelProps {
   roomId: string
@@ -353,16 +345,9 @@ export function ThreadPanel({ roomId, threadRootId, onClose }: ThreadPanelProps)
   const { t } = useTranslation()
   const client = useMatrixClient()
   const { rootEvent, replies } = useThread(roomId, threadRootId)
-  const [text, setText] = useState('')
-  const [replyTarget, setReplyTarget] = useState<ThreadReplyTarget | null>(null)
-  const [editTarget, setEditTarget] = useState<{ eventId: string; body: string } | null>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const repliesEndRef = useRef<HTMLDivElement>(null)
   const isMobile = useIsMobile()
-  const { send } = useSendMessage(roomId)
-  const { candidates, active: mentionActive, open: openMention, close: closeMention } = useMentions(roomId)
-  const mentionStartRef = useRef<number>(-1)
-  const [mentionIndex, setMentionIndex] = useState(0)
+  const scope = `${roomId}:${threadRootId}`
 
   // Mark the thread as read when the user opens it / new replies arrive.
   // SDK attaches thread_id automatically for thread-scoped receipts.
@@ -385,81 +370,18 @@ export function ThreadPanel({ roomId, threadRootId, onClose }: ThreadPanelProps)
     })()
   }, [client, roomId, rootEvent, replies])
 
-  const insertMention = useCallback((candidate: MentionCandidate) => {
-    const textarea = textareaRef.current
-    if (!textarea) return
-    const start = mentionStartRef.current
-    if (start === -1) return
-
-    const before = text.slice(0, start)
-    const after = text.slice(textarea.selectionStart)
-    const mention = `@${candidate.displayName} `
-    const newText = before + mention + after
-    setText(newText)
-    closeMention()
-    setMentionIndex(0)
-    mentionStartRef.current = -1
-
-    requestAnimationFrame(() => {
-      const pos = before.length + mention.length
-      textarea.setSelectionRange(pos, pos)
-      textarea.focus()
-    })
-  }, [text, closeMention])
-
   const handleReply = useCallback((target: ThreadReplyTarget) => {
-    setReplyTarget(target)
-    setEditTarget(null)
-    textareaRef.current?.focus()
-  }, [])
+    useComposerStore.getState().setReplyTarget(scope, target)
+  }, [scope])
 
   const handleEdit = useCallback((target: { eventId: string; body: string }) => {
-    setEditTarget(target)
-    setReplyTarget(null)
-    setText(target.body)
-    textareaRef.current?.focus()
-  }, [])
+    useComposerStore.getState().setEditTarget(scope, target)
+  }, [scope])
 
   // Auto-scroll to bottom on new replies
   useEffect(() => {
     repliesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [replies.length])
-
-  const handleSend = useCallback(async () => {
-    if (!text.trim()) return
-
-    if (editTarget) {
-      await editMessage(roomId, editTarget.eventId, text.trim())
-      setEditTarget(null)
-    } else {
-      const ok = await send(
-        text.trim(),
-        replyTarget?.eventId,
-        replyTarget?.quotedText,
-        replyTarget?.quotedText ? replyTarget.sender : undefined,
-        threadRootId,
-      )
-      if (!ok) return
-      setReplyTarget(null)
-    }
-
-    setText('')
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto'
-    }
-  }, [text, roomId, threadRootId, replyTarget, editTarget, send])
-
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault()
-    handleSend()
-  }
-
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSend()
-    }
-  }
 
   return (
     <div className={`${styles.panel} ${isMobile ? styles.panelMobile : ''}`}>
@@ -508,91 +430,7 @@ export function ThreadPanel({ roomId, threadRootId, onClose }: ThreadPanelProps)
         <div ref={repliesEndRef} />
       </div>
 
-      {(replyTarget || editTarget) && (
-        <div className={styles.composerPreview}>
-          <div className={styles.previewContent}>
-            <span className={styles.previewLabel}>
-              {editTarget ? 'Редактирование' : `Ответ ${replyTarget!.sender}`}
-            </span>
-            <span className={styles.previewBody}>
-              {editTarget ? editTarget.body : replyTarget!.body}
-            </span>
-          </div>
-          <button
-            className={styles.closeBtn}
-            onClick={() => { setReplyTarget(null); setEditTarget(null); setText('') }}
-            type="button"
-          >
-            <X size={14} />
-          </button>
-        </div>
-      )}
-
-      <form className={styles.composer} onSubmit={handleSubmit} style={{ position: 'relative' }}>
-        {mentionActive && candidates.length > 0 && (
-          <MentionPopup
-            candidates={candidates}
-            selectedIndex={mentionIndex}
-            onSelect={insertMention}
-          />
-        )}
-        <textarea
-          ref={textareaRef}
-          className={styles.textarea}
-          value={text}
-          onChange={(e) => {
-            const value = e.target.value
-            setText(value)
-            const ta = textareaRef.current
-            if (ta) {
-              ta.style.height = 'auto'
-              ta.style.height = `${Math.min(ta.scrollHeight, 120)}px`
-
-              const cursorPos = ta.selectionStart
-              const ctx = getMentionContext(value, cursorPos)
-              if (ctx) {
-                mentionStartRef.current = ctx.start
-                openMention(ctx.query)
-                setMentionIndex(0)
-              } else {
-                closeMention()
-                mentionStartRef.current = -1
-              }
-            }
-          }}
-          onKeyDown={(e) => {
-            if (mentionActive && candidates.length > 0) {
-              if (e.key === 'ArrowDown') {
-                e.preventDefault()
-                setMentionIndex((i) => (i + 1) % candidates.length)
-                return
-              }
-              if (e.key === 'ArrowUp') {
-                e.preventDefault()
-                setMentionIndex((i) => (i - 1 + candidates.length) % candidates.length)
-                return
-              }
-              if (e.key === 'Enter' || e.key === 'Tab') {
-                e.preventDefault()
-                insertMention(candidates[mentionIndex])
-                return
-              }
-              if (e.key === 'Escape') {
-                e.preventDefault()
-                closeMention()
-                mentionStartRef.current = -1
-                return
-              }
-            }
-            handleKeyDown(e)
-          }}
-          placeholder={t('messages.replyInThread')}
-          rows={1}
-        />
-        <button type="submit" className={styles.sendBtn} disabled={!text.trim()}>
-          <Send size={18} />
-        </button>
-      </form>
+      <MessageComposer roomId={roomId} threadRootId={threadRootId} />
 
     </div>
   )

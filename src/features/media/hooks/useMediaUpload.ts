@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 import { sendFileMessage } from '../services/mediaService.js'
 import type { UploadProgress } from '../types.js'
 
-export function useMediaUpload(roomId: string) {
+export function useMediaUpload(roomId: string, threadRootId?: string) {
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState<UploadProgress | null>(null)
 
@@ -12,13 +12,13 @@ export function useMediaUpload(roomId: string) {
       setProgress({ loaded: 0, total: file.size, percentage: 0 })
 
       try {
-        await sendFileMessage(roomId, file, setProgress, caption)
+        await sendFileMessage(roomId, file, setProgress, caption, threadRootId)
       } finally {
         setUploading(false)
         setProgress(null)
       }
     },
-    [roomId],
+    [roomId, threadRootId],
   )
 
   const uploadFiles = useCallback(

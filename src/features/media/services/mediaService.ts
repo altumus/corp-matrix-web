@@ -1,5 +1,5 @@
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
-import { MsgType } from 'matrix-js-sdk'
+import { MsgType, RelationType } from 'matrix-js-sdk'
 import type { RoomMessageEventContent } from 'matrix-js-sdk/lib/@types/events.js'
 import type { ImageInfo } from 'matrix-js-sdk/lib/@types/media.js'
 import type { UploadProgress } from '../types.js'
@@ -29,6 +29,7 @@ export async function sendFileMessage(
   file: File,
   onProgress?: (progress: UploadProgress) => void,
   caption?: string,
+  threadRootId?: string,
 ): Promise<void> {
   const client = getMatrixClient()
   if (!client) throw new Error('Client not initialized')
@@ -85,6 +86,13 @@ export async function sendFileMessage(
 
   if (caption) {
     (content as unknown as Record<string, unknown>).filename = file.name
+  }
+
+  if (threadRootId) {
+    (content as unknown as Record<string, unknown>)['m.relates_to'] = {
+      rel_type: RelationType.Thread,
+      event_id: threadRootId,
+    }
   }
 
   await client.sendMessage(roomId, content as unknown as RoomMessageEventContent)

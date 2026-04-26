@@ -20,6 +20,7 @@ import styles from './MessageComposer.module.scss'
 
 interface MessageComposerProps {
   roomId: string
+  threadRootId?: string
 }
 
 function getMentionContext(text: string, cursorPos: number): { query: string; start: number } | null {
@@ -37,15 +38,17 @@ function getEmojiContext(text: string, cursorPos: number): { query: string; star
   return { query: match[1], start: before.length - match[0].length }
 }
 
-export function MessageComposer({ roomId }: MessageComposerProps) {
+export function MessageComposer({ roomId, threadRootId }: MessageComposerProps) {
   const { t } = useTranslation()
   const client = useMatrixClient()
+  const isThread = !!threadRootId
+  const scope = threadRootId ? `${roomId}:${threadRootId}` : roomId
   const { send, onTyping } = useSendMessage(roomId)
-  const { upload, uploading } = useMediaUpload(roomId)
+  const { upload, uploading } = useMediaUpload(roomId, threadRootId)
   const { candidates, active: mentionActive, open: openMention, close: closeMention } = useMentions(roomId)
-  const replyTarget = useComposerStore((s) => s.replyTarget)
+  const replyTarget = useComposerStore((s) => s.replyTarget[scope] ?? null)
   const clearReply = useComposerStore((s) => s.clearReply)
-  const editTarget = useComposerStore((s) => s.editTarget)
+  const editTarget = useComposerStore((s) => s.editTarget[scope] ?? null)
   const clearEdit = useComposerStore((s) => s.clearEdit)
   const setDraft = useComposerStore((s) => s.setDraft)
   const getDraft = useComposerStore((s) => s.getDraft)
@@ -54,13 +57,13 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
 
-  // Load draft when entering a room
+  // Load draft when entering a room/thread
   useEffect(() => {
-    loadDraftFromServer(roomId)
-    const draft = getDraft(roomId)
+    loadDraftFromServer(scope)
+    const draft = getDraft(scope)
     if (draft) setText(draft)
     else setText('')
-  }, [roomId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [scope]) // eslint-disable-line react-hooks/exhaustive-deps
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [recordingVoice, setRecordingVoice] = useState(false)
   const [mentionIndex, setMentionIndex] = useState(0)
@@ -104,13 +107,13 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
         if (text.trim() && text.trim() !== editTarget.body && !confirm(t('messages.discardEdit', { defaultValue: 'Отменить редактирование? Изменения будут потеряны.' }))) {
           return
         }
-        clearEdit()
+        clearEdit(scope)
         setText('')
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [editTarget, clearEdit, text, t])
+  }, [editTarget, clearEdit, text, t, scope])
 
   const insertMention = useCallback((candidate: MentionCandidate) => {
     const textarea = textareaRef.current
@@ -158,7 +161,7 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
 
   const handleTextChange = useCallback((value: string) => {
     setText(value)
-    setDraft(roomId, value)
+    setDraft(scope, value)
     const textarea = textareaRef.current
     if (!textarea) return
 
@@ -188,7 +191,7 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
         emojiStartRef.current = -1
       }
     }
-  }, [openMention, closeMention, roomId, setDraft])
+  }, [openMention, closeMention, scope, setDraft])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -205,14 +208,14 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
           }
         }
         setText('')
-        clearDraft(roomId)
-        clearEdit()
+        clearDraft(scope)
+        clearEdit(scope)
       } else {
-        const ok = await send(text, replyTarget?.eventId, replyTarget?.quotedText, replyTarget?.quotedText ? replyTarget.sender : undefined)
+        const ok = await send(text, replyTarget?.eventId, replyTarget?.quotedText, replyTarget?.quotedText ? replyTarget.sender : undefined, threadRootId)
         if (!ok) return // keep text in composer on failure
         setText('')
-        clearDraft(roomId)
-        clearReply()
+        clearDraft(scope)
+        clearReply(scope)
       }
 
       closeMention()
@@ -275,7 +278,7 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
 
     if (e.key === 'Escape' && editTarget) {
       e.preventDefault()
-      clearEdit()
+      clearEdit(scope)
       setText('')
       return
     }
@@ -319,8 +322,8 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
     setPendingFile(null)
     await upload(file, caption)
     setText('')
-    clearDraft(roomId)
-  }, [pendingFile, upload, roomId, clearDraft])
+    clearDraft(scope)
+  }, [pendingFile, upload, scope, clearDraft])
 
   const handleCancelSend = useCallback(() => {
     setPendingFile(null)
@@ -351,11 +354,11 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
 
     if (caption) {
       setText('')
-      clearDraft(roomId)
+      clearDraft(scope)
     }
 
     e.target.value = ''
-  }, [upload, text, roomId, clearDraft])
+  }, [upload, text, scope, clearDraft])
 
   const selecting = useSelectionStore((s) => s.selecting)
   const selectedIds = useSelectionStore((s) => s.selectedIds)
@@ -416,7 +419,7 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
     clearSelection()
   }
 
-  if (selecting) {
+  if (selecting && !isThread) {
     return (
       <>
         <div className={styles.selectionBar}>
@@ -468,7 +471,7 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
             <button
               type="button"
               className={styles.replyCancelBtn}
-              onClick={() => { clearEdit(); setText('') }}
+              onClick={() => { clearEdit(scope); setText('') }}
               title={t('common.cancel')}
             >
               ✕
@@ -489,7 +492,7 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
             <button
               type="button"
               className={styles.replyCancelBtn}
-              onClick={clearReply}
+              onClick={() => clearReply(scope)}
               title={t('common.cancel')}
             >
               ✕
@@ -533,7 +536,7 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
                     fileInputRef.current.click()
                   }
                 }}
-                onPoll={() => setShowPollDialog(true)}
+                onPoll={isThread ? undefined : () => setShowPollDialog(true)}
                 onClose={() => setShowAttachMenu(false)}
               />
             )}
@@ -564,7 +567,7 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
             >
               ➤
             </button>
-          ) : (
+          ) : !isThread ? (
             <button
               type="button"
               className={styles.voiceBtn}
@@ -575,7 +578,7 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
             >
               <Mic size={18} />
             </button>
-          )}
+          ) : null}
         </div>
         <input
           ref={fileInputRef}
@@ -603,7 +606,7 @@ export function MessageComposer({ roomId }: MessageComposerProps) {
         />
       )}
 
-      {showPollDialog && (
+      {showPollDialog && !isThread && (
         <CreatePollDialog
           roomId={roomId}
           onClose={() => setShowPollDialog(false)}

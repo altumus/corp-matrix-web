@@ -14,105 +14,132 @@ interface EditTarget {
 }
 
 interface ComposerStore {
-  replyTarget: ReplyTarget | null
-  editTarget: EditTarget | null
+  replyTarget: Record<string, ReplyTarget | null>
+  editTarget: Record<string, EditTarget | null>
   drafts: Record<string, string>
-  setReplyTarget: (target: ReplyTarget | null) => void
-  setEditTarget: (target: EditTarget | null) => void
-  clearReply: () => void
-  clearEdit: () => void
-  setDraft: (roomId: string, text: string) => void
-  getDraft: (roomId: string) => string
-  clearDraft: (roomId: string) => void
-  loadDraftFromServer: (roomId: string) => void
+  setReplyTarget: (scope: string, target: ReplyTarget | null) => void
+  setEditTarget: (scope: string, target: EditTarget | null) => void
+  clearReply: (scope: string) => void
+  clearEdit: (scope: string) => void
+  setDraft: (scope: string, text: string) => void
+  getDraft: (scope: string) => string
+  clearDraft: (scope: string) => void
+  loadDraftFromServer: (scope: string) => void
   cleanupStaleDrafts: () => void
 }
 
 const DRAFT_LS_PREFIX = 'corp-matrix-draft:'
 
-// Per-room sync timers to avoid one room's timer overwriting another
+// Per-scope sync timers to avoid one scope's timer overwriting another
 const syncTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
-function saveDraftToLocalStorage(roomId: string, text: string) {
+function isThreadScope(scope: string): boolean {
+  return scope.includes(':')
+}
+
+function saveDraftToLocalStorage(scope: string, text: string) {
   try {
     if (text) {
-      localStorage.setItem(`${DRAFT_LS_PREFIX}${roomId}`, text)
+      localStorage.setItem(`${DRAFT_LS_PREFIX}${scope}`, text)
     } else {
-      localStorage.removeItem(`${DRAFT_LS_PREFIX}${roomId}`)
+      localStorage.removeItem(`${DRAFT_LS_PREFIX}${scope}`)
     }
   } catch { /* quota exceeded — best-effort */ }
 }
 
-function loadDraftFromLocalStorage(roomId: string): string {
+function loadDraftFromLocalStorage(scope: string): string {
   try {
-    return localStorage.getItem(`${DRAFT_LS_PREFIX}${roomId}`) || ''
+    return localStorage.getItem(`${DRAFT_LS_PREFIX}${scope}`) || ''
   } catch {
     return ''
   }
 }
 
-function syncDraftToServer(roomId: string, text: string) {
-  const existing = syncTimers.get(roomId)
+function syncDraftToServer(scope: string, text: string) {
+  // Thread drafts are localStorage-only; do not sync to room account data.
+  if (isThreadScope(scope)) return
+
+  const existing = syncTimers.get(scope)
   if (existing) clearTimeout(existing)
 
   const timer = setTimeout(() => {
-    syncTimers.delete(roomId)
+    syncTimers.delete(scope)
     const client = getMatrixClient()
     if (!client) return
-    client.setRoomAccountData(roomId, 'org.matrix.draft' as never, { body: text } as never).catch(() => {
+    client.setRoomAccountData(scope, 'org.matrix.draft' as never, { body: text } as never).catch(() => {
       // Server sync failed — localStorage fallback already saved
     })
   }, 2000)
 
-  syncTimers.set(roomId, timer)
+  syncTimers.set(scope, timer)
 }
 
 export const useComposerStore = create<ComposerStore>((set, get) => ({
-  replyTarget: null,
-  editTarget: null,
+  replyTarget: {},
+  editTarget: {},
   drafts: {},
-  setReplyTarget: (target) => set({ replyTarget: target, editTarget: null }),
-  setEditTarget: (target) => set({ editTarget: target, replyTarget: null }),
-  clearReply: () => set({ replyTarget: null }),
-  clearEdit: () => set({ editTarget: null }),
 
-  setDraft: (roomId, text) => {
-    set((s) => ({ drafts: { ...s.drafts, [roomId]: text } }))
-    saveDraftToLocalStorage(roomId, text)
-    syncDraftToServer(roomId, text)
+  setReplyTarget: (scope, target) =>
+    set((s) => ({
+      replyTarget: { ...s.replyTarget, [scope]: target },
+      editTarget: { ...s.editTarget, [scope]: null },
+    })),
+
+  setEditTarget: (scope, target) =>
+    set((s) => ({
+      editTarget: { ...s.editTarget, [scope]: target },
+      replyTarget: { ...s.replyTarget, [scope]: null },
+    })),
+
+  clearReply: (scope) =>
+    set((s) => ({ replyTarget: { ...s.replyTarget, [scope]: null } })),
+
+  clearEdit: (scope) =>
+    set((s) => ({ editTarget: { ...s.editTarget, [scope]: null } })),
+
+  setDraft: (scope, text) => {
+    set((s) => ({ drafts: { ...s.drafts, [scope]: text } }))
+    saveDraftToLocalStorage(scope, text)
+    syncDraftToServer(scope, text)
   },
 
-  getDraft: (roomId) => get().drafts[roomId] || '',
+  getDraft: (scope) => get().drafts[scope] || '',
 
-  clearDraft: (roomId) => {
+  clearDraft: (scope) => {
     set((s) => {
       const drafts = { ...s.drafts }
-      delete drafts[roomId]
+      delete drafts[scope]
       return { drafts }
     })
-    saveDraftToLocalStorage(roomId, '')
-    syncDraftToServer(roomId, '')
+    saveDraftToLocalStorage(scope, '')
+    syncDraftToServer(scope, '')
   },
 
-  loadDraftFromServer: (roomId) => {
+  loadDraftFromServer: (scope) => {
     const client = getMatrixClient()
     if (!client) return
-    const room = client.getRoom(roomId)
-    if (!room) return
-    try {
-      const data = room.getAccountData('org.matrix.draft')
-      const body = data?.getContent()?.body as string
-      if (body) {
-        set((s) => ({ drafts: { ...s.drafts, [roomId]: body } }))
-        return
+
+    // Threads: localStorage-only.
+    if (!isThreadScope(scope)) {
+      const room = client.getRoom(scope)
+      if (room) {
+        try {
+          const data = room.getAccountData('org.matrix.draft')
+          const body = data?.getContent()?.body as string
+          if (body) {
+            set((s) => ({ drafts: { ...s.drafts, [scope]: body } }))
+            return
+          }
+        } catch {
+          // no draft saved on server
+        }
       }
-    } catch {
-      // no draft saved on server
     }
-    // Fallback to localStorage
-    const local = loadDraftFromLocalStorage(roomId)
+
+    // Fallback to localStorage (also primary path for thread scopes)
+    const local = loadDraftFromLocalStorage(scope)
     if (local) {
-      set((s) => ({ drafts: { ...s.drafts, [roomId]: local } }))
+      set((s) => ({ drafts: { ...s.drafts, [scope]: local } }))
     }
   },
 
@@ -123,13 +150,14 @@ export const useComposerStore = create<ComposerStore>((set, get) => ({
     const drafts = get().drafts
     const cleaned: Record<string, string> = {}
 
-    for (const [roomId, text] of Object.entries(drafts)) {
+    for (const [scope, text] of Object.entries(drafts)) {
+      const roomId = scope.split(':')[0]
       const room = client.getRoom(roomId)
       if (room && room.getMyMembership() === 'join') {
-        cleaned[roomId] = text
+        cleaned[scope] = text
       } else {
         // Clean up localStorage too
-        saveDraftToLocalStorage(roomId, '')
+        saveDraftToLocalStorage(scope, '')
       }
     }
 

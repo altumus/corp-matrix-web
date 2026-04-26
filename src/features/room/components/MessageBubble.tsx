@@ -180,7 +180,7 @@ export function MessageBubble({
 		const onTouchEnd = () => {
 			if (moved && currentDx > 60) {
 				const bodyText = (event.content?.body as string) || '';
-				setReplyTarget({
+				setReplyTarget(event.roomId, {
 					eventId: event.eventId,
 					sender: event.senderName,
 					body: bodyText,
@@ -249,7 +249,7 @@ export function MessageBubble({
 				icon: <Reply size={16} />,
 				label: t('messages.reply'),
 				onClick: () => {
-					setReplyTarget({
+					setReplyTarget(event.roomId, {
 						eventId: event.eventId,
 						sender: event.senderName,
 						body: bodyText,
@@ -262,7 +262,7 @@ export function MessageBubble({
 				label: t('messages.replyWithQuote'),
 				hidden: !selectedText,
 				onClick: () => {
-					setReplyTarget({
+					setReplyTarget(event.roomId, {
 						eventId: event.eventId,
 						sender: event.senderName,
 						body: bodyText,
@@ -277,7 +277,7 @@ export function MessageBubble({
 				hidden: !isOwnMessage,
 				onClick: () => {
 					setContextMenu(null);
-					useComposerStore.getState().setEditTarget({
+					useComposerStore.getState().setEditTarget(event.roomId, {
 						eventId: event.eventId,
 						body: bodyText,
 					});
