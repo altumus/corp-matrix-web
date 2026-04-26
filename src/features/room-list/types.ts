@@ -6,6 +6,7 @@ export interface RoomListEntry {
   lastMessageSender: string
   lastMessageSenderId: string
   lastMessageTs: number
+  lastMessageInThread: boolean
   unreadCount: number
   highlightCount: number
   isDirect: boolean

@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { NotificationCountType } from 'matrix-js-sdk'
-import { Bookmark, BellOff, Bell, Circle, Pin, ArrowDown, Home, Archive, LogOut, AtSign } from 'lucide-react'
+import { Bookmark, BellOff, Bell, Circle, Pin, ArrowDown, Home, Archive, LogOut, AtSign, MessageSquare } from 'lucide-react'
 import type { RoomListEntry } from '../types.js'
 import { useRoomListStore } from '../store/roomListStore.js'
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
@@ -320,6 +320,12 @@ export function RoomListItem({ room }: RoomListItemProps) {
             )}
           </div>
           <div className={styles.bottom}>
+            {room.lastMessageInThread && (
+              <span className={styles.threadBadge} title={t('messages.thread')}>
+                <MessageSquare size={11} />
+                {t('messages.thread')}
+              </span>
+            )}
             <span className={styles.message}>{messagePreview}</span>
             {room.highlightCount > 0 && (
               <span className={styles.mentionIcon} title="Вас упомянули">

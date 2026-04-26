@@ -2,12 +2,17 @@ import { useCallback, useEffect, useRef } from 'react'
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
 import { ClientEvent, RoomEvent, MatrixEventEvent, SyncState } from 'matrix-js-sdk'
 import { NotificationCountType } from 'matrix-js-sdk/lib/models/room.js'
-import type { Room } from 'matrix-js-sdk'
+import type { MatrixEvent, Room } from 'matrix-js-sdk'
 import { useRoomListStore } from '../store/roomListStore.js'
 import { useSpacesStore } from '../../spaces/store/spacesStore.js'
 import type { RoomListEntry } from '../types.js'
 
-function getLastMessage(room: Room): { body: string; sender: string; senderId: string; ts: number } {
+function isThreadEvent(event: MatrixEvent): boolean {
+  const rel = event.getContent()?.['m.relates_to'] as Record<string, unknown> | undefined
+  return rel?.rel_type === 'm.thread'
+}
+
+function getLastMessage(room: Room): { body: string; sender: string; senderId: string; ts: number; inThread: boolean } {
   const timeline = room.getLiveTimeline().getEvents()
   for (let i = timeline.length - 1; i >= 0; i--) {
     const event = timeline[i]
@@ -22,6 +27,7 @@ function getLastMessage(room: Room): { body: string; sender: string; senderId: s
         sender,
         senderId,
         ts: event.getTs(),
+        inThread: isThreadEvent(event),
       }
     }
 
@@ -34,6 +40,7 @@ function getLastMessage(room: Room): { body: string; sender: string; senderId: s
         sender,
         senderId,
         ts: event.getTs(),
+        inThread: isThreadEvent(event),
       }
     }
 
@@ -45,10 +52,11 @@ function getLastMessage(room: Room): { body: string; sender: string; senderId: s
         sender,
         senderId,
         ts: event.getTs(),
+        inThread: isThreadEvent(event),
       }
     }
   }
-  return { body: '', sender: '', senderId: '', ts: room.getLastActiveTimestamp() }
+  return { body: '', sender: '', senderId: '', ts: room.getLastActiveTimestamp(), inThread: false }
 }
 
 function getActiveMembers(room: Room) {
@@ -130,7 +138,7 @@ function getMentionFallback(room: Room, myUserId: string): number {
 }
 
 // Module-level entry cache — invalidate per room when activity changes
-const entryCache = new Map<string, { entry: RoomListEntry; lastTs: number; unread: number; lastBody: string }>()
+const entryCache = new Map<string, { entry: RoomListEntry; lastTs: number; unread: number; lastBody: string; lastInThread: boolean }>()
 
 function cachedRoomToEntry(room: Room): RoomListEntry | null {
   const roomId = room.roomId
@@ -141,15 +149,16 @@ function cachedRoomToEntry(room: Room): RoomListEntry | null {
   // Also check last message body — it changes when encrypted events get decrypted
   const lastMsg = getLastMessage(room)
   const lastBody = lastMsg.body
+  const lastInThread = lastMsg.inThread
 
-  // Cache hit if timestamp, unread count, and last message body haven't changed
-  if (cached && cached.lastTs === lastTs && cached.unread === unread && cached.lastBody === lastBody) {
+  // Cache hit if timestamp, unread count, last message body, and thread flag haven't changed
+  if (cached && cached.lastTs === lastTs && cached.unread === unread && cached.lastBody === lastBody && cached.lastInThread === lastInThread) {
     return cached.entry
   }
 
   const entry = roomToEntry(room)
   if (entry) {
-    entryCache.set(roomId, { entry, lastTs, unread, lastBody })
+    entryCache.set(roomId, { entry, lastTs, unread, lastBody, lastInThread })
   }
   return entry
 }
@@ -181,6 +190,7 @@ function roomToEntry(room: Room): RoomListEntry | null {
     lastMessageSender: savedMessages ? '' : lastMsg.sender,
     lastMessageSenderId: lastMsg.senderId,
     lastMessageTs: lastMsg.ts || room.getLastActiveTimestamp(),
+    lastMessageInThread: lastMsg.inThread,
     unreadCount: room.getUnreadNotificationCount() || 0,
     highlightCount,
     isDirect,
