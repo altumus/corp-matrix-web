@@ -58,9 +58,12 @@ function mapEvent(event: MatrixEvent, room: Room): TimelineEvent {
 
   const stateKey = event.getStateKey() ?? undefined
   let targetName: string | undefined
+  let prevContent: Record<string, unknown> | undefined
   if (event.getType() === 'm.room.member' && stateKey) {
     const target = room.getMember(stateKey)
     targetName = target?.name || (content.displayname as string) || stateKey
+    const prev = event.getPrevContent() as Record<string, unknown> | undefined
+    if (prev && Object.keys(prev).length > 0) prevContent = prev
   }
 
   return {
@@ -83,6 +86,7 @@ function mapEvent(event: MatrixEvent, room: Room): TimelineEvent {
     reactions,
     stateKey,
     targetName,
+    prevContent,
   }
 }
 

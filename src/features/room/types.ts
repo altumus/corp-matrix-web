@@ -30,4 +30,5 @@ export interface TimelineEvent {
   reactions: Map<string, Set<string>>
   stateKey?: string
   targetName?: string
+  prevContent?: Record<string, unknown>
 }
