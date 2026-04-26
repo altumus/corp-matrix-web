@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { RoomEvent, MatrixEventEvent } from 'matrix-js-sdk'
 import type { MatrixEvent, Room } from 'matrix-js-sdk'
+import { getThreadRootId } from '../utils/threadRelations.js'
 
 export interface ThreadSummary {
   rootEventId: string
@@ -24,11 +25,8 @@ function getRelatesTo(e: MatrixEvent): Record<string, unknown> | undefined {
 }
 
 function isThreadReply(e: MatrixEvent): { rootId: string } | null {
-  const rel = getRelatesTo(e)
-  if (rel?.rel_type === 'm.thread' && typeof rel.event_id === 'string') {
-    return { rootId: rel.event_id }
-  }
-  return null
+  const rootId = getThreadRootId(e)
+  return rootId ? { rootId } : null
 }
 
 function effectiveContent(e: MatrixEvent): Record<string, unknown> {
@@ -59,8 +57,7 @@ export function roomHasUnreadThreads(room: Room, myUserId: string | null): boole
       const rel = getRelatesTo(e)
       if (rel?.rel_type === 'm.replace') continue
       if (e.isRedacted()) continue
-      if (rel?.rel_type !== 'm.thread') continue
-      const rootId = rel.event_id as string | undefined
+      const rootId = getThreadRootId(e)
       if (!rootId) continue
       const cur = latestPerRoot.get(rootId)
       if (!cur || cur.getTs() < e.getTs()) latestPerRoot.set(rootId, e)

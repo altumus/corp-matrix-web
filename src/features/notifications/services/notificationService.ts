@@ -2,6 +2,7 @@ import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
 import { RoomEvent, ClientEvent, SyncState, RoomMemberEvent } from 'matrix-js-sdk'
 import type { MatrixEvent, Room, IRoomTimelineData, RoomMember } from 'matrix-js-sdk'
 import { useRoomListStore } from '../../room-list/store/roomListStore.js'
+import { getThreadRootId } from '../../room/utils/threadRelations.js'
 
 let notificationSound: HTMLAudioElement | null = null
 let soundUnlocked = false
@@ -232,14 +233,14 @@ export function setupNotificationListeners() {
       const isInCurrentRoom = currentRoomId === room.roomId && document.hasFocus()
 
       // Thread messages: notify even if user is in the room but not viewing this thread
-      const relatesTo = content['m.relates_to'] as { rel_type?: string; event_id?: string } | undefined
-      const isThreadMessage = relatesTo?.rel_type === 'm.thread'
+      const threadRootId = getThreadRootId(event)
+      const isThreadMessage = threadRootId !== undefined
 
       if (isInCurrentRoom) {
         if (!isThreadMessage) return
         // In room but is the user viewing this specific thread?
         const activeThread = useRoomListStore.getState().activeThreadRootId
-        if (activeThread === relatesTo?.event_id) return
+        if (activeThread === threadRootId) return
       }
 
       const body = (content.body as string) || ''

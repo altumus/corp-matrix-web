@@ -4,6 +4,7 @@ import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js
 import { RoomEvent, RelationType, EventType } from 'matrix-js-sdk'
 import type { MatrixEvent, Room } from 'matrix-js-sdk'
 import type { TimelineEvent } from '../types.js'
+import { getThreadRootId } from '../utils/threadRelations.js'
 
 function mapThreadEvent(e: MatrixEvent, room: Room, threadRootId: string): TimelineEvent {
   const id = e.getId()!
@@ -88,8 +89,7 @@ function collectThreadEvents(roomId: string, threadRootId: string): TimelineEven
       const id = e.getId()!
       if (seen.has(id)) continue
 
-      const rel = e.getContent()?.['m.relates_to'] as Record<string, unknown> | undefined
-      const isInThread = rel?.rel_type === 'm.thread' && rel?.event_id === threadRootId
+      const isInThread = getThreadRootId(e) === threadRootId
       const isRoot = id === threadRootId
 
       if (!isInThread && !isRoot) continue

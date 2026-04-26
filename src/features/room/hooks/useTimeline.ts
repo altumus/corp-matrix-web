@@ -5,6 +5,7 @@ import { RoomEvent, RelationType, EventType, MatrixEventEvent } from 'matrix-js-
 import { Direction } from 'matrix-js-sdk/lib/models/event-timeline.js'
 import type { MatrixEvent, Room } from 'matrix-js-sdk'
 import type { TimelineEvent } from '../types.js'
+import { getThreadRootId, isThreadReply } from '../utils/threadRelations.js'
 
 function mapEvent(event: MatrixEvent, room: Room): TimelineEvent {
   const sender = room.getMember(event.getSender()!)
@@ -80,9 +81,7 @@ function mapEvent(event: MatrixEvent, room: Room): TimelineEvent {
     isDecryptionFailure,
     replyTo: replyToId,
     replyToEvent,
-    threadRootId: relatesTo?.rel_type === 'm.thread'
-      ? relatesTo.event_id as string
-      : undefined,
+    threadRootId: getThreadRootId(event),
     reactions,
     stateKey,
     targetName,
@@ -101,11 +100,6 @@ const TIMELINE_EVENT_TYPES = [
   'm.room.member', 'm.room.create', 'm.room.name', 'm.room.topic', 'm.room.avatar',
 ]
 
-function isThreadReply(e: MatrixEvent): boolean {
-  const rel = e.getContent()?.['m.relates_to'] as Record<string, unknown> | undefined
-  return rel?.rel_type === 'm.thread'
-}
-
 function countThreadReplies(room: Room): Map<string, number> {
   const counts = new Map<string, number>()
   let allTimelines
@@ -113,10 +107,8 @@ function countThreadReplies(room: Room): Map<string, number> {
   if (!allTimelines) return counts
   for (const tl of allTimelines) {
     for (const e of tl.getEvents()) {
-      const rel = e.getContent()?.['m.relates_to'] as Record<string, unknown> | undefined
-      if (rel?.rel_type === 'm.thread' && typeof rel?.event_id === 'string') {
-        counts.set(rel.event_id, (counts.get(rel.event_id) || 0) + 1)
-      }
+      const rootId = getThreadRootId(e)
+      if (rootId) counts.set(rootId, (counts.get(rootId) || 0) + 1)
     }
   }
   return counts
@@ -279,8 +271,7 @@ export function useTimeline(roomId: string, isAtBottomRef?: React.RefObject<bool
       if (type !== 'm.room.message' && type !== 'm.room.encrypted') continue
       // Skip thread replies — threads have their own read state and should
       // only be marked read when the user actually opens the thread.
-      const rel = ev.getContent()?.['m.relates_to'] as Record<string, unknown> | undefined
-      if (rel?.rel_type === 'm.thread') continue
+      if (isThreadReply(ev)) continue
       client.sendReadReceipt(ev).catch(() => {})
       break
     }

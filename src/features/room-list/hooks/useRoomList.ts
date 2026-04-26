@@ -2,16 +2,12 @@ import { useCallback, useEffect, useRef } from 'react'
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
 import { ClientEvent, RoomEvent, MatrixEventEvent, SyncState } from 'matrix-js-sdk'
 import { NotificationCountType } from 'matrix-js-sdk/lib/models/room.js'
-import type { MatrixEvent, Room } from 'matrix-js-sdk'
+import type { Room } from 'matrix-js-sdk'
 import { useRoomListStore } from '../store/roomListStore.js'
 import { useSpacesStore } from '../../spaces/store/spacesStore.js'
 import type { RoomListEntry } from '../types.js'
 import { roomHasUnreadThreads } from '../../room/hooks/useRoomThreads.js'
-
-function isThreadEvent(event: MatrixEvent): boolean {
-  const rel = event.getContent()?.['m.relates_to'] as Record<string, unknown> | undefined
-  return rel?.rel_type === 'm.thread'
-}
+import { isThreadReply as isThreadEvent } from '../../room/utils/threadRelations.js'
 
 function getLastMessage(room: Room): { body: string; sender: string; senderId: string; ts: number; inThread: boolean } {
   const timeline = room.getLiveTimeline().getEvents()
