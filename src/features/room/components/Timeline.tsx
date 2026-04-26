@@ -57,6 +57,20 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
   const paginateBackRef = useRef(paginateBack)
   const lastEventIdRef = useRef<string | null>(null)
 
+  // Mask Virtuoso's brief empty paint after key={roomId} forces a remount.
+  // Without this, rapid chat switches expose a frame of dark, item-less viewport
+  // (timeline picks up cached events synchronously, so loading=false, but
+  // Virtuoso hasn't measured its items yet for the new mount).
+  const [trackedRoomId, setTrackedRoomId] = useState(roomId)
+  const [virtuosoReady, setVirtuosoReady] = useState(true)
+  if (trackedRoomId !== roomId) {
+    setTrackedRoomId(roomId)
+    setVirtuosoReady(false)
+  }
+  useEffect(() => {
+    setVirtuosoReady(true)
+  }, [roomId])
+
   const setScrollState = useRoomListStore((s) => s.setScrollState)
 
   // Save/restore scroll position on room switch.
@@ -213,7 +227,7 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
     paginateBackRef.current()
   }, [])
 
-  if (loading) {
+  if (loading || !virtuosoReady) {
     return (
       <div className={styles.loading}>
         <Spinner size={28} />
