@@ -11,6 +11,7 @@ import { MentionNavigator } from './MentionNavigator.js'
 import { MessageComposer } from '../../messaging/components/MessageComposer.js'
 import { RoomDetailsPanel } from './RoomDetailsPanel.js'
 import { ThreadPanel } from './ThreadPanel.js'
+import { ThreadsListPanel } from './ThreadsListPanel.js'
 import { RoomSearchBar } from './RoomSearchBar.js'
 import { Spinner } from '../../../shared/ui/index.js'
 import { RightPanelCtx, type RightPanel } from '../context/RightPanelContext.js'
@@ -63,6 +64,7 @@ export default function RoomView() {
     panel: rightPanel,
     openDetails: () => { setRightPanel({ type: 'details' }); setActiveThread(null) },
     openThread: (threadRootId: string) => { setRightPanel({ type: 'thread', threadRootId }); setActiveThread(threadRootId) },
+    openThreadsList: () => { setRightPanel({ type: 'threads-list' }); setActiveThread(null) },
     closePanel: () => { setRightPanel(null); setActiveThread(null) },
   }
 
@@ -111,6 +113,13 @@ export default function RoomView() {
             <ThreadPanel
               roomId={room.roomId}
               threadRootId={rightPanel.threadRootId}
+              onClose={() => setRightPanel(null)}
+            />
+          )}
+
+          {rightPanel?.type === 'threads-list' && (
+            <ThreadsListPanel
+              roomId={room.roomId}
               onClose={() => setRightPanel(null)}
             />
           )}

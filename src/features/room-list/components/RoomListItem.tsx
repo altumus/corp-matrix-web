@@ -320,9 +320,12 @@ export function RoomListItem({ room }: RoomListItemProps) {
             )}
           </div>
           <div className={styles.bottom}>
-            {room.lastMessageInThread && (
+            {(room.lastMessageInThread || room.hasUnreadThreads) && (
               <span className={styles.threadBadge} title={t('messages.thread')}>
-                <MessageSquare size={11} />
+                <span className={styles.threadBadgeIcon}>
+                  <MessageSquare size={11} />
+                  {room.hasUnreadThreads && <span className={styles.threadBadgeDot} />}
+                </span>
                 {t('messages.thread')}
               </span>
             )}

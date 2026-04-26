@@ -92,6 +92,29 @@
   }
 }
 
+.inviteBtnActive {
+  background: var(--color-bg-hover);
+  color: var(--color-accent);
+}
+
+.threadsIconWrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.threadsUnreadDot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-accent);
+  border: 2px solid var(--color-bg-secondary);
+}
+
 .members {
   font-size: var(--font-size-md);
   color: var(--color-text-secondary);

@@ -6,6 +6,7 @@ import type { MatrixEvent, Room } from 'matrix-js-sdk'
 import { useRoomListStore } from '../store/roomListStore.js'
 import { useSpacesStore } from '../../spaces/store/spacesStore.js'
 import type { RoomListEntry } from '../types.js'
+import { roomHasUnreadThreads } from '../../room/hooks/useRoomThreads.js'
 
 function isThreadEvent(event: MatrixEvent): boolean {
   const rel = event.getContent()?.['m.relates_to'] as Record<string, unknown> | undefined
@@ -138,7 +139,7 @@ function getMentionFallback(room: Room, myUserId: string): number {
 }
 
 // Module-level entry cache — invalidate per room when activity changes
-const entryCache = new Map<string, { entry: RoomListEntry; lastTs: number; unread: number; lastBody: string; lastInThread: boolean }>()
+const entryCache = new Map<string, { entry: RoomListEntry; lastTs: number; unread: number; lastBody: string; lastInThread: boolean; threadsUnread: boolean }>()
 
 function cachedRoomToEntry(room: Room): RoomListEntry | null {
   const roomId = room.roomId
@@ -150,15 +151,23 @@ function cachedRoomToEntry(room: Room): RoomListEntry | null {
   const lastMsg = getLastMessage(room)
   const lastBody = lastMsg.body
   const lastInThread = lastMsg.inThread
+  const threadsUnread = roomHasUnreadThreads(room, getMatrixClient()?.getUserId() ?? null)
 
-  // Cache hit if timestamp, unread count, last message body, and thread flag haven't changed
-  if (cached && cached.lastTs === lastTs && cached.unread === unread && cached.lastBody === lastBody && cached.lastInThread === lastInThread) {
+  // Cache hit if timestamp, unread count, last message body, thread flag, and thread-unread haven't changed
+  if (
+    cached &&
+    cached.lastTs === lastTs &&
+    cached.unread === unread &&
+    cached.lastBody === lastBody &&
+    cached.lastInThread === lastInThread &&
+    cached.threadsUnread === threadsUnread
+  ) {
     return cached.entry
   }
 
   const entry = roomToEntry(room)
   if (entry) {
-    entryCache.set(roomId, { entry, lastTs, unread, lastBody, lastInThread })
+    entryCache.set(roomId, { entry, lastTs, unread, lastBody, lastInThread, threadsUnread })
   }
   return entry
 }
@@ -191,6 +200,7 @@ function roomToEntry(room: Room): RoomListEntry | null {
     lastMessageSenderId: lastMsg.senderId,
     lastMessageTs: lastMsg.ts || room.getLastActiveTimestamp(),
     lastMessageInThread: lastMsg.inThread,
+    hasUnreadThreads: roomHasUnreadThreads(room, myUserId),
     unreadCount: room.getUnreadNotificationCount() || 0,
     highlightCount,
     isDirect,
@@ -259,11 +269,13 @@ export function useRoomList() {
     const onMembership = () => refresh()
     const onTimeline = () => scheduleRefresh()
     const onDecrypted = () => scheduleRefresh()
+    const onReceipt = () => scheduleRefresh()
 
     client.on(ClientEvent.Sync, onSync)
     client.on(ClientEvent.Room, onRoom)
     client.on(RoomEvent.MyMembership, onMembership)
     client.on(RoomEvent.Timeline, onTimeline)
+    client.on(RoomEvent.Receipt, onReceipt)
     client.on(MatrixEventEvent.Decrypted, onDecrypted)
 
     return () => {
@@ -271,6 +283,7 @@ export function useRoomList() {
       client.removeListener(ClientEvent.Room, onRoom)
       client.removeListener(RoomEvent.MyMembership, onMembership)
       client.removeListener(RoomEvent.Timeline, onTimeline)
+      client.removeListener(RoomEvent.Receipt, onReceipt)
       client.removeListener(MatrixEventEvent.Decrypted, onDecrypted)
     }
   }, [refresh, scheduleRefresh, setInitialLoading])

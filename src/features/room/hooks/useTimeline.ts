@@ -275,10 +275,14 @@ export function useTimeline(roomId: string, isAtBottomRef?: React.RefObject<bool
     const timeline = room.getLiveTimeline().getEvents()
     for (let i = timeline.length - 1; i >= 0; i--) {
       const ev = timeline[i]
-      if (ev.getType() === 'm.room.message' || ev.getType() === 'm.room.encrypted') {
-        client.sendReadReceipt(ev).catch(() => {})
-        break
-      }
+      const type = ev.getType()
+      if (type !== 'm.room.message' && type !== 'm.room.encrypted') continue
+      // Skip thread replies — threads have their own read state and should
+      // only be marked read when the user actually opens the thread.
+      const rel = ev.getContent()?.['m.relates_to'] as Record<string, unknown> | undefined
+      if (rel?.rel_type === 'm.thread') continue
+      client.sendReadReceipt(ev).catch(() => {})
+      break
     }
   }, [])
 

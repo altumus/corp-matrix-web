@@ -351,6 +351,7 @@ function ThreadMessage({
 
 export function ThreadPanel({ roomId, threadRootId, onClose }: ThreadPanelProps) {
   const { t } = useTranslation()
+  const client = useMatrixClient()
   const { rootEvent, replies } = useThread(roomId, threadRootId)
   const [text, setText] = useState('')
   const [replyTarget, setReplyTarget] = useState<ThreadReplyTarget | null>(null)
@@ -362,6 +363,27 @@ export function ThreadPanel({ roomId, threadRootId, onClose }: ThreadPanelProps)
   const { candidates, active: mentionActive, open: openMention, close: closeMention } = useMentions(roomId)
   const mentionStartRef = useRef<number>(-1)
   const [mentionIndex, setMentionIndex] = useState(0)
+
+  // Mark the thread as read when the user opens it / new replies arrive.
+  // SDK attaches thread_id automatically for thread-scoped receipts.
+  const lastSeenReplyIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!client) return
+    const lastReply = replies[replies.length - 1] ?? rootEvent
+    if (!lastReply) return
+    if (lastSeenReplyIdRef.current === lastReply.eventId) return
+    lastSeenReplyIdRef.current = lastReply.eventId
+
+    const room = client.getRoom(roomId)
+    const matrixEvent = room?.findEventById(lastReply.eventId)
+    if (!matrixEvent) return
+
+    void (async () => {
+      const { getSendReadReceipts } = await import('../../settings/components/PrivacySettings.js')
+      if (!getSendReadReceipts()) return
+      client.sendReadReceipt(matrixEvent).catch(() => {})
+    })()
+  }, [client, roomId, rootEvent, replies])
 
   const insertMention = useCallback((candidate: MentionCandidate) => {
     const textarea = textareaRef.current

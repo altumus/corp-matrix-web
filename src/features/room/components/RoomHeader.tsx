@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, UserPlus, Phone, Video, Users, Search } from 'lucide-react'
+import { ArrowLeft, UserPlus, Phone, Video, Users, Search, MessageSquare } from 'lucide-react'
 import { useCallStore } from '../../calls/store/callStore.js'
 import { useGroupCallStore } from '../../calls/store/groupCallStore.js'
 import { useActiveGroupCall } from '../../calls/hooks/useGroupCall.js'
@@ -12,6 +12,7 @@ import { useRoomTrust } from '../../encryption/hooks/useRoomTrust.js'
 import { usePresence, getDmPartnerId } from '../../../shared/hooks/usePresence.js'
 import { InviteToRoomDialog } from './InviteToRoomDialog.js'
 import { useRightPanel } from '../context/RightPanelContext.js'
+import { useRoomHasUnreadThreads } from '../hooks/useRoomThreads.js'
 import { useIsMobile } from '../../../shared/hooks/useMediaQuery.js'
 import styles from './RoomHeader.module.scss'
 
@@ -24,7 +25,8 @@ export function RoomHeader({ room, onSearchToggle }: RoomHeaderProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [showInvite, setShowInvite] = useState(false)
-  const { openDetails } = useRightPanel()
+  const { panel, openDetails, openThreadsList, closePanel } = useRightPanel()
+  const hasUnreadThreads = useRoomHasUnreadThreads(room.roomId)
   const isMobile = useIsMobile()
   const dmPartnerId = room.isDirect ? getDmPartnerId(room.roomId) : null
   const presence = usePresence(dmPartnerId)
@@ -134,6 +136,16 @@ export function RoomHeader({ room, onSearchToggle }: RoomHeaderProps) {
           )}
         </>
       )}
+      <button
+        className={`${styles.inviteBtn} ${panel?.type === 'threads-list' ? styles.inviteBtnActive : ''}`}
+        onClick={() => panel?.type === 'threads-list' ? closePanel() : openThreadsList()}
+        title={t('messages.threads')}
+      >
+        <span className={styles.threadsIconWrap}>
+          <MessageSquare size={18} />
+          {hasUnreadThreads && <span className={styles.threadsUnreadDot} />}
+        </span>
+      </button>
       <button
         className={styles.inviteBtn}
         onClick={onSearchToggle}

@@ -138,7 +138,9 @@
 		"createPoll": "Создать опрос",
 		"threadReplies": "{{count}} ответов",
 		"openThread": "Открыть тред",
-		"replyInThread": "Ответить в треде..."
+		"replyInThread": "Ответить в треде...",
+		"threads": "Треды",
+		"noThreads": "В этом чате пока нет тредов"
 	},
 	"settings": {
 		"title": "Настройки",

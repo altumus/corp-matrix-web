@@ -138,7 +138,9 @@
 		"createPoll": "Create poll",
 		"threadReplies": "{{count}} replies",
 		"openThread": "Open thread",
-		"replyInThread": "Reply in thread..."
+		"replyInThread": "Reply in thread...",
+		"threads": "Threads",
+		"noThreads": "No threads in this chat yet"
 	},
 	"settings": {
 		"title": "Settings",
