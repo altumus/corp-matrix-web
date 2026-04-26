@@ -59,9 +59,19 @@ function getActiveMembers(room: Room) {
 }
 
 function isDmRoom(room: Room): boolean {
-  const members = getActiveMembers(room)
-  if (members.length === 2) return true
-  if (members.length <= 2 && room.getDMInviter()) return true
+  const client = getMatrixClient()
+  if (client) {
+    const event = client.getAccountData('m.direct')
+    if (event) {
+      const content = event.getContent() as Record<string, string[]>
+      for (const roomIds of Object.values(content)) {
+        if (Array.isArray(roomIds) && roomIds.includes(room.roomId)) return true
+      }
+    }
+  }
+  // Fallback for invitee side: m.direct may not be set yet, but the inviter
+  // marked the membership event as is_direct.
+  if (room.getDMInviter()) return true
   return false
 }
 

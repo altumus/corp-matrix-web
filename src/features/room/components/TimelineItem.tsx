@@ -11,7 +11,13 @@ interface TimelineItemProps {
 }
 
 export const TimelineItem = memo(function TimelineItem({ event, showAvatar, isHighlighted }: TimelineItemProps) {
-  if (event.type === 'm.room.member' || event.type === 'm.room.create') {
+  if (
+    event.type === 'm.room.member' ||
+    event.type === 'm.room.create' ||
+    event.type === 'm.room.name' ||
+    event.type === 'm.room.topic' ||
+    event.type === 'm.room.avatar'
+  ) {
     return <SystemMessage event={event} />
   }
 

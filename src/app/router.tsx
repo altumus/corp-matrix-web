@@ -81,8 +81,13 @@ export const router = createBrowserRouter([
       },
       {
         path: 'rooms',
+        // Per-route key forces a fresh Suspense boundary on each navigation:
+        // React Router wraps transitions in startTransition, and an existing
+        // boundary that's already showing content keeps it instead of falling
+        // back when the new child suspends — leaving the user with no
+        // indication during route changes.
         element: (
-          <SuspenseWrapper>
+          <SuspenseWrapper key="rooms-index">
             <RoomsPlaceholder />
           </SuspenseWrapper>
         ),
@@ -90,7 +95,7 @@ export const router = createBrowserRouter([
       {
         path: 'rooms/:roomId',
         element: (
-          <SuspenseWrapper>
+          <SuspenseWrapper key="room-view">
             <RoomView />
           </SuspenseWrapper>
         ),
@@ -98,7 +103,7 @@ export const router = createBrowserRouter([
       {
         path: 'settings/*',
         element: (
-          <SuspenseWrapper>
+          <SuspenseWrapper key="settings">
             <SettingsPage />
           </SuspenseWrapper>
         ),

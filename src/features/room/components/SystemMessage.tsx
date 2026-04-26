@@ -7,16 +7,20 @@ interface SystemMessageProps {
 
 function getSystemText(event: TimelineEvent): string {
   const name = event.senderName
+  const target = event.targetName || event.stateKey || name
   const content = event.content
 
   switch (event.type) {
     case 'm.room.member': {
       const membership = content.membership as string
-      if (membership === 'join') return `${name} присоединился(ась)`
-      if (membership === 'leave') return `${name} покинул(а) комнату`
-      if (membership === 'invite') return `${name} приглашён(а)`
-      if (membership === 'ban') return `${name} забанен(а)`
-      return `${name}: ${membership}`
+      if (membership === 'join') return `${target} присоединился(ась)`
+      if (membership === 'invite') return `${name} пригласил(а) ${target}`
+      if (membership === 'leave') {
+        if (event.sender !== event.stateKey) return `${name} удалил(а) ${target}`
+        return `${target} покинул(а) комнату`
+      }
+      if (membership === 'ban') return `${name} забанил(а) ${target}`
+      return `${target}: ${membership}`
     }
     case 'm.room.create':
       return `${name} создал(а) комнату`

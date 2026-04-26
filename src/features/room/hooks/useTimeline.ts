@@ -56,6 +56,13 @@ function mapEvent(event: MatrixEvent, room: Room): TimelineEvent {
     }
   }
 
+  const stateKey = event.getStateKey() ?? undefined
+  let targetName: string | undefined
+  if (event.getType() === 'm.room.member' && stateKey) {
+    const target = room.getMember(stateKey)
+    targetName = target?.name || (content.displayname as string) || stateKey
+  }
+
   return {
     eventId: event.getId()!,
     roomId: room.roomId,
@@ -74,6 +81,8 @@ function mapEvent(event: MatrixEvent, room: Room): TimelineEvent {
       ? relatesTo.event_id as string
       : undefined,
     reactions,
+    stateKey,
+    targetName,
   }
 }
 
@@ -207,12 +216,21 @@ export function useTimeline(roomId: string, isAtBottomRef?: React.RefObject<bool
   const [prevRoomId, setPrevRoomId] = useState(roomId)
 
   // Synchronous state reset during render — eliminates the stale-state frame
-  // that useEffect (which fires after paint) cannot prevent.
+  // that useEffect (which fires after paint) cannot prevent. Seed events from
+  // the SDK cache so revisits render messages immediately instead of flashing
+  // a spinner while the post-paint effect runs.
   if (roomId !== prevRoomId) {
     setPrevRoomId(roomId)
-    setLoading(true)
-    setEvents([])
+    const room = client?.getRoom(roomId) ?? null
+    const cached = room ? collectEvents(room) : []
+    setEvents(cached)
+    setLoading(cached.length === 0)
     setPrependCount(0)
+    roomRef.current = room
+    activeRoomIdRef.current = roomId
+    prevFirstIdRef.current = cached[0]?.eventId ?? null
+    prevEventIdsRef.current = cached.map((e) => e.eventId).join(',')
+    paginatingRef.current = false
   }
 
   const refreshEvents = useCallback(() => {
@@ -261,24 +279,19 @@ export function useTimeline(roomId: string, isAtBottomRef?: React.RefObject<bool
   }, [])
 
   useEffect(() => {
-    activeRoomIdRef.current = roomId
-    prevFirstIdRef.current = null
-    prevEventIdsRef.current = ''
-    paginatingRef.current = false
-
     if (!client) return
 
     const room = client.getRoom(roomId)
     if (!room) return
 
     roomRef.current = room
-    const initialEvents = collectEvents(room)
-    setEvents(initialEvents)
+    // Pick up any events that arrived between the synchronous seed and effect mount.
+    refreshEvents()
     setPaginating(false)
     sendReadReceipt()
 
     const timeline = room.getLiveTimeline()
-    if (initialEvents.length === 0 && timeline.getPaginationToken(Direction.Backward)) {
+    if (collectEvents(room).length === 0 && timeline.getPaginationToken(Direction.Backward)) {
       client.paginateEventTimeline(timeline, { backwards: true, limit: 100 }).then(() => {
         if (activeRoomIdRef.current === roomId) {
           setEvents(collectEvents(room))
