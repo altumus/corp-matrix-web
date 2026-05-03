@@ -66,7 +66,7 @@ function getActiveMembers(room: Room) {
 function isDmRoom(room: Room): boolean {
   const client = getMatrixClient()
   if (client) {
-    const event = client.getAccountData('m.direct')
+    const event = client.getAccountData('m.direct' as never)
     if (event) {
       const content = event.getContent() as Record<string, string[]>
       for (const roomIds of Object.values(content)) {

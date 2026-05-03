@@ -119,7 +119,7 @@ export function MessageContent({
         />
       )}
       {(msgtype === 'm.image' || msgtype === 'm.video' || msgtype === 'm.file' || msgtype === 'm.audio') &&
-        content.filename && body && body !== (content.filename as string) && (
+        !!content.filename && body && body !== (content.filename as string) && (
           <div
             className={styles.textContent}
             dangerouslySetInnerHTML={{

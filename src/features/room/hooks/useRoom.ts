@@ -6,7 +6,7 @@ import type { MatrixClient } from 'matrix-js-sdk'
 import type { RoomSummary } from '../types.js'
 
 function isDirectRoom(client: MatrixClient, roomId: string): boolean {
-  const event = client.getAccountData('m.direct')
+  const event = client.getAccountData('m.direct' as never)
   if (!event) return false
   const content = event.getContent() as Record<string, string[]>
   for (const roomIds of Object.values(content)) {

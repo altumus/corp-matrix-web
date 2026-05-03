@@ -151,7 +151,7 @@ export function setupNotificationListeners() {
     if (cached) return cached
 
     try {
-      const result = await client.fetchRoomEvent(roomId, eventId)
+      const result = await client!.fetchRoomEvent(roomId, eventId)
       const senderId = result?.sender as string | undefined
       if (senderId) cacheEventSender(eventId, senderId)
       return senderId || null
