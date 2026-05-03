@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { startTransition, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
@@ -44,8 +44,10 @@ function InviteItem({ invite }: { invite: RoomListEntry }) {
         // Navigate immediately after join — this also forces the room into the
         // current view so the user (and tests) see it appear without waiting
         // for the next sync to repopulate the room list.
-        setSelectedRoom(invite.roomId)
-        navigate(`/rooms/${encodeURIComponent(invite.roomId)}`)
+        startTransition(() => {
+          setSelectedRoom(invite.roomId)
+          navigate(`/rooms/${encodeURIComponent(invite.roomId)}`)
+        })
       } else {
         await client.leave(invite.roomId)
       }

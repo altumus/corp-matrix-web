@@ -53,6 +53,10 @@ function mapThreadEvent(e: MatrixEvent, room: Room, threadRootId: string): Timel
     }
   }
 
+  // Threads don't have the room-enter grace UX of the main timeline (the user
+  // explicitly opens a thread panel after the room is loaded), so an event
+  // that is still encrypted here is treated as a permanent failure right
+  // away — same behavior as before this field existed.
   const isDecryptionFailure = e.getType() === 'm.room.encrypted' && !e.isBeingDecrypted()
 
   return {
@@ -67,6 +71,7 @@ function mapThreadEvent(e: MatrixEvent, room: Room, threadRootId: string): Timel
     isEdited,
     isRedacted: e.isRedacted(),
     isDecryptionFailure,
+    decryptionPending: false,
     replyTo: replyToId,
     replyToEvent,
     threadRootId: isRoot ? undefined : threadRootId,

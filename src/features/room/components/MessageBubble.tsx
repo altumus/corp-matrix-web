@@ -441,6 +441,30 @@ export function MessageBubble({
 		);
 	}
 
+	if (event.decryptionPending) {
+		// Within the decryption grace window: render a neutral placeholder with
+		// the same bubble chrome and time element as a real message so when the
+		// real content arrives the bubble doesn't change height.
+		return (
+			<div
+				className={`${styles.message} ${isOwnMessage ? styles.outgoing : styles.incoming}`}
+			>
+				{!isOwnMessage && showAvatar && (
+					<Avatar src={event.senderAvatar} name={event.senderName} size='sm' />
+				)}
+				{!isOwnMessage && !showAvatar && (
+					<div className={styles.avatarPlaceholder} />
+				)}
+				<div className={styles.bubble}>
+					<span className={styles.decryptionPending} aria-busy='true'>
+						{t('encryption.decrypting', { defaultValue: 'Расшифровка…' })}
+					</span>
+					{timeEl}
+				</div>
+			</div>
+		);
+	}
+
 	if (event.isDecryptionFailure) {
 		return (
 			<div

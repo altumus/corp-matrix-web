@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { startTransition, useState, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import { Preset } from 'matrix-js-sdk/lib/@types/partials.js'
@@ -75,15 +75,19 @@ export function RoomSearch() {
   }
 
   const handleRoomClick = (roomId: string) => {
-    setSelectedRoom(roomId)
-    navigate(`/rooms/${encodeURIComponent(roomId)}`)
+    startTransition(() => {
+      setSelectedRoom(roomId)
+      navigate(`/rooms/${encodeURIComponent(roomId)}`)
+    })
     setQuery('')
     setOpen(false)
   }
 
   const handleMessageClick = (roomId: string, eventId: string) => {
-    setSelectedRoom(roomId)
-    navigate(`/rooms/${encodeURIComponent(roomId)}?eventId=${encodeURIComponent(eventId)}`)
+    startTransition(() => {
+      setSelectedRoom(roomId)
+      navigate(`/rooms/${encodeURIComponent(roomId)}?eventId=${encodeURIComponent(eventId)}`)
+    })
     setQuery('')
     setOpen(false)
   }
@@ -141,8 +145,10 @@ export function RoomSearch() {
                         invite: [user.userId],
                         preset: Preset.TrustedPrivateChat,
                       })
-                      setSelectedRoom(room_id)
-                      navigate(`/rooms/${encodeURIComponent(room_id)}`)
+                      startTransition(() => {
+                        setSelectedRoom(room_id)
+                        navigate(`/rooms/${encodeURIComponent(room_id)}`)
+                      })
                     } catch { /* ignore */ }
                     setQuery('')
                     setOpen(false)

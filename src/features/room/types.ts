@@ -20,6 +20,14 @@ export interface TimelineEvent {
   isEdited: boolean
   isRedacted: boolean
   isDecryptionFailure: boolean
+  /**
+   * True when the event is still encrypted but within a short grace period
+   * after first being observed. UI should render a neutral "decrypting…"
+   * placeholder rather than a failure label so messages don't visibly flip
+   * from "не удалось расшифровать" to their real content as the rust-crypto
+   * backend catches up.
+   */
+  decryptionPending: boolean
   replyTo?: string
   replyToEvent?: {
     sender: string

@@ -3,7 +3,7 @@ import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
 import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { RoomEvent, RelationType, EventType, MatrixEventEvent } from 'matrix-js-sdk'
 import { Direction } from 'matrix-js-sdk/lib/models/event-timeline.js'
-import type { MatrixEvent, Room } from 'matrix-js-sdk'
+import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk'
 import type { TimelineEvent } from '../types.js'
 import { getThreadRootId, isThreadReply } from '../utils/threadRelations.js'
 
@@ -32,9 +32,32 @@ function mapEvent(event: MatrixEvent, room: Room): TimelineEvent {
   }
 
   const isEncrypted = event.isEncrypted()
-  const isDecryptionFailure = isEncrypted && event.getType() === 'm.room.encrypted'
+  const stillEncrypted = isEncrypted && event.getType() === 'm.room.encrypted'
+  // Grace-period split: when an encrypted event first shows up we don't know
+  // yet whether crypto can decrypt it. Showing "не удалось расшифровать"
+  // immediately and then flipping to real content as rust-crypto catches up
+  // is what produces the visible jump. We mark the event as "pending" for a
+  // short window and only escalate to a failure after the grace expires.
+  const seenMap = getFirstSeenEncryptedForRoom(room)
+  const eventId = event.getId()!
+  let decryptionPending = false
+  let isDecryptionFailure = false
+  if (stillEncrypted) {
+    let firstSeen = seenMap.get(eventId)
+    if (firstSeen === undefined) {
+      firstSeen = Date.now()
+      seenMap.set(eventId, firstSeen)
+    }
+    if (Date.now() - firstSeen < DECRYPTION_GRACE_MS) {
+      decryptionPending = true
+    } else {
+      isDecryptionFailure = true
+    }
+  } else if (seenMap.has(eventId)) {
+    seenMap.delete(eventId)
+  }
   let content: Record<string, unknown>
-  if (isDecryptionFailure) {
+  if (stillEncrypted) {
     content = { msgtype: 'm.text', body: '' }
   } else {
     const replacing = event.replacingEvent()
@@ -79,6 +102,7 @@ function mapEvent(event: MatrixEvent, room: Room): TimelineEvent {
     isEdited,
     isRedacted: event.isRedacted(),
     isDecryptionFailure,
+    decryptionPending,
     replyTo: replyToId,
     replyToEvent,
     threadRootId: getThreadRootId(event),
@@ -114,6 +138,26 @@ function countThreadReplies(room: Room): Map<string, number> {
   return counts
 }
 
+// Grace window between an event first appearing as `m.room.encrypted` and
+// us labeling it a permanent decryption failure. Most decryptions complete
+// within a few hundred ms after the rust-crypto backend processes the
+// associated to-device key, so 5s is generous without making real failures
+// invisible for too long.
+const DECRYPTION_GRACE_MS = 5000
+
+// First time we observed a given event still encrypted, per room. Cleaned up
+// once the event is decrypted (handled in mapEvent) and on room cleanup.
+const firstSeenEncrypted = new WeakMap<Room, Map<string, number>>()
+
+function getFirstSeenEncryptedForRoom(room: Room): Map<string, number> {
+  let m = firstSeenEncrypted.get(room)
+  if (!m) {
+    m = new Map()
+    firstSeenEncrypted.set(room, m)
+  }
+  return m
+}
+
 // Per-room mapEvent cache to avoid re-mapping unchanged events on every sync.
 // Key: eventId, Value: { event, editTs, reactionCount — all three must match to use cache }
 const eventCache = new WeakMap<Room, Map<string, { ev: TimelineEvent; editTs: number; reactionCount?: number }>>()
@@ -125,6 +169,27 @@ function getCacheForRoom(room: Room): Map<string, { ev: TimelineEvent; editTs: n
     eventCache.set(room, cache)
   }
   return cache
+}
+
+/**
+ * Eagerly decrypt every encrypted event currently in the live timeline,
+ * racing against a timeout so we never block the UI more than `timeoutMs`
+ * even if a key is missing. Mirrors what Element/FluffyChat do on room
+ * enter: the first frame the user sees has decrypted content rather than
+ * placeholders that mutate moments later.
+ */
+async function decryptVisibleEvents(client: MatrixClient, room: Room, timeoutMs: number): Promise<void> {
+  const tl = room.getLiveTimeline().getEvents()
+  const encrypted = tl.filter((e) => e.isEncrypted() && e.getType() === 'm.room.encrypted')
+  if (encrypted.length === 0) return
+
+  const work = Promise.all(
+    encrypted.map((e) => client.decryptEventIfNeeded(e).catch(() => {})),
+  )
+  await Promise.race([
+    work,
+    new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
+  ])
 }
 
 function collectEvents(room: Room): TimelineEvent[] {
@@ -163,13 +228,25 @@ function collectEvents(room: Room): TimelineEvent[] {
 
       // Also invalidate cache if decryption status changed (event was decrypted after key restore)
       const isEncrypted = e.isEncrypted()
-      const isStillFailed = isEncrypted && e.getType() === 'm.room.encrypted'
+      const isStillEncrypted = isEncrypted && e.getType() === 'm.room.encrypted'
+      // pending→failed transition is purely time-based, so we must re-map any
+      // cached pending event whose grace window has expired even if the SDK
+      // says nothing changed.
+      const cachedFlags = cache.get(id)?.ev
+      const isPendingExpired =
+        isStillEncrypted &&
+        !!cachedFlags?.decryptionPending &&
+        (() => {
+          const seen = getFirstSeenEncryptedForRoom(room).get(id)
+          return seen !== undefined && Date.now() - seen >= DECRYPTION_GRACE_MS
+        })()
       const cached = cache.get(id)
       if (
+        !isPendingExpired &&
         cached &&
         cached.editTs === editTs &&
         (cached.reactionCount ?? 0) === reactionCount &&
-        cached.ev.isDecryptionFailure === isStillFailed // ← re-map if decryption status changed
+        cached.ev.isDecryptionFailure === (isStillEncrypted && !cached.ev.decryptionPending)
       ) {
         const tc = threadCounts.get(id)
         if (tc !== cached.ev.threadReplyCount) {
@@ -209,6 +286,9 @@ export function useTimeline(roomId: string, isAtBottomRef?: React.RefObject<bool
   const prevEventIdsRef = useRef('')
   const prevFirstIdRef = useRef<string | null>(null)
   const decryptDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const receiptDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const graceExpiryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastReceiptEventIdRef = useRef<string | null>(null)
   const [prevRoomId, setPrevRoomId] = useState(roomId)
 
   // Synchronous state reset during render — eliminates the stale-state frame
@@ -216,11 +296,17 @@ export function useTimeline(roomId: string, isAtBottomRef?: React.RefObject<bool
   // the SDK cache so revisits render messages immediately instead of flashing
   // a spinner while the post-paint effect runs.
   if (roomId !== prevRoomId) {
+    console.log(`[RS ${performance.now().toFixed(0)}] useTimeline resync: ${prevRoomId?.slice(0, 12)}… → ${roomId.slice(0, 12)}… (cached events=${client?.getRoom(roomId) ? collectEvents(client.getRoom(roomId)!).length : 0})`)
     setPrevRoomId(roomId)
     const room = client?.getRoom(roomId) ?? null
     const cached = room ? collectEvents(room) : []
     setEvents(cached)
-    setLoading(cached.length === 0)
+    // Keep the spinner up if we'd have to backfill anyway. Showing 4 cached
+    // events for ~500ms and then snapping to 30+ as pagination resolves is
+    // the visible "jump" people complain about. The post-mount effect will
+    // flip loading=false once the timeline is filled and decrypted.
+    const SHOW_CACHED_THRESHOLD = 30
+    setLoading(cached.length < SHOW_CACHED_THRESHOLD)
     setPrependCount(0)
     roomRef.current = room
     activeRoomIdRef.current = roomId
@@ -253,7 +339,15 @@ export function useTimeline(roomId: string, isAtBottomRef?: React.RefObject<bool
     }
 
     setEvents(newEvents)
+
+    // If anything is still in the decryption grace window, schedule a single
+    // refresh at the earliest expiry so we can flip pending → failed without
+    // waiting for the next sync to nudge us.
+    schedulePendingExpiryRefreshRef.current?.(newEvents)
   }, [])
+
+  // Forward declaration for the closure inside refreshEvents (assigned in effect).
+  const schedulePendingExpiryRefreshRef = useRef<((events: TimelineEvent[]) => void) | null>(null)
 
   const sendReadReceipt = useCallback(async () => {
     // Privacy: respect user setting
@@ -272,16 +366,36 @@ export function useTimeline(roomId: string, isAtBottomRef?: React.RefObject<bool
       // Skip thread replies — threads have their own read state and should
       // only be marked read when the user actually opens the thread.
       if (isThreadReply(ev)) continue
+      const evId = ev.getId()
+      if (!evId) break
+      // Dedup: server already knows about the previous receipt — re-sending it
+      // for the same event clogs the network and main thread, especially when
+      // sync delivers a batch of timeline events in quick succession.
+      if (lastReceiptEventIdRef.current === evId) return
+      lastReceiptEventIdRef.current = evId
       client.sendReadReceipt(ev).catch(() => {})
       break
     }
   }, [])
+
+  // Debounce wrapper: a single sync batch can fire RoomEvent.Timeline dozens
+  // of times back-to-back. Without coalescing, each one queues a POST that
+  // takes ~700ms and starves React's rendering work.
+  const scheduleReadReceipt = useCallback(() => {
+    if (receiptDebounceRef.current) clearTimeout(receiptDebounceRef.current)
+    receiptDebounceRef.current = setTimeout(() => {
+      receiptDebounceRef.current = null
+      sendReadReceipt()
+    }, 250)
+  }, [sendReadReceipt])
 
   useEffect(() => {
     if (!client) return
 
     const room = client.getRoom(roomId)
     if (!room) return
+
+    console.log(`[RS ${performance.now().toFixed(0)}] useTimeline effect mounted for ${roomId.slice(0, 12)}…`)
 
     // Per-mount cancellation flag. activeRoomIdRef alone is insufficient:
     // on A→B→A it goes back to A and lets stale requests from the FIRST
@@ -290,35 +404,105 @@ export function useTimeline(roomId: string, isAtBottomRef?: React.RefObject<bool
     let cancelled = false
 
     roomRef.current = room
+    // Reset receipt dedup when switching rooms — the lastReceipt eventId is
+    // per-room, but the ref persists across mounts of this hook.
+    lastReceiptEventIdRef.current = null
+
+    // Schedule a single refresh when the soonest-expiring "decryption pending"
+    // event would tip into "failed". Cleared and re-armed on each refresh so
+    // we never queue a thundering herd of timers.
+    schedulePendingExpiryRefreshRef.current = (currentEvents: TimelineEvent[]) => {
+      if (graceExpiryTimerRef.current) {
+        clearTimeout(graceExpiryTimerRef.current)
+        graceExpiryTimerRef.current = null
+      }
+      const seenMap = getFirstSeenEncryptedForRoom(room)
+      let earliestExpiry = Infinity
+      for (const ev of currentEvents) {
+        if (!ev.decryptionPending) continue
+        const seen = seenMap.get(ev.eventId)
+        if (seen === undefined) continue
+        const expiry = seen + DECRYPTION_GRACE_MS
+        if (expiry < earliestExpiry) earliestExpiry = expiry
+      }
+      if (earliestExpiry === Infinity) return
+      const wait = Math.max(0, earliestExpiry - Date.now()) + 50
+      graceExpiryTimerRef.current = setTimeout(() => {
+        graceExpiryTimerRef.current = null
+        if (cancelled) return
+        eventCache.delete(room)
+        prevEventIdsRef.current = ''
+        refreshEvents()
+      }, wait)
+    }
+
     // Pick up any events that arrived between the synchronous seed and effect mount.
     refreshEvents()
     setPaginating(false)
     sendReadReceipt()
 
     const timeline = room.getLiveTimeline()
-    if (collectEvents(room).length === 0 && timeline.getPaginationToken(Direction.Backward)) {
-      client.paginateEventTimeline(timeline, { backwards: true, limit: 100 }).then(() => {
-        if (cancelled) return
-        setEvents(collectEvents(room))
-      }).catch(() => {}).finally(() => {
-        if (cancelled) return
-        setLoading(false)
-      })
-    } else {
+    const finishLoading = async () => {
+      // Backfill enough history to fill Virtuoso's overscan window before
+      // the first paint. Without this, a room with only a few cached events
+      // mounts at events.length=4 → Virtuoso's increaseViewportBy=1500 means
+      // the entire content fits in the buffered area, startReached fires on
+      // the first layout pass, paginateBack runs, items appear above, and
+      // the user sees the visible "jump" from 4 → 19 → 27 events.
+      const MIN_INITIAL_EVENTS = 30
+      const MAX_INITIAL_PAGINATIONS = 3
+      // Block user-triggered paginateBack while the initial backfill runs;
+      // Virtuoso may fire startReached on first layout and we don't want a
+      // second concurrent pagination racing with this one.
+      paginatingRef.current = true
+      try {
+        for (let i = 0; i < MAX_INITIAL_PAGINATIONS; i++) {
+          if (cancelled) return
+          if (collectEvents(room).length >= MIN_INITIAL_EVENTS) break
+          if (!timeline.getPaginationToken(Direction.Backward)) break
+          try {
+            await client.paginateEventTimeline(timeline, { backwards: true, limit: 100 })
+          } catch {
+            break
+          }
+        }
+      } finally {
+        paginatingRef.current = false
+      }
+      if (cancelled) return
+
+      // Eagerly decrypt before flipping loading=false so the very first
+      // painted frame already shows real message content. Capped at 1.5s so
+      // a stuck key request can't keep the spinner up indefinitely.
+      try {
+        await decryptVisibleEvents(client, room, 1500)
+      } catch { /* timeout/no-op */ }
+      if (cancelled) return
+
+      // Re-collect after decryption so any newly-decrypted events get mapped
+      // with their real content instead of the encrypted placeholder.
+      eventCache.delete(room)
+      setEvents(collectEvents(room))
       setLoading(false)
     }
+    finishLoading()
 
-    const onTimelineEvent = () => {
+    // RoomEvent.Timeline is a CLIENT-level event — it fires for every room.
+    // Filter to the active room before doing any work; otherwise unrelated
+    // sync traffic causes refreshEvents/sendReadReceipt to run pointlessly.
+    const onTimelineEvent = (_event: MatrixEvent, evRoom: Room | undefined) => {
       if (cancelled) return
+      if (!evRoom || evRoom.roomId !== activeRoomIdRef.current) return
       prevEventIdsRef.current = ''
       refreshEvents()
       // Only mark as read if user is scrolled to the bottom (can see new messages)
       if (!isAtBottomRef || isAtBottomRef.current) {
-        sendReadReceipt()
+        scheduleReadReceipt()
       }
     }
-    const onRedaction = () => {
+    const onRedaction = (_event: MatrixEvent, evRoom: Room | undefined) => {
       if (cancelled) return
+      if (!evRoom || evRoom.roomId !== activeRoomIdRef.current) return
       prevEventIdsRef.current = ''
       refreshEvents()
     }
@@ -344,16 +528,26 @@ export function useTimeline(roomId: string, isAtBottomRef?: React.RefObject<bool
     client.on(MatrixEventEvent.Decrypted, onDecrypted)
 
     return () => {
+      console.log(`[RS ${performance.now().toFixed(0)}] useTimeline effect cleanup for ${roomId.slice(0, 12)}…`)
       cancelled = true
       if (decryptDebounceRef.current) {
         clearTimeout(decryptDebounceRef.current)
         decryptDebounceRef.current = null
       }
+      if (receiptDebounceRef.current) {
+        clearTimeout(receiptDebounceRef.current)
+        receiptDebounceRef.current = null
+      }
+      if (graceExpiryTimerRef.current) {
+        clearTimeout(graceExpiryTimerRef.current)
+        graceExpiryTimerRef.current = null
+      }
+      schedulePendingExpiryRefreshRef.current = null
       client.removeListener(RoomEvent.Timeline, onTimelineEvent)
       client.removeListener(RoomEvent.Redaction, onRedaction)
       client.removeListener(MatrixEventEvent.Decrypted, onDecrypted)
     }
-  }, [roomId, refreshEvents, sendReadReceipt, client])
+  }, [roomId, refreshEvents, sendReadReceipt, scheduleReadReceipt, client])
 
   const paginateBack = useCallback(async () => {
     if (paginatingRef.current) return

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { startTransition, useState, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { Bookmark, Plus, Settings, LayoutGrid } from 'lucide-react'
@@ -41,8 +41,10 @@ export function RoomListHeader() {
     // 1. Check rooms list store first
     const fromStore = rooms.find((r) => r.isSavedMessages)
     if (fromStore) {
-      setSelectedRoom(fromStore.roomId)
-      navigate(`/rooms/${encodeURIComponent(fromStore.roomId)}`)
+      startTransition(() => {
+        setSelectedRoom(fromStore.roomId)
+        navigate(`/rooms/${encodeURIComponent(fromStore.roomId)}`)
+      })
       return
     }
 
@@ -52,8 +54,10 @@ export function RoomListHeader() {
       const members = room.getJoinedMembers()
       if (members.length === 1 && members[0].userId === myUserId) {
         // Self-DM
-        setSelectedRoom(room.roomId)
-        navigate(`/rooms/${encodeURIComponent(room.roomId)}`)
+        startTransition(() => {
+          setSelectedRoom(room.roomId)
+          navigate(`/rooms/${encodeURIComponent(room.roomId)}`)
+        })
         return
       }
     }
@@ -68,8 +72,10 @@ export function RoomListHeader() {
         // Verify room still exists and we're joined
         const room = client.getRoom(roomId)
         if (room && room.getMyMembership() === 'join') {
-          setSelectedRoom(roomId)
-          navigate(`/rooms/${encodeURIComponent(roomId)}`)
+          startTransition(() => {
+            setSelectedRoom(roomId)
+            navigate(`/rooms/${encodeURIComponent(roomId)}`)
+          })
           return
         }
       }
@@ -92,8 +98,10 @@ export function RoomListHeader() {
         await client.setAccountData('m.direct' as any, directMap as any)
       } catch { /* ignore */ }
 
-      setSelectedRoom(room_id)
-      navigate(`/rooms/${encodeURIComponent(room_id)}`)
+      startTransition(() => {
+        setSelectedRoom(room_id)
+        navigate(`/rooms/${encodeURIComponent(room_id)}`)
+      })
     } catch { /* ignore */ }
   }, [rooms, navigate, setSelectedRoom, client])
 

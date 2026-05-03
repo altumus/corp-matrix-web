@@ -58,7 +58,9 @@ export function MessageContent({
                 loading="lazy"
                 width={displayW}
                 height={displayH}
-                style={{ maxWidth: displayW, width: '100%', height: 'auto' }}
+                // aspectRatio reserves the final height before the image loads,
+                // preventing the timeline from reflowing once the bytes arrive.
+                style={{ maxWidth: displayW, width: '100%', aspectRatio: `${w} / ${h}`, height: 'auto' }}
               />
             </div>
           );
@@ -89,7 +91,7 @@ export function MessageContent({
                 className={styles.imageMessage}
                 width={displayW}
                 height={displayH}
-                style={{ maxWidth: displayW, width: '100%', height: 'auto' }}
+                style={{ maxWidth: displayW, width: '100%', aspectRatio: `${w} / ${h}`, height: 'auto' }}
               />
             </div>
           );

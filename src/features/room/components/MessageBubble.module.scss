@@ -359,6 +359,13 @@
   font-size: var(--font-size-md);
 }
 
+.decryptionPending {
+  font-style: italic;
+  color: var(--color-text-tertiary, var(--color-text-secondary));
+  font-size: var(--font-size-md);
+  opacity: 0.75;
+}
+
 .imageMessage {
   max-width: 400px;
   max-height: 300px;

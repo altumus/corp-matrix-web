@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { startTransition, useCallback, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { NotificationCountType } from 'matrix-js-sdk'
@@ -111,12 +111,11 @@ export function RoomListItem({ room }: RoomListItemProps) {
   const isOnline = presence ? (presence.online || (presence.lastActiveAgo !== null && presence.lastActiveAgo < 60000)) : false
 
   const handleClick = () => {
-    setSelectedRoom(room.roomId)
-
     // If user was mentioned — scroll to first (oldest) unread mention.
     // Check both the cached prop AND the live SDK count — the prop may be stale
     // (fresh mention not yet in store) or the live count may already be cleared
     // (badge still visible from last refresh but SDK reset the counter).
+    let mentionEventId: string | null = null
     if (client) {
       const matrixRoom = client.getRoom(room.roomId)
       const liveHighlight = matrixRoom?.getRoomUnreadNotificationCount(NotificationCountType.Highlight) || 0
@@ -132,14 +131,28 @@ export function RoomListItem({ room }: RoomListItemProps) {
           const isMention = mentions?.user_ids?.includes(myId!) || mentions?.room ||
             html.includes(`matrix.to/#/${encodedId}`) || html.includes(`matrix.to/#/${myId}`)
           if (isMention) {
-            navigate(`/rooms/${encodeURIComponent(room.roomId)}?eventId=${encodeURIComponent(ev.getId()!)}`)
-            return
+            mentionEventId = ev.getId()!
+            break
           }
         }
       }
     }
 
-    navigate(`/rooms/${encodeURIComponent(room.roomId)}`)
+    const t0 = performance.now()
+    console.log(`[RS ${t0.toFixed(0)}] click → ${room.roomId.slice(0, 12)}… (mention=${!!mentionEventId})`)
+    // Atomic commit: Zustand setSelectedRoom is urgent, while data-router
+    // navigate runs inside startTransition. Without bundling them together
+    // the highlight flips immediately but the route render lags behind any
+    // urgent updates (matrix sync, etc.), so the old room view stays visible.
+    startTransition(() => {
+      console.log(`[RS ${performance.now().toFixed(0)}] startTransition body running (Δ${(performance.now() - t0).toFixed(0)}ms)`)
+      setSelectedRoom(room.roomId)
+      if (mentionEventId) {
+        navigate(`/rooms/${encodeURIComponent(room.roomId)}?eventId=${encodeURIComponent(mentionEventId)}`)
+      } else {
+        navigate(`/rooms/${encodeURIComponent(room.roomId)}`)
+      }
+    })
   }
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {

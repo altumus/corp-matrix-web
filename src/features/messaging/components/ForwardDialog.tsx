@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { startTransition, useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import { Modal, Avatar } from '../../../shared/ui/index.js'
@@ -46,8 +46,10 @@ export function ForwardDialog({ fromRoomId, eventId, onClose }: ForwardDialogPro
       for (const id of eventIds) {
         await forwardMessage(fromRoomId, id, toRoomId)
       }
-      setSelectedRoom(toRoomId)
-      navigate(`/rooms/${encodeURIComponent(toRoomId)}`)
+      startTransition(() => {
+        setSelectedRoom(toRoomId)
+        navigate(`/rooms/${encodeURIComponent(toRoomId)}`)
+      })
       onClose()
     } catch {
       setSending(false)

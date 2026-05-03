@@ -64,12 +64,16 @@ export function Timeline({ roomId, focusEventId, onFocusHandled }: TimelineProps
   const [trackedRoomId, setTrackedRoomId] = useState(roomId)
   const [virtuosoReady, setVirtuosoReady] = useState(true)
   if (trackedRoomId !== roomId) {
+    console.log(`[RS ${performance.now().toFixed(0)}] Timeline resync: ${trackedRoomId.slice(0, 12)}… → ${roomId.slice(0, 12)}…`)
     setTrackedRoomId(roomId)
     setVirtuosoReady(false)
   }
   useEffect(() => {
+    console.log(`[RS ${performance.now().toFixed(0)}] Timeline virtuosoReady=true for ${roomId.slice(0, 12)}…`)
     setVirtuosoReady(true)
   }, [roomId])
+
+  console.log(`[RS ${performance.now().toFixed(0)}] Timeline render: roomId=${roomId.slice(0, 12)}… events=${events.length} loading=${loading} virtuosoReady=${virtuosoReady}`)
 
   const setScrollState = useRoomListStore((s) => s.setScrollState)
 

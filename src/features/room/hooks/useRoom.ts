@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useReducer } from 'react'
 import { getMatrixClient } from '../../../shared/lib/matrixClient.js'
 import { useMatrixClient } from '../../../shared/contexts/MatrixClientContext.js'
 import { ClientEvent, RoomStateEvent } from 'matrix-js-sdk'
@@ -63,27 +63,23 @@ function summariesEqual(a: RoomSummary | null, b: RoomSummary | null): boolean {
 
 export function useRoom(roomId: string | undefined) {
   const client = useMatrixClient()
-  const [room, setRoom] = useState<RoomSummary | null>(() => resolveRoom(roomId))
-  const [trackedRoomId, setTrackedRoomId] = useState(roomId)
-
-  if (trackedRoomId !== roomId) {
-    setRoom(resolveRoom(roomId))
-    setTrackedRoomId(roomId)
-  }
+  // Listeners bump this counter to force a re-render. We deliberately do NOT
+  // hold the derived RoomSummary in state — that's the trap that produced
+  // stale-on-switch: refresh callbacks captured `next` in a closure, and
+  // React 18's concurrent scheduler could apply that closure's setState
+  // AFTER a newer roomId committed, snapping the UI back to the previous
+  // room. Recomputing room from `roomId` on every render keeps the value
+  // locked to whatever the URL currently says.
+  const [, forceUpdate] = useReducer((c: number) => c + 1, 0)
+  const room = resolveRoom(roomId)
 
   useEffect(() => {
     if (!client || !roomId) return
-
-    const refresh = () => {
-      const next = resolveRoom(roomId)
-      setRoom((prev) => (summariesEqual(prev, next) ? prev : next))
-    }
-
+    const refresh = () => forceUpdate()
     const matrixRoom = client.getRoom(roomId)
     matrixRoom?.currentState.on(RoomStateEvent.Events, refresh)
     matrixRoom?.currentState.on(RoomStateEvent.Members, refresh)
     client.on(ClientEvent.Sync, refresh)
-
     return () => {
       matrixRoom?.currentState.removeListener(RoomStateEvent.Events, refresh)
       matrixRoom?.currentState.removeListener(RoomStateEvent.Members, refresh)
@@ -91,5 +87,11 @@ export function useRoom(roomId: string | undefined) {
     }
   }, [client, roomId])
 
+  console.log(`[RS ${performance.now().toFixed(0)}] useRoom compute: roomId=${roomId?.slice(0, 12) ?? 'none'}… → room=${room?.roomId.slice(0, 12) ?? 'null'}…`)
+
   return { room, loading: !room }
 }
+
+// summariesEqual is no longer used now that we recompute on every render,
+// but keeping it for reference in case we later want to memoize.
+void summariesEqual

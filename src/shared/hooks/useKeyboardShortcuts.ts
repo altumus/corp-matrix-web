@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { startTransition, useEffect } from 'react'
 import { useNavigate } from 'react-router'
 import { useRoomListStore } from '../../features/room-list/store/roomListStore.js'
 
@@ -53,8 +53,10 @@ export function useKeyboardShortcuts(): void {
             : (currentIdx - 1 + rooms.length) % rooms.length
         const nextRoom = rooms[nextIdx]
         if (nextRoom) {
-          setSelectedRoom(nextRoom.roomId)
-          navigate(`/rooms/${encodeURIComponent(nextRoom.roomId)}`)
+          startTransition(() => {
+            setSelectedRoom(nextRoom.roomId)
+            navigate(`/rooms/${encodeURIComponent(nextRoom.roomId)}`)
+          })
         }
       }
     }
