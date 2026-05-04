@@ -87,8 +87,6 @@ export function useRoom(roomId: string | undefined) {
     }
   }, [client, roomId])
 
-  console.log(`[RS ${performance.now().toFixed(0)}] useRoom compute: roomId=${roomId?.slice(0, 12) ?? 'none'}… → room=${room?.roomId.slice(0, 12) ?? 'null'}…`)
-
   return { room, loading: !room }
 }
 

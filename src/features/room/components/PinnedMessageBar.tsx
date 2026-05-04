@@ -48,11 +48,28 @@ interface PinnedMsg {
   sender: string
 }
 
+// Synchronously read the pinned ids from room state so we know whether to
+// reserve bar space on the very first render. Avoids the layout jerk where
+// the bar mounts ~100-300ms later, pushes the timeline down, and the top
+// of the viewport visibly scrolls up.
+function readPinnedIdsSync(client: import('matrix-js-sdk').MatrixClient | null, roomId: string): string[] {
+  if (!client) return []
+  const room = client.getRoom(roomId)
+  if (!room) return []
+  const pinEvent = room.currentState.getStateEvents('m.room.pinned_events', '')
+  return (pinEvent?.getContent()?.pinned as string[]) || []
+}
+
 export function PinnedMessageBar({ roomId }: PinnedMessageBarProps) {
   const client = useMatrixClient()
   const { scrollToEvent } = useTimelineScroll()
   const [currentIndex, setCurrentIndex] = useState(0)
-  const [pinnedMessages, setPinnedMessages] = useState<PinnedMsg[]>([])
+  // Seed with one placeholder per known pinned id so the bar's height is
+  // stable from the first frame; details (sender/body) fill in once
+  // resolveEvent finishes for each.
+  const [pinnedMessages, setPinnedMessages] = useState<PinnedMsg[]>(() =>
+    readPinnedIdsSync(client, roomId).map((eventId) => ({ eventId, body: '', sender: '' })),
+  )
   const [navigating, setNavigating] = useState(false)
 
   const loadPinned = useCallback(async () => {

@@ -21,9 +21,7 @@ export default function RoomView() {
   const { roomId } = useParams<{ roomId: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
 
-  console.log(`[RS ${performance.now().toFixed(0)}] RoomView render: useParams.roomId=${roomId?.slice(0, 12) ?? 'none'}…`)
   const { room, loading } = useRoom(roomId)
-  console.log(`[RS ${performance.now().toFixed(0)}] RoomView useRoom → room=${room?.roomId.slice(0, 12) ?? 'null'}… loading=${loading}`)
   const { uploadFiles } = useMediaUpload(roomId ?? '')
   const focusEventId = searchParams.get('eventId') || undefined
   const [rightPanel, setRightPanel] = useState<RightPanel>(null)

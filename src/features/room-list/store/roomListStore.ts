@@ -36,10 +36,7 @@ export const useRoomListStore = create<RoomListState>((set, get) => ({
 
   setSearchQuery: (query) => set({ searchQuery: query }),
 
-  setSelectedRoom: (roomId) => {
-    console.log(`[RS ${performance.now().toFixed(0)}] store.setSelectedRoom → ${roomId?.slice(0, 12) ?? 'null'}…`)
-    set({ selectedRoomId: roomId })
-  },
+  setSelectedRoom: (roomId) => set({ selectedRoomId: roomId }),
 
   setInitialLoading: (loading) => set({ initialLoading: loading }),
 

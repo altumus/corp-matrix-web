@@ -18,7 +18,12 @@ export const TimelineItem = memo(function TimelineItem({ event, showAvatar, isHi
     event.type === 'm.room.topic' ||
     event.type === 'm.room.avatar'
   ) {
-    return <SystemMessage event={event} />
+    // Wrap so scrollToEvent can locate state events too via their wrapper.
+    return (
+      <div data-event-id={event.eventId}>
+        <SystemMessage event={event} />
+      </div>
+    )
   }
 
   const cls = [
@@ -27,7 +32,7 @@ export const TimelineItem = memo(function TimelineItem({ event, showAvatar, isHi
   ].filter(Boolean).join(' ')
 
   return (
-    <div className={cls}>
+    <div className={cls} data-event-id={event.eventId}>
       <MessageBubble event={event} showAvatar={showAvatar} isHighlighted={isHighlighted} />
     </div>
   )

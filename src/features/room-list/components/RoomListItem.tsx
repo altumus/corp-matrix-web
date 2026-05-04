@@ -138,14 +138,11 @@ export function RoomListItem({ room }: RoomListItemProps) {
       }
     }
 
-    const t0 = performance.now()
-    console.log(`[RS ${t0.toFixed(0)}] click → ${room.roomId.slice(0, 12)}… (mention=${!!mentionEventId})`)
     // Atomic commit: Zustand setSelectedRoom is urgent, while data-router
     // navigate runs inside startTransition. Without bundling them together
     // the highlight flips immediately but the route render lags behind any
     // urgent updates (matrix sync, etc.), so the old room view stays visible.
     startTransition(() => {
-      console.log(`[RS ${performance.now().toFixed(0)}] startTransition body running (Δ${(performance.now() - t0).toFixed(0)}ms)`)
       setSelectedRoom(room.roomId)
       if (mentionEventId) {
         navigate(`/rooms/${encodeURIComponent(room.roomId)}?eventId=${encodeURIComponent(mentionEventId)}`)

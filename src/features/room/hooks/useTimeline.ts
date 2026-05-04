@@ -279,12 +279,10 @@ export function useTimeline(roomId: string, isAtBottomRef?: React.RefObject<bool
   const [events, setEvents] = useState<TimelineEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [paginating, setPaginating] = useState(false)
-  const [prependCount, setPrependCount] = useState(0)
   const roomRef = useRef<Room | null>(null)
   const paginatingRef = useRef(false)
   const activeRoomIdRef = useRef(roomId)
   const prevEventIdsRef = useRef('')
-  const prevFirstIdRef = useRef<string | null>(null)
   const decryptDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const receiptDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const graceExpiryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -296,21 +294,18 @@ export function useTimeline(roomId: string, isAtBottomRef?: React.RefObject<bool
   // the SDK cache so revisits render messages immediately instead of flashing
   // a spinner while the post-paint effect runs.
   if (roomId !== prevRoomId) {
-    console.log(`[RS ${performance.now().toFixed(0)}] useTimeline resync: ${prevRoomId?.slice(0, 12)}… → ${roomId.slice(0, 12)}… (cached events=${client?.getRoom(roomId) ? collectEvents(client.getRoom(roomId)!).length : 0})`)
     setPrevRoomId(roomId)
     const room = client?.getRoom(roomId) ?? null
     const cached = room ? collectEvents(room) : []
     setEvents(cached)
-    // Keep the spinner up if we'd have to backfill anyway. Showing 4 cached
-    // events for ~500ms and then snapping to 30+ as pagination resolves is
-    // the visible "jump" people complain about. The post-mount effect will
-    // flip loading=false once the timeline is filled and decrypted.
+    // Keep the spinner up if we'd have to backfill anyway. Showing a few
+    // cached events and then snapping to 30+ as pagination resolves is the
+    // visible "jump" people complain about. The post-mount effect flips
+    // loading=false once the timeline is filled and decrypted.
     const SHOW_CACHED_THRESHOLD = 30
     setLoading(cached.length < SHOW_CACHED_THRESHOLD)
-    setPrependCount(0)
     roomRef.current = room
     activeRoomIdRef.current = roomId
-    prevFirstIdRef.current = cached[0]?.eventId ?? null
     prevEventIdsRef.current = cached.map((e) => e.eventId).join(',')
     paginatingRef.current = false
   }
@@ -323,20 +318,6 @@ export function useTimeline(roomId: string, isAtBottomRef?: React.RefObject<bool
     const newIds = newEvents.map((e) => e.eventId).join(',')
     if (newIds === prevEventIdsRef.current) return
     prevEventIdsRef.current = newIds
-
-    if (newEvents.length > 0 && prevFirstIdRef.current !== null) {
-      const newFirstId = newEvents[0].eventId
-      if (newFirstId !== prevFirstIdRef.current) {
-        const oldIdx = newEvents.findIndex((e) => e.eventId === prevFirstIdRef.current)
-        if (oldIdx > 0) {
-          setPrependCount((prev) => prev + oldIdx)
-        }
-      }
-    }
-
-    if (newEvents.length > 0) {
-      prevFirstIdRef.current = newEvents[0].eventId
-    }
 
     setEvents(newEvents)
 
@@ -395,8 +376,6 @@ export function useTimeline(roomId: string, isAtBottomRef?: React.RefObject<bool
     const room = client.getRoom(roomId)
     if (!room) return
 
-    console.log(`[RS ${performance.now().toFixed(0)}] useTimeline effect mounted for ${roomId.slice(0, 12)}…`)
-
     // Per-mount cancellation flag. activeRoomIdRef alone is insufficient:
     // on A→B→A it goes back to A and lets stale requests from the FIRST
     // mount write state into the SECOND mount, which intermittently flips
@@ -430,6 +409,9 @@ export function useTimeline(roomId: string, isAtBottomRef?: React.RefObject<bool
       graceExpiryTimerRef.current = setTimeout(() => {
         graceExpiryTimerRef.current = null
         if (cancelled) return
+        // Same reasoning as onDecrypted: don't punch a partial refresh
+        // into the middle of an active paginate loop.
+        if (paginatingRef.current) return
         eventCache.delete(room)
         prevEventIdsRef.current = ''
         refreshEvents()
@@ -443,17 +425,14 @@ export function useTimeline(roomId: string, isAtBottomRef?: React.RefObject<bool
 
     const timeline = room.getLiveTimeline()
     const finishLoading = async () => {
-      // Backfill enough history to fill Virtuoso's overscan window before
-      // the first paint. Without this, a room with only a few cached events
-      // mounts at events.length=4 → Virtuoso's increaseViewportBy=1500 means
-      // the entire content fits in the buffered area, startReached fires on
-      // the first layout pass, paginateBack runs, items appear above, and
-      // the user sees the visible "jump" from 4 → 19 → 27 events.
+      // Backfill enough history before first paint so the user lands on a
+      // populated timeline rather than seeing a few cached events jump to
+      // many a moment later.
       const MIN_INITIAL_EVENTS = 30
       const MAX_INITIAL_PAGINATIONS = 3
       // Block user-triggered paginateBack while the initial backfill runs;
-      // Virtuoso may fire startReached on first layout and we don't want a
-      // second concurrent pagination racing with this one.
+      // a layout-driven scroll-near-top could race a second concurrent
+      // pagination otherwise.
       paginatingRef.current = true
       try {
         for (let i = 0; i < MAX_INITIAL_PAGINATIONS; i++) {
@@ -482,7 +461,9 @@ export function useTimeline(roomId: string, isAtBottomRef?: React.RefObject<bool
       // Re-collect after decryption so any newly-decrypted events get mapped
       // with their real content instead of the encrypted placeholder.
       eventCache.delete(room)
-      setEvents(collectEvents(room))
+      const finalEvents = collectEvents(room)
+      prevEventIdsRef.current = finalEvents.map((e) => e.eventId).join(',')
+      setEvents(finalEvents)
       setLoading(false)
     }
     finishLoading()
@@ -490,9 +471,15 @@ export function useTimeline(roomId: string, isAtBottomRef?: React.RefObject<bool
     // RoomEvent.Timeline is a CLIENT-level event — it fires for every room.
     // Filter to the active room before doing any work; otherwise unrelated
     // sync traffic causes refreshEvents/sendReadReceipt to run pointlessly.
+    //
+    // Also bail out while a backward-pagination is in flight: each of the
+    // ~100 fetched events fires this listener and a per-event refreshEvents
+    // would trigger N separate setEvents cycles. The pagination caller does
+    // a single bulk refreshEvents after the await completes.
     const onTimelineEvent = (_event: MatrixEvent, evRoom: Room | undefined) => {
       if (cancelled) return
       if (!evRoom || evRoom.roomId !== activeRoomIdRef.current) return
+      if (paginatingRef.current) return
       prevEventIdsRef.current = ''
       refreshEvents()
       // Only mark as read if user is scrolled to the bottom (can see new messages)
@@ -503,6 +490,7 @@ export function useTimeline(roomId: string, isAtBottomRef?: React.RefObject<bool
     const onRedaction = (_event: MatrixEvent, evRoom: Room | undefined) => {
       if (cancelled) return
       if (!evRoom || evRoom.roomId !== activeRoomIdRef.current) return
+      if (paginatingRef.current) return
       prevEventIdsRef.current = ''
       refreshEvents()
     }
@@ -518,6 +506,12 @@ export function useTimeline(roomId: string, isAtBottomRef?: React.RefObject<bool
       decryptDebounceRef.current = setTimeout(() => {
         decryptDebounceRef.current = null
         if (cancelled) return
+        // Skip during active pagination — the multi-step paginate loop
+        // will refresh once at the end. A mid-loop refresh would commit
+        // a partial event list and consume our prepend-effect's
+        // captured height/top, leaving the rest of the loop's items
+        // un-anchored (visible as a discrete scroll jump).
+        if (paginatingRef.current) return
         prevEventIdsRef.current = ''
         refreshEvents()
       }, 100)
@@ -528,7 +522,6 @@ export function useTimeline(roomId: string, isAtBottomRef?: React.RefObject<bool
     client.on(MatrixEventEvent.Decrypted, onDecrypted)
 
     return () => {
-      console.log(`[RS ${performance.now().toFixed(0)}] useTimeline effect cleanup for ${roomId.slice(0, 12)}…`)
       cancelled = true
       if (decryptDebounceRef.current) {
         clearTimeout(decryptDebounceRef.current)
@@ -559,22 +552,60 @@ export function useTimeline(roomId: string, isAtBottomRef?: React.RefObject<bool
     if (!token) return
 
     const startedRoomId = room.roomId
+    const beforeCount = collectEvents(room).length
     paginatingRef.current = true
     setPaginating(true)
+    // collectEvents drops state changes, edits, redactions, and thread
+    // replies. A single 100-event paginate request can return mostly such
+    // filtered events, leaving the user with only a handful of new
+    // displayable messages — and back inside the near-top trigger zone
+    // immediately after the restore. We loop until enough displayable
+    // events are added (or we run out of history / hit the attempt cap)
+    // so each user-triggered paginate is one substantial step.
+    const MIN_ADDED_EVENTS = 15
+    const MAX_PAGINATIONS_PER_TRIGGER = 5
     try {
-      await client.paginateEventTimeline(timeline, { backwards: true, limit: 100 })
-      if (activeRoomIdRef.current === startedRoomId) {
-        setEvents(collectEvents(room))
+      let attempts = 0
+      while (attempts < MAX_PAGINATIONS_PER_TRIGGER) {
+        attempts++
+        if (!timeline.getPaginationToken(Direction.Backward)) break
+        try {
+          await client.paginateEventTimeline(timeline, { backwards: true, limit: 100 })
+        } catch {
+          break
+        }
+        if (activeRoomIdRef.current !== startedRoomId) break
+        const totalAdded = collectEvents(room).length - beforeCount
+        if (totalAdded >= MIN_ADDED_EVENTS) break
       }
-    } catch {
-      // pagination failed
+      if (activeRoomIdRef.current === startedRoomId) {
+        // Eagerly decrypt the newly-fetched encrypted events before
+        // refreshEvents commits them. Otherwise they paint as small
+        // "decrypting…" placeholders, then the post-commit decryption
+        // listener flushes ~100ms later with real bodies — height grows
+        // by hundreds of pixels and the user sees a delayed jerk *after*
+        // the prepend-effect already settled. Capped at 1.5s in case keys
+        // are missing.
+        try {
+          await decryptVisibleEvents(client, room, 1500)
+        } catch { /* timeout/no-op */ }
+        if (activeRoomIdRef.current !== startedRoomId) return
+        // Re-collect after decryption so we map with real content.
+        eventCache.delete(room)
+        // Single bulk update for the whole batch. The Timeline-event
+        // listener was silenced for the duration of the await so each
+        // fetched event didn't re-run refreshEvents; this one call after
+        // the fact replaces ~100 listener-driven refreshes.
+        prevEventIdsRef.current = ''
+        refreshEvents()
+      }
     } finally {
       if (activeRoomIdRef.current === startedRoomId) {
         paginatingRef.current = false
         setPaginating(false)
       }
     }
-  }, [client])
+  }, [client, refreshEvents])
 
-  return { events, loading, paginating, paginateBack, prependCount }
+  return { events, loading, paginating, paginateBack }
 }

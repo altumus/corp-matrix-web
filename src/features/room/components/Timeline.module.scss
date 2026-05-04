@@ -2,15 +2,37 @@
 
 .container {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  position: relative;
   overflow: hidden;
-  animation: fadeIn 150ms ease-in;
+}
+
+.scroller {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  // Browser-native scroll anchoring for in-viewport content shifts (avatar
+  // arriving, reaction appearing). Our own scrollTop math handles prepend
+  // where the anchor candidate would no longer exist.
+  overflow-anchor: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 
   @include scrollbar;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+.content {
+  // Lives as the only child of .scroller so the ResizeObserver target is
+  // distinct from the scroll viewport. Push items to the bottom for
+  // small/empty rooms — Telegram-style at-bottom anchoring rather than
+  // floating at the top.
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  justify-content: flex-end;
 }
 
 .loading,
@@ -23,7 +45,23 @@
 }
 
 .paginationLoader {
+  // Float over the top of the scroller without taking layout space. If
+  // the loader were a flow child of `.content`, its appearance would
+  // grow scrollHeight by ~50px and the prepend-effect's height-delta
+  // math would be off by that amount once the loader is removed at
+  // commit time, producing a small but visible scroll jerk.
+  position: absolute;
+  top: var(--spacing-sm);
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
+  align-items: center;
   justify-content: center;
-  padding: var(--spacing-lg);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg-elevated, var(--color-bg-secondary));
+  border-radius: var(--radius-full);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  z-index: 10;
+  pointer-events: none;
+  overflow-anchor: none;
 }
