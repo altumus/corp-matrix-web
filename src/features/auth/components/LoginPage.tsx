@@ -135,6 +135,8 @@ export default function LoginPage() {
         {t('auth.noAccount')}{' '}
         <Link to="/register">{t('auth.register')}</Link>
       </p>
+
+      <p className={styles.version}>v{__APP_VERSION__}</p>
     </form>
   )
 }
